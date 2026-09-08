@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { KnowledgeData, KnowledgeNode } from '../types/knowledge'
-import { createStarfield } from './Starfield'
+import { createGalaxyBand, createStarfield } from './Starfield'
 
 type Props = {
   data: KnowledgeData
@@ -251,19 +251,22 @@ export default function KnowledgeGraph3D({
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
     scene.add(light)
-    const deepGalaxy = createStarfield({ count: 2800, radiusMin: 96, radiusMax: 235, size: 0.036, opacity: 0.48, drift: 0.00005, twinkle: 0.34, occasional: 0.045, banded: true })
-    const farStars = createStarfield({ count: 2200, radiusMin: 82, radiusMax: 198, size: 0.046, opacity: 0.52, drift: 0.00008, twinkle: 0.34, occasional: 0.055, banded: true })
-    const midStars = createStarfield({ count: 1050, radiusMin: 42, radiusMax: 112, size: 0.082, opacity: 0.56, drift: -0.00013, twinkle: 0.2, occasional: 0.032, banded: true })
+    const deepDust = createStarfield({ count: 4200, radiusMin: 118, radiusMax: 270, size: 0.028, opacity: 0.42, drift: 0.000025, twinkle: 0.22, occasional: 0.025, banded: true })
+    const galaxyBand = createGalaxyBand({ count: 5200, width: 18, length: 150, depth: 145, size: 0.044, opacity: 0.52, drift: -0.000035 })
+    const farStars = createStarfield({ count: 2400, radiusMin: 82, radiusMax: 205, size: 0.044, opacity: 0.5, drift: 0.00007, twinkle: 0.36, occasional: 0.06, banded: true })
+    const midStars = createStarfield({ count: 1250, radiusMin: 42, radiusMax: 116, size: 0.08, opacity: 0.55, drift: -0.00013, twinkle: 0.24, occasional: 0.04, banded: true })
     const nearDust = createStarfield({ count: 320, radiusMin: 24, radiusMax: 66, size: 0.05, opacity: 0.2, drift: 0.0002, twinkle: 0.08, occasional: 0.008 })
-    starfieldsRef.current = [deepGalaxy, farStars, midStars, nearDust]
+    starfieldsRef.current = [deepDust, galaxyBand, farStars, midStars, nearDust]
     starfieldsRef.current.forEach((field) => scene.add(field))
     const nebulaLayer = [
       { color: 0x27456f, opacity: 0.09, position: [-30, 12, -72], scale: [52, 28, 1] },
       { color: 0x3b527d, opacity: 0.065, position: [34, -8, -84], scale: [46, 24, 1] },
       { color: 0x2f4068, opacity: 0.055, position: [-4, -24, -96], scale: [62, 30, 1] },
       { color: 0x496082, opacity: 0.045, position: [4, 28, -118], scale: [70, 34, 1] },
-      { color: 0x516f96, opacity: 0.042, position: [-18, -2, -132], scale: [96, 18, 1] },
-      { color: 0x345d87, opacity: 0.034, position: [22, 10, -150], scale: [112, 16, 1] },
+      { color: 0x516f96, opacity: 0.052, position: [-18, -2, -132], scale: [112, 20, 1] },
+      { color: 0x345d87, opacity: 0.044, position: [22, 10, -150], scale: [128, 18, 1] },
+      { color: 0x5a4f86, opacity: 0.034, position: [-44, -18, -156], scale: [54, 26, 1] },
+      { color: 0x2d6d8d, opacity: 0.03, position: [48, 24, -172], scale: [64, 28, 1] },
     ].map((item, index) => {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
@@ -294,7 +297,7 @@ export default function KnowledgeGraph3D({
       group.rotation.y += 0.00085
       const activeGesture = gestureControlRef.current
       if (activeGesture?.activeGesture === 'rotate') {
-        group.rotation.y += THREE.MathUtils.clamp(activeGesture.rotateDelta.x * 4.2, -0.045, 0.045)
+        group.rotation.y += THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045)
         group.rotation.x += THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035)
       } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
         const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
@@ -304,7 +307,7 @@ export default function KnowledgeGraph3D({
         panCameraView(
           camera,
           cameraTargetRef.current,
-          THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * 760,
+          THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * -760,
           THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
           targetDistance * 0.0017,
         )
