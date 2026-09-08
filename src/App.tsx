@@ -41,6 +41,7 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
   }).join(' ')
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | undefined
+const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 
 function HandEnergyOverlay({
   hands,
@@ -160,6 +161,8 @@ export default function App() {
   const gestureMachineRef = useRef(new GestureStateMachine())
   const idleTimerRef = useRef<number | undefined>(undefined)
   const selectionSourceRef = useRef<SelectionSource>(undefined)
+  const selectedIdRef = useRef<string | undefined>(undefined)
+  const selectSoundRef = useRef<HTMLAudioElement | undefined>(undefined)
   const pointerWasActiveRef = useRef(false)
 
   const selected = data.nodes.find((node) => node.id === selectedId)
@@ -178,6 +181,15 @@ export default function App() {
     setSelectionSource(undefined)
   }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
+    if (selectedIdRef.current !== node.id) {
+      const audio = selectSoundRef.current
+      if (audio) {
+        audio.currentTime = 0
+        audio.play().catch((error: unknown) => {
+          console.debug('Select sound playback was blocked or interrupted.', error)
+        })
+      }
+    }
     setSelectedId(node.id)
     setFocusId(node.id)
     setSelectionSource(source)
@@ -195,6 +207,21 @@ export default function App() {
   useEffect(() => {
     selectionSourceRef.current = selectionSource
   }, [selectionSource])
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId
+  }, [selectedId])
+
+  useEffect(() => {
+    const audio = new Audio(SELECT_SOUND_URL)
+    audio.preload = 'auto'
+    audio.volume = 0.58
+    selectSoundRef.current = audio
+    return () => {
+      audio.pause()
+      selectSoundRef.current = undefined
+    }
+  }, [])
 
   useEffect(() => {
     const pointerActive = gestureStatus.activeGesture === 'pointer'
@@ -334,7 +361,12 @@ export default function App() {
         </div>
         <section className="search-panel">
           <div className="search-box">
-            <span className="search-icon" aria-hidden="true" />
+            <span className="search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="10.5" cy="10.5" r="5.7" />
+                <path d="M15.2 15.2L20 20" />
+              </svg>
+            </span>
             <input
               aria-label="搜尋節點"
               placeholder="探索"

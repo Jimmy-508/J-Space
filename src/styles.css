@@ -156,30 +156,25 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
   width: 24px;
   height: 100%;
-  border: 0;
+  color: #44617f;
 }
 
-.search-icon::before {
-  width: 15px;
-  height: 15px;
-  content: "";
-  border: 2px solid #44617f;
-  border-radius: 999px;
+.search-icon svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  overflow: visible;
 }
 
-.search-icon::after {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 7px;
-  height: 2px;
-  content: "";
-  background: #44617f;
-  border-radius: 999px;
-  transform: translate(4px, 5px) rotate(45deg);
+.search-icon circle,
+.search-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .search-box input {
