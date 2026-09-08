@@ -254,6 +254,7 @@ export default function KnowledgeGraph3D({
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
   const nebulaRef = useRef<THREE.Sprite[]>([])
+  const backgroundFlaresRef = useRef<THREE.Sprite[]>([])
   const selectedEffectsRef = useRef<THREE.Object3D[]>([])
   const contentMarkersRef = useRef<THREE.Object3D[]>([])
   const coreEffectsRef = useRef<THREE.Object3D[]>([])
@@ -316,24 +317,25 @@ export default function KnowledgeGraph3D({
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
     scene.add(light)
-    const deepDust = createStarfield({ count: 6200, radiusMin: 118, radiusMax: 285, size: 0.026, opacity: 0.46, drift: 0.000025, twinkle: 0.26, occasional: 0.035, banded: true })
-    const galaxyBand = createGalaxyBand({ count: 8800, width: 27, length: 170, depth: 150, size: 0.058, opacity: 0.72, drift: -0.000035 })
-    const farStars = createStarfield({ count: 3200, radiusMin: 82, radiusMax: 215, size: 0.05, opacity: 0.58, drift: 0.00007, twinkle: 0.42, occasional: 0.09, banded: true })
-    const visibleStars = createBrightStarfield({ count: 2800, radiusMin: 68, radiusMax: 190, size: 0.074, opacity: 0.72, drift: 0.000095 })
-    const midStars = createStarfield({ count: 1500, radiusMin: 42, radiusMax: 122, size: 0.09, opacity: 0.6, drift: -0.00013, twinkle: 0.3, occasional: 0.065, banded: true })
-    const brightStars = createBrightStarfield({ count: 420, radiusMin: 50, radiusMax: 168, size: 0.16, opacity: 0.82, drift: -0.000055, bright: true })
-    const nearDust = createStarfield({ count: 420, radiusMin: 24, radiusMax: 68, size: 0.052, opacity: 0.24, drift: 0.0002, twinkle: 0.12, occasional: 0.018 })
+    const pointScale = mount.clientWidth < 760 ? 1.35 : 1.08
+    const deepDust = createStarfield({ count: 6200, radiusMin: 118, radiusMax: 285, size: 0.9 * pointScale, opacity: 0.58, drift: 0.000025, twinkle: 0.3, occasional: 0.045, banded: true, screenSized: true })
+    const galaxyBand = createGalaxyBand({ count: 9200, width: 32, length: 178, depth: 150, size: 1.45 * pointScale, opacity: 0.9, drift: -0.000035 })
+    const farStars = createStarfield({ count: 3400, radiusMin: 82, radiusMax: 215, size: 1.16 * pointScale, opacity: 0.72, drift: 0.00007, twinkle: 0.48, occasional: 0.12, banded: true, glow: true, screenSized: true })
+    const visibleStars = createBrightStarfield({ count: 3200, radiusMin: 68, radiusMax: 190, size: 2.25 * pointScale, opacity: 0.88, drift: 0.000095 })
+    const midStars = createStarfield({ count: 1700, radiusMin: 42, radiusMax: 122, size: 1.68 * pointScale, opacity: 0.76, drift: -0.00013, twinkle: 0.38, occasional: 0.1, banded: true, glow: true, screenSized: true })
+    const brightStars = createBrightStarfield({ count: 560, radiusMin: 50, radiusMax: 168, size: 4.2 * pointScale, opacity: 0.95, drift: -0.000055, bright: true })
+    const nearDust = createStarfield({ count: 520, radiusMin: 24, radiusMax: 68, size: 1.24 * pointScale, opacity: 0.32, drift: 0.0002, twinkle: 0.18, occasional: 0.035, glow: true, screenSized: true })
     starfieldsRef.current = [deepDust, galaxyBand, farStars, visibleStars, midStars, brightStars, nearDust]
     starfieldsRef.current.forEach((field) => scene.add(field))
     const nebulaLayer = [
-      { color: 0x27456f, opacity: 0.12, position: [-30, 12, -72], scale: [56, 30, 1] },
-      { color: 0x3b527d, opacity: 0.086, position: [34, -8, -84], scale: [50, 25, 1] },
-      { color: 0x2f4068, opacity: 0.074, position: [-4, -24, -96], scale: [66, 32, 1] },
-      { color: 0x496082, opacity: 0.06, position: [4, 28, -118], scale: [76, 36, 1] },
-      { color: 0x516f96, opacity: 0.08, position: [-18, -2, -132], scale: [132, 24, 1] },
-      { color: 0x345d87, opacity: 0.067, position: [22, 10, -150], scale: [148, 22, 1] },
-      { color: 0x5a4f86, opacity: 0.048, position: [-44, -18, -156], scale: [58, 28, 1] },
-      { color: 0x2d6d8d, opacity: 0.044, position: [48, 24, -172], scale: [70, 30, 1] },
+      { color: 0x27456f, opacity: 0.16, position: [-30, 12, -72], scale: [60, 32, 1] },
+      { color: 0x3b527d, opacity: 0.12, position: [34, -8, -84], scale: [54, 28, 1] },
+      { color: 0x2f4068, opacity: 0.105, position: [-4, -24, -96], scale: [72, 36, 1] },
+      { color: 0x496082, opacity: 0.088, position: [4, 28, -118], scale: [84, 40, 1] },
+      { color: 0x516f96, opacity: 0.14, position: [-18, -2, -132], scale: [152, 32, 1] },
+      { color: 0x345d87, opacity: 0.115, position: [22, 10, -150], scale: [168, 28, 1] },
+      { color: 0x5a4f86, opacity: 0.068, position: [-44, -18, -156], scale: [64, 32, 1] },
+      { color: 0x2d6d8d, opacity: 0.06, position: [48, 24, -172], scale: [76, 34, 1] },
     ].map((item, index) => {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
@@ -342,6 +344,7 @@ export default function KnowledgeGraph3D({
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
+        fog: false,
       }))
       sprite.position.set(item.position[0], item.position[1], item.position[2])
       sprite.scale.set(item.scale[0], item.scale[1], item.scale[2])
@@ -350,6 +353,37 @@ export default function KnowledgeGraph3D({
       return sprite
     })
     nebulaRef.current = nebulaLayer
+    const distantFlares = Array.from({ length: mount.clientWidth < 760 ? 18 : 24 }, (_, index) => {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: starFlareTexture,
+        color: index % 5 === 0 ? 0xf1f7ff : 0xbfd8ff,
+        opacity: 0.16 + Math.random() * 0.16,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+      }))
+      const radius = 58 + Math.random() * 118
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.PI * (0.32 + Math.random() * 0.38)
+      sprite.position.set(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.sin(phi) * Math.sin(theta),
+        -70 - Math.random() * 142,
+      )
+      const scale = (1.2 + Math.random() * 1.5) * (mount.clientWidth < 760 ? 1.16 : 1)
+      sprite.scale.setScalar(scale)
+      sprite.userData = {
+        baseScale: scale,
+        baseOpacity: 0.12 + Math.random() * 0.16,
+        opacityRange: 0.08 + Math.random() * 0.12,
+        speed: 0.24 + Math.random() * 0.72,
+        phase: Math.random() * Math.PI * 2,
+      }
+      scene.add(sprite)
+      return sprite
+    })
+    backgroundFlaresRef.current = distantFlares
     const group = new THREE.Group()
     scene.add(group)
     const dwellFeedback = new THREE.Mesh(
@@ -450,6 +484,14 @@ export default function KnowledgeGraph3D({
         sprite.material.opacity = sprite.userData.baseOpacity + Math.sin(time * 0.18 + sprite.userData.phase) * 0.018
         sprite.material.rotation += sprite.userData.drift
         sprite.position.x += Math.sin(time * 0.08 + index) * 0.0012
+      })
+      backgroundFlaresRef.current.forEach((sprite, index) => {
+        const material = sprite.material as THREE.SpriteMaterial
+        const shimmer = Math.sin(time * sprite.userData.speed + sprite.userData.phase) * 0.5 + 0.5
+        const rarePulse = Math.max(0, Math.sin(time * 0.34 + index * 2.1)) ** 7
+        material.opacity = sprite.userData.baseOpacity + shimmer * sprite.userData.opacityRange + rarePulse * 0.18
+        material.rotation += index % 2 === 0 ? 0.00045 : -0.00032
+        sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))
       })
       linkObjectsRef.current.forEach((object, index) => {
         const age = Math.max(0, time - (object.userData.createdAt ?? time))

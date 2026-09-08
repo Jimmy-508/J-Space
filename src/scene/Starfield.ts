@@ -10,6 +10,8 @@ type StarfieldOptions = {
   twinkle: number
   occasional: number
   banded?: boolean
+  glow?: boolean
+  screenSized?: boolean
 }
 
 type GalaxyBandOptions = {
@@ -20,6 +22,8 @@ type GalaxyBandOptions = {
   size: number
   opacity: number
   drift: number
+  glow?: boolean
+  screenSized?: boolean
 }
 
 type BrightStarfieldOptions = {
@@ -30,6 +34,31 @@ type BrightStarfieldOptions = {
   opacity: number
   drift: number
   bright?: boolean
+  screenSized?: boolean
+}
+
+let starGlowTexture: THREE.CanvasTexture | undefined
+
+const getStarGlowTexture = () => {
+  if (starGlowTexture) return starGlowTexture
+  const canvas = document.createElement('canvas')
+  canvas.width = 96
+  canvas.height = 96
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    starGlowTexture = new THREE.CanvasTexture(canvas)
+    return starGlowTexture
+  }
+  const gradient = ctx.createRadialGradient(48, 48, 0, 48, 48, 48)
+  gradient.addColorStop(0, 'rgba(255,255,255,1)')
+  gradient.addColorStop(0.16, 'rgba(226,240,255,0.92)')
+  gradient.addColorStop(0.42, 'rgba(159,196,255,0.36)')
+  gradient.addColorStop(1, 'rgba(159,196,255,0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, 96, 96)
+  starGlowTexture = new THREE.CanvasTexture(canvas)
+  starGlowTexture.minFilter = THREE.LinearFilter
+  return starGlowTexture
 }
 
 const gaussian = () => {
@@ -38,7 +67,7 @@ const gaussian = () => {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
 }
 
-export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift, twinkle, occasional, banded = false }: StarfieldOptions) => {
+export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift, twinkle, occasional, banded = false, glow = false, screenSized = false }: StarfieldOptions) => {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(count * 3)
   const colors = new Float32Array(count * 3)
@@ -69,11 +98,11 @@ export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, dr
     positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
     positions[i * 3 + 2] = radius * Math.cos(phi)
     const warmth = Math.random() * 0.18
-    const depth = radiusMax > 120 ? 0.78 + Math.random() * 0.32 : 0.9 + Math.random() * 0.22
-    const highlight = Math.random() < occasional ? 1.25 + Math.random() * 0.55 : 1
-    baseColors[i * 3] = (0.5 + warmth) * highlight * depth
-    baseColors[i * 3 + 1] = (0.66 + warmth) * highlight * depth
-    baseColors[i * 3 + 2] = 0.96 * highlight * depth
+    const depth = radiusMax > 120 ? 0.9 + Math.random() * 0.42 : 1.05 + Math.random() * 0.32
+    const highlight = Math.random() < occasional ? 1.55 + Math.random() * 0.9 : 1
+    baseColors[i * 3] = (0.64 + warmth) * highlight * depth
+    baseColors[i * 3 + 1] = (0.78 + warmth) * highlight * depth
+    baseColors[i * 3 + 2] = 1.12 * highlight * depth
     colors[i * 3] = baseColors[i * 3]
     colors[i * 3 + 1] = baseColors[i * 3 + 1]
     colors[i * 3 + 2] = baseColors[i * 3 + 2]
@@ -88,11 +117,15 @@ export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, dr
   geometry.userData.speeds = speeds
   geometry.userData.twinkleAmounts = twinkleAmounts
   const material = new THREE.PointsMaterial({
+    map: glow ? getStarGlowTexture() : undefined,
     size,
     vertexColors: true,
     transparent: true,
     opacity,
     depthWrite: false,
+    sizeAttenuation: !screenSized,
+    blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+    fog: false,
   })
   const field = new THREE.Points(geometry, material)
   field.userData.drift = drift
@@ -101,7 +134,7 @@ export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, dr
   return field
 }
 
-export const createBrightStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift, bright = false }: BrightStarfieldOptions) => {
+export const createBrightStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift, bright = false, screenSized = true }: BrightStarfieldOptions) => {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(count * 3)
   const colors = new Float32Array(count * 3)
@@ -133,19 +166,19 @@ export const createBrightStarfield = ({ count, radiusMin, radiusMax, size, opaci
 
     const pulseStar = bright ? Math.random() < 0.22 : Math.random() < 0.08
     const warmth = Math.random() * 0.12
-    const base = bright ? 1.05 + Math.random() * 0.55 : 0.72 + Math.random() * 0.48
-    const highlight = pulseStar ? 1.35 + Math.random() * 0.75 : 1
-    baseColors[i * 3] = (0.72 + warmth) * base * highlight
-    baseColors[i * 3 + 1] = (0.84 + warmth) * base * highlight
-    baseColors[i * 3 + 2] = 1.08 * base * highlight
+    const base = bright ? 1.45 + Math.random() * 0.75 : 1.04 + Math.random() * 0.56
+    const highlight = pulseStar ? 1.65 + Math.random() * 0.95 : 1
+    baseColors[i * 3] = (0.86 + warmth) * base * highlight
+    baseColors[i * 3 + 1] = (0.94 + warmth) * base * highlight
+    baseColors[i * 3 + 2] = 1.18 * base * highlight
     colors[i * 3] = baseColors[i * 3]
     colors[i * 3 + 1] = baseColors[i * 3 + 1]
     colors[i * 3 + 2] = baseColors[i * 3 + 2]
     phases[i] = Math.random() * Math.PI * 2
     speeds[i] = bright ? 0.16 + Math.random() * 0.7 : 0.12 + Math.random() * 0.5
     twinkleAmounts[i] = bright
-      ? (pulseStar ? 0.34 + Math.random() * 0.28 : 0.18 + Math.random() * 0.18)
-      : (pulseStar ? 0.24 + Math.random() * 0.22 : 0.1 + Math.random() * 0.15)
+      ? (pulseStar ? 0.58 + Math.random() * 0.34 : 0.28 + Math.random() * 0.24)
+      : (pulseStar ? 0.36 + Math.random() * 0.28 : 0.18 + Math.random() * 0.2)
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
@@ -155,11 +188,15 @@ export const createBrightStarfield = ({ count, radiusMin, radiusMax, size, opaci
   geometry.userData.speeds = speeds
   geometry.userData.twinkleAmounts = twinkleAmounts
   const material = new THREE.PointsMaterial({
+    map: getStarGlowTexture(),
     size,
     vertexColors: true,
     transparent: true,
     opacity,
     depthWrite: false,
+    sizeAttenuation: !screenSized,
+    blending: THREE.AdditiveBlending,
+    fog: false,
   })
   const field = new THREE.Points(geometry, material)
   field.userData.drift = drift
@@ -168,7 +205,7 @@ export const createBrightStarfield = ({ count, radiusMin, radiusMax, size, opaci
   return field
 }
 
-export const createGalaxyBand = ({ count, width, length, depth, size, opacity, drift }: GalaxyBandOptions) => {
+export const createGalaxyBand = ({ count, width, length, depth, size, opacity, drift, glow = true, screenSized = true }: GalaxyBandOptions) => {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(count * 3)
   const colors = new Float32Array(count * 3)
@@ -194,17 +231,17 @@ export const createGalaxyBand = ({ count, width, length, depth, size, opacity, d
     positions[i * 3 + 2] = z
 
     const coreDensity = Math.max(0, 1 - Math.abs(cross) / Math.max(1, localWidth * 2.5))
-    const highlight = Math.random() < 0.075 ? 1.45 + Math.random() * 0.7 : 1
-    const cool = 0.72 + coreDensity * 0.32
-    baseColors[i * 3] = 0.48 * cool * highlight
-    baseColors[i * 3 + 1] = 0.64 * cool * highlight
-    baseColors[i * 3 + 2] = 0.98 * cool * highlight
+    const highlight = Math.random() < 0.12 ? 1.7 + Math.random() * 1.05 : 1
+    const cool = 0.88 + coreDensity * 0.54
+    baseColors[i * 3] = 0.6 * cool * highlight
+    baseColors[i * 3 + 1] = 0.78 * cool * highlight
+    baseColors[i * 3 + 2] = 1.18 * cool * highlight
     colors[i * 3] = baseColors[i * 3]
     colors[i * 3 + 1] = baseColors[i * 3 + 1]
     colors[i * 3 + 2] = baseColors[i * 3 + 2]
     phases[i] = Math.random() * Math.PI * 2
-    speeds[i] = 0.1 + Math.random() * 0.42
-    twinkleAmounts[i] = 0.12 + coreDensity * 0.16 + Math.random() * 0.08
+    speeds[i] = 0.14 + Math.random() * 0.56
+    twinkleAmounts[i] = 0.2 + coreDensity * 0.22 + Math.random() * 0.12
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
@@ -214,11 +251,15 @@ export const createGalaxyBand = ({ count, width, length, depth, size, opacity, d
   geometry.userData.speeds = speeds
   geometry.userData.twinkleAmounts = twinkleAmounts
   const material = new THREE.PointsMaterial({
+    map: glow ? getStarGlowTexture() : undefined,
     size,
     vertexColors: true,
     transparent: true,
     opacity,
     depthWrite: false,
+    sizeAttenuation: !screenSized,
+    blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+    fog: false,
   })
   const field = new THREE.Points(geometry, material)
   field.userData.drift = drift
