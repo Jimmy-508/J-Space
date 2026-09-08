@@ -9,8 +9,9 @@ type Props = {
   hoveredId?: string
   focusId?: string
   gestureControl?: {
-    activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'rotate'
+    activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'rotate'
     zoomDelta: number
+    panDelta: { x: number; y: number }
     rotateDelta: { x: number; y: number }
   }
   onSelect: (node: KnowledgeNode) => void
@@ -55,6 +56,16 @@ const getTouchMetrics = (touches: React.TouchList) => {
   const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
   const midpoint = new THREE.Vector2((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
   return { distance, midpoint }
+}
+
+const panCameraView = (camera: THREE.PerspectiveCamera, target: THREE.Vector3, dx: number, dy: number, panScale: number) => {
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
+  const offset = new THREE.Vector3()
+    .addScaledVector(right, -dx * panScale)
+    .addScaledVector(up, dy * panScale)
+  target.add(offset)
+  camera.position.add(offset)
 }
 
 const createSoftDiscTexture = () => {
@@ -240,10 +251,11 @@ export default function KnowledgeGraph3D({
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
     scene.add(light)
-    const farStars = createStarfield({ count: 1100, radiusMin: 82, radiusMax: 190, size: 0.052, opacity: 0.56, drift: 0.00008, twinkle: 0.3, occasional: 0.04 })
-    const midStars = createStarfield({ count: 520, radiusMin: 42, radiusMax: 102, size: 0.092, opacity: 0.6, drift: -0.00013, twinkle: 0.16, occasional: 0.022 })
-    const nearDust = createStarfield({ count: 190, radiusMin: 24, radiusMax: 62, size: 0.052, opacity: 0.22, drift: 0.0002, twinkle: 0.06, occasional: 0.006 })
-    starfieldsRef.current = [farStars, midStars, nearDust]
+    const deepGalaxy = createStarfield({ count: 1750, radiusMin: 96, radiusMax: 225, size: 0.04, opacity: 0.5, drift: 0.00005, twinkle: 0.28, occasional: 0.035, banded: true })
+    const farStars = createStarfield({ count: 1450, radiusMin: 82, radiusMax: 190, size: 0.05, opacity: 0.54, drift: 0.00008, twinkle: 0.3, occasional: 0.045, banded: true })
+    const midStars = createStarfield({ count: 720, radiusMin: 42, radiusMax: 108, size: 0.088, opacity: 0.58, drift: -0.00013, twinkle: 0.16, occasional: 0.024, banded: true })
+    const nearDust = createStarfield({ count: 230, radiusMin: 24, radiusMax: 64, size: 0.052, opacity: 0.2, drift: 0.0002, twinkle: 0.06, occasional: 0.006 })
+    starfieldsRef.current = [deepGalaxy, farStars, midStars, nearDust]
     starfieldsRef.current.forEach((field) => scene.add(field))
     const nebulaLayer = [
       { color: 0x27456f, opacity: 0.09, position: [-30, 12, -72], scale: [52, 28, 1] },
@@ -285,6 +297,15 @@ export default function KnowledgeGraph3D({
       } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
         const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
         camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
+      } else if (activeGesture?.activeGesture === 'pan') {
+        const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
+        panCameraView(
+          camera,
+          cameraTargetRef.current,
+          THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.026, 0.026) * 520,
+          THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.026, 0.026) * 520,
+          targetDistance * 0.00155,
+        )
       }
       camera.lookAt(cameraTargetRef.current)
       starfieldsRef.current.forEach((field) => {

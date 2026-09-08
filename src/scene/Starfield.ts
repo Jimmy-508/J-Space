@@ -9,9 +9,10 @@ type StarfieldOptions = {
   drift: number
   twinkle: number
   occasional: number
+  banded?: boolean
 }
 
-export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift, twinkle, occasional }: StarfieldOptions) => {
+export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift, twinkle, occasional, banded = false }: StarfieldOptions) => {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(count * 3)
   const colors = new Float32Array(count * 3)
@@ -19,16 +20,31 @@ export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, dr
   const phases = new Float32Array(count)
   const speeds = new Float32Array(count)
   const twinkleAmounts = new Float32Array(count)
+  const clusterCenters = Array.from({ length: 5 }, (_, index) => ({
+    theta: (index / 5) * Math.PI * 2 + Math.random() * 0.9,
+    phi: Math.PI * (0.42 + Math.random() * 0.18),
+    spread: 0.18 + Math.random() * 0.22,
+  }))
   for (let i = 0; i < count; i += 1) {
     const radius = radiusMin + Math.random() * (radiusMax - radiusMin)
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.acos(2 * Math.random() - 1)
+    let theta = Math.random() * Math.PI * 2
+    let phi = Math.acos(2 * Math.random() - 1)
+    if (banded) {
+      if (Math.random() < 0.62) {
+        theta = Math.random() * Math.PI * 2
+        phi = Math.PI * 0.5 + (Math.random() - 0.5) * 0.34 + Math.sin(theta * 1.7) * 0.09
+      } else {
+        const cluster = clusterCenters[Math.floor(Math.random() * clusterCenters.length)]
+        theta = cluster.theta + (Math.random() - 0.5) * cluster.spread
+        phi = cluster.phi + (Math.random() - 0.5) * cluster.spread * 0.64
+      }
+    }
     positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
     positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
     positions[i * 3 + 2] = radius * Math.cos(phi)
     const warmth = Math.random() * 0.18
     const depth = radiusMax > 120 ? 0.78 + Math.random() * 0.32 : 0.9 + Math.random() * 0.22
-    const highlight = Math.random() < occasional ? 1.25 + Math.random() * 0.45 : 1
+    const highlight = Math.random() < occasional ? 1.25 + Math.random() * 0.55 : 1
     baseColors[i * 3] = (0.5 + warmth) * highlight * depth
     baseColors[i * 3 + 1] = (0.66 + warmth) * highlight * depth
     baseColors[i * 3 + 2] = 0.96 * highlight * depth
@@ -36,8 +52,8 @@ export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, dr
     colors[i * 3 + 1] = baseColors[i * 3 + 1]
     colors[i * 3 + 2] = baseColors[i * 3 + 2]
     phases[i] = Math.random() * Math.PI * 2
-    speeds[i] = 0.18 + Math.random() * 0.42
-    twinkleAmounts[i] = twinkle * (0.35 + Math.random() * 0.65)
+    speeds[i] = 0.12 + Math.random() * 0.36
+    twinkleAmounts[i] = twinkle * (0.28 + Math.random() * 0.72)
   }
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))

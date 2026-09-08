@@ -16,6 +16,7 @@ const emptyGestureStatus = (enabled = false): GestureStatus => ({
   handsDetected: 0,
   activeGesture: 'none',
   zoomDelta: 0,
+  panDelta: { x: 0, y: 0 },
   rotateDelta: { x: 0, y: 0 },
 })
 
@@ -40,20 +41,22 @@ function HandEnergyOverlay({
   viewportSize: { width: number; height: number }
 }) {
   if (!status.enabled || status.cameraStatus !== 'ready') return null
-  const activeIds = new Set([...(status.zoomHands ?? []), status.rotationHand].filter(Boolean) as string[])
+  const activeIds = new Set([...(status.zoomHands ?? []), ...(status.panHands ?? []), status.rotationHand].filter(Boolean) as string[])
+  const slots: Array<TrackedHand | undefined> = [hands[0], hands[1]]
   return (
     <svg
       className="hand-energy-layer"
       viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
       aria-hidden="true"
     >
-      {hands.map((hand) => {
+      {slots.map((hand, slotIndex) => {
+        if (!hand) return <g key={slotIndex} className="hand-energy" visibility="hidden" />
         const active = activeIds.has(hand.id)
         const points = hand.landmarks.map((point) => normalizedToCoverViewport(point, videoSize, viewportSize, true))
         const palmCenter = normalizedToCoverViewport(hand.palmCenter, videoSize, viewportSize, true)
         const palmRadius = Math.max(20, Math.min(54, hand.palmSize * Math.max(videoSize.width, videoSize.height) * Math.max(viewportSize.width / Math.max(1, videoSize.width), viewportSize.height / Math.max(1, videoSize.height)) * 0.42))
         return (
-          <g key={hand.id} className={`hand-energy ${active ? 'active' : ''} ${hand.gesture}`}>
+          <g key={slotIndex} className={`hand-energy ${active ? 'active' : ''} ${hand.gesture}`}>
             {handConnections.map(([from, to]) => points[from] && points[to] ? (
               <line
                 key={`${from}-${to}`}
@@ -189,6 +192,7 @@ export default function App() {
         gestureControl={{
           activeGesture: gestureStatus.activeGesture,
           zoomDelta: gestureStatus.zoomDelta,
+          panDelta: gestureStatus.panDelta,
           rotateDelta: gestureStatus.rotateDelta,
         }}
         onHover={setHoveredId}
@@ -207,8 +211,9 @@ export default function App() {
               gestureStatus.cameraStatus === 'error' ? gestureStatus.message :
                 gestureStatus.activeGesture === 'zoomIn' ? '放大' :
                   gestureStatus.activeGesture === 'zoomOut' ? '縮小' :
-                    gestureStatus.activeGesture === 'rotate' ? '旋轉' :
-                      hands.length ? '已偵測' : '待偵測'}
+                    gestureStatus.activeGesture === 'pan' ? '平移' :
+                      gestureStatus.activeGesture === 'rotate' ? '旋轉' :
+                        hands.length ? '已偵測' : '待偵測'}
           </div>
         ) : null}
         <button

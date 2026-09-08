@@ -23,10 +23,12 @@ export type GestureStatus = {
   enabled: boolean
   cameraStatus: 'idle' | 'requesting' | 'ready' | 'error'
   handsDetected: number
-  activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'rotate'
+  activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'rotate'
   zoomHands?: string[]
+  panHands?: string[]
   rotationHand?: string
   zoomDelta: number
+  panDelta: NormalizedPoint
   rotateDelta: NormalizedPoint
   message?: string
 }

@@ -4,6 +4,8 @@ const HOLD_MS = 260
 const LOST_GRACE_MS = 420
 const DEAD_ZONE = 0.007
 const HAND_MOTION_THRESHOLD = 0.0038
+const PAN_DEAD_ZONE = 0.0028
+const PAN_CLAMP = 0.026
 const SMOOTHING = 0.3
 
 type ZoomSession = 'none' | 'zoomIn' | 'zoomOut'
@@ -22,6 +24,7 @@ const emptyStatus = (
   handsDetected,
   activeGesture: 'none',
   zoomDelta: 0,
+  panDelta: { x: 0, y: 0 },
   rotateDelta: { x: 0, y: 0 },
   message,
 })
@@ -36,6 +39,10 @@ export class GestureStateMachine {
   private lastDistance?: number
   private lastPalmCenters = new Map<string, NormalizedPoint>()
   private smoothedZoom = 0
+  private panSince = 0
+  private panHands: string[] = []
+  private lastPanMidpoint?: NormalizedPoint
+  private smoothedPan: NormalizedPoint = { x: 0, y: 0 }
   private rotationHand?: string
   private lastRotationPoint?: NormalizedPoint
   private smoothedRotation: NormalizedPoint = { x: 0, y: 0 }
@@ -85,10 +92,29 @@ export class GestureStateMachine {
       const zoomStatus = this.updateZoom(stableOpenHands, now, enabled, cameraStatus, hands.length)
       if (zoomStatus.activeGesture === 'zoomIn' || zoomStatus.activeGesture === 'zoomOut') {
         this.clearRotation()
+        this.clearPan()
         return zoomStatus
       }
     } else {
       this.clearZoom()
+    }
+
+    const stableFists = hands
+      .filter((hand) => {
+        const since = this.fistSince.get(hand.id)
+        return since !== undefined && now - since >= HOLD_MS
+      })
+      .sort((a, b) => a.palmCenter.x - b.palmCenter.x)
+
+    if (stableFists.length >= 2) {
+      const panStatus = this.updatePan(stableFists, now, enabled, cameraStatus, hands.length)
+      if (panStatus.activeGesture === 'pan') {
+        this.clearZoom()
+        this.clearRotation()
+        return panStatus
+      }
+    } else {
+      this.clearPan()
     }
 
     const stableFist = hands.find((hand) => {
@@ -121,6 +147,7 @@ export class GestureStateMachine {
           activeGesture: 'rotate',
           rotationHand: this.rotationHand,
           zoomDelta: 0,
+          panDelta: { x: 0, y: 0 },
           rotateDelta: this.smoothedRotation,
         }
       }
@@ -228,6 +255,7 @@ export class GestureStateMachine {
       activeGesture,
       zoomHands: pair.map((hand) => hand.id),
       zoomDelta,
+      panDelta: { x: 0, y: 0 },
       rotateDelta: { x: 0, y: 0 },
     }
   }
@@ -245,6 +273,86 @@ export class GestureStateMachine {
       activeGesture: 'none',
       zoomHands: pair.map((hand) => hand.id),
       zoomDelta: 0,
+      panDelta: { x: 0, y: 0 },
+      rotateDelta: { x: 0, y: 0 },
+    }
+  }
+
+  private updatePan(
+    stableFists: TrackedHand[],
+    now: number,
+    enabled: boolean,
+    cameraStatus: GestureStatus['cameraStatus'],
+    handsDetected: number,
+  ): GestureStatus {
+    const pair = [stableFists[0], stableFists[stableFists.length - 1]]
+    const pairIds = pair.map((hand) => hand.id).sort()
+    const midpoint = this.getMidpoint(pair)
+    if (pairIds.join('|') !== this.panHands.join('|')) {
+      this.panHands = pairIds
+      this.panSince = now
+      this.lastPanMidpoint = midpoint
+      this.smoothedPan = { x: 0, y: 0 }
+      return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)
+    }
+    const previous = this.lastPanMidpoint ?? midpoint
+    const raw = {
+      x: midpoint.x - previous.x,
+      y: midpoint.y - previous.y,
+    }
+    this.lastPanMidpoint = midpoint
+    if (now - this.panSince < HOLD_MS) {
+      this.smoothedPan = { x: 0, y: 0 }
+      return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)
+    }
+    if (distance(raw, { x: 0, y: 0 }) < PAN_DEAD_ZONE) {
+      this.smoothedPan = { x: 0, y: 0 }
+      return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)
+    }
+    this.smoothedPan = {
+      x: this.smoothedPan.x + (raw.x - this.smoothedPan.x) * SMOOTHING,
+      y: this.smoothedPan.y + (raw.y - this.smoothedPan.y) * SMOOTHING,
+    }
+    const panDelta = {
+      x: Math.abs(this.smoothedPan.x) < PAN_DEAD_ZONE ? 0 : Math.max(-PAN_CLAMP, Math.min(PAN_CLAMP, this.smoothedPan.x)),
+      y: Math.abs(this.smoothedPan.y) < PAN_DEAD_ZONE ? 0 : Math.max(-PAN_CLAMP, Math.min(PAN_CLAMP, this.smoothedPan.y)),
+    }
+    if (panDelta.x === 0 && panDelta.y === 0) {
+      return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)
+    }
+    return {
+      enabled,
+      cameraStatus,
+      handsDetected,
+      activeGesture: 'pan',
+      panHands: pair.map((hand) => hand.id),
+      zoomDelta: 0,
+      panDelta,
+      rotateDelta: { x: 0, y: 0 },
+    }
+  }
+
+  private getMidpoint(pair: TrackedHand[]): NormalizedPoint {
+    return {
+      x: (pair[0].palmCenter.x + pair[1].palmCenter.x) / 2,
+      y: (pair[0].palmCenter.y + pair[1].palmCenter.y) / 2,
+    }
+  }
+
+  private panIdleStatus(
+    enabled: boolean,
+    cameraStatus: GestureStatus['cameraStatus'],
+    handsDetected: number,
+    pair: TrackedHand[],
+  ): GestureStatus {
+    return {
+      enabled,
+      cameraStatus,
+      handsDetected,
+      activeGesture: 'none',
+      panHands: pair.map((hand) => hand.id),
+      zoomDelta: 0,
+      panDelta: { x: 0, y: 0 },
       rotateDelta: { x: 0, y: 0 },
     }
   }
@@ -285,11 +393,19 @@ export class GestureStateMachine {
     this.smoothedRotation = { x: 0, y: 0 }
   }
 
+  private clearPan() {
+    this.panSince = 0
+    this.panHands = []
+    this.lastPanMidpoint = undefined
+    this.smoothedPan = { x: 0, y: 0 }
+  }
+
   private reset() {
     this.openSince.clear()
     this.fistSince.clear()
     this.lastSeen.clear()
     this.clearZoom()
+    this.clearPan()
     this.clearRotation()
   }
 }

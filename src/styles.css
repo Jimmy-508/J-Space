@@ -325,35 +325,34 @@ button:disabled {
   pointer-events: none;
   overflow: hidden;
   contain: strict;
+  shape-rendering: geometricPrecision;
 }
 
 .hand-energy line {
-  stroke: rgba(237, 197, 110, 0.32);
-  stroke-width: 2px;
+  stroke: rgba(235, 198, 118, 0.38);
+  stroke-width: 1.7px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
 
 .hand-energy circle {
-  fill: rgba(248, 220, 151, 0.62);
+  fill: rgba(248, 221, 156, 0.68);
 }
 
 .hand-energy .palm-aura {
-  fill: rgba(239, 186, 82, 0.1);
-  stroke: rgba(248, 221, 156, 0.24);
-  stroke-width: 1.5px;
+  fill: rgba(239, 186, 82, 0.08);
+  stroke: rgba(248, 221, 156, 0.26);
+  stroke-width: 1.2px;
   vector-effect: non-scaling-stroke;
-  animation: palm-gold-breathe 2.4s ease-in-out infinite;
 }
 
 .hand-energy .palm-core {
-  fill: rgba(255, 236, 183, 0.78);
-  animation: palm-gold-sparkle 1.9s ease-in-out infinite;
+  fill: rgba(255, 236, 183, 0.76);
 }
 
 .hand-energy.active line,
 .hand-energy.fist line {
-  stroke: rgba(255, 225, 153, 0.62);
+  stroke: rgba(255, 225, 153, 0.68);
 }
 
 .hand-energy.active circle,
@@ -363,8 +362,8 @@ button:disabled {
 
 .hand-energy.active .palm-aura,
 .hand-energy.fist .palm-aura {
-  fill: rgba(245, 189, 74, 0.18);
-  stroke: rgba(255, 236, 186, 0.48);
+  fill: rgba(245, 189, 74, 0.16);
+  stroke: rgba(255, 236, 186, 0.52);
 }
 
 .gesture-pill {
@@ -398,24 +397,6 @@ button:disabled {
 .gesture-pill.active span {
   background: #f7d987;
   box-shadow: 0 0 10px rgba(247, 217, 135, 0.8);
-}
-
-@keyframes palm-gold-breathe {
-  0%, 100% {
-    opacity: 0.78;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@keyframes palm-gold-sparkle {
-  0%, 100% {
-    opacity: 0.58;
-  }
-  45% {
-    opacity: 0.9;
-  }
 }
 
 .advanced-panel {
