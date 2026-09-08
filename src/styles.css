@@ -329,15 +329,11 @@ button:disabled {
   stroke: rgba(237, 197, 110, 0.32);
   stroke-width: 2px;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 5px rgba(238, 190, 84, 0.32));
   vector-effect: non-scaling-stroke;
-  animation: hand-gold-breathe 2.8s ease-in-out infinite;
 }
 
 .hand-energy circle {
   fill: rgba(248, 220, 151, 0.62);
-  filter: drop-shadow(0 0 5px rgba(245, 198, 92, 0.48));
-  animation: hand-gold-sparkle 3.4s ease-in-out infinite;
 }
 
 .hand-energy .palm-aura {
@@ -345,6 +341,12 @@ button:disabled {
   stroke: rgba(248, 221, 156, 0.24);
   stroke-width: 1.5px;
   vector-effect: non-scaling-stroke;
+  animation: palm-gold-breathe 2.4s ease-in-out infinite;
+}
+
+.hand-energy .palm-core {
+  fill: rgba(255, 236, 183, 0.78);
+  animation: palm-gold-sparkle 1.9s ease-in-out infinite;
 }
 
 .hand-energy.active line,
@@ -396,24 +398,21 @@ button:disabled {
   box-shadow: 0 0 10px rgba(247, 217, 135, 0.8);
 }
 
-@keyframes hand-gold-breathe {
+@keyframes palm-gold-breathe {
   0%, 100% {
-    opacity: 0.62;
+    opacity: 0.78;
   }
   50% {
-    opacity: 0.9;
+    opacity: 1;
   }
 }
 
-@keyframes hand-gold-sparkle {
+@keyframes palm-gold-sparkle {
   0%, 100% {
-    opacity: 0.68;
+    opacity: 0.58;
   }
-  38% {
-    opacity: 0.92;
-  }
-  57% {
-    opacity: 0.74;
+  45% {
+    opacity: 0.9;
   }
 }
 

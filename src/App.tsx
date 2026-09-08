@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
+import { normalizedToCoverViewport } from './gesture/coordinateTransform'
 import { GestureStateMachine } from './gesture/gestureStateMachine'
 import { HandTrackingSession } from './gesture/handTracking'
 import { knowledgeRepository, validateKnowledgeData } from './repository/knowledgeRepository'
@@ -27,31 +28,46 @@ const handConnections = [
   [5, 9], [9, 13], [13, 17],
 ]
 
-const mirrorX = (x: number) => 1 - x
-
-function HandEnergyOverlay({ hands, status }: { hands: TrackedHand[]; status: GestureStatus }) {
+function HandEnergyOverlay({
+  hands,
+  status,
+  videoSize,
+  viewportSize,
+}: {
+  hands: TrackedHand[]
+  status: GestureStatus
+  videoSize: { width: number; height: number }
+  viewportSize: { width: number; height: number }
+}) {
   if (!status.enabled || status.cameraStatus !== 'ready') return null
   const activeIds = new Set([...(status.zoomHands ?? []), status.rotationHand].filter(Boolean) as string[])
   return (
-    <svg className="hand-energy-layer" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+    <svg
+      className="hand-energy-layer"
+      viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
+      aria-hidden="true"
+    >
       {hands.map((hand) => {
         const active = activeIds.has(hand.id)
-        const points = hand.landmarks
+        const points = hand.landmarks.map((point) => normalizedToCoverViewport(point, videoSize, viewportSize, true))
+        const palmCenter = normalizedToCoverViewport(hand.palmCenter, videoSize, viewportSize, true)
+        const palmRadius = Math.max(20, Math.min(54, hand.palmSize * Math.max(videoSize.width, videoSize.height) * Math.max(viewportSize.width / Math.max(1, videoSize.width), viewportSize.height / Math.max(1, videoSize.height)) * 0.42))
         return (
           <g key={hand.id} className={`hand-energy ${active ? 'active' : ''} ${hand.gesture}`}>
             {handConnections.map(([from, to]) => points[from] && points[to] ? (
               <line
                 key={`${from}-${to}`}
-                x1={mirrorX(points[from].x)}
+                x1={points[from].x}
                 y1={points[from].y}
-                x2={mirrorX(points[to].x)}
+                x2={points[to].x}
                 y2={points[to].y}
               />
             ) : null)}
             {points.map((point, index) => (
-              <circle key={index} cx={mirrorX(point.x)} cy={point.y} r={active ? 0.0055 : 0.0038} />
+              <circle key={index} cx={point.x} cy={point.y} r={active ? 4.4 : 3.1} />
             ))}
-            <circle className="palm-aura" cx={mirrorX(hand.palmCenter.x)} cy={hand.palmCenter.y} r={active ? 0.048 : 0.032} />
+            <circle className="palm-aura" cx={palmCenter.x} cy={palmCenter.y} r={active ? palmRadius * 1.2 : palmRadius} />
+            {active ? <circle className="palm-core" cx={palmCenter.x} cy={palmCenter.y} r={Math.max(5, palmRadius * 0.16)} /> : null}
           </g>
         )
       })}
@@ -71,6 +87,11 @@ export default function App() {
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
+  const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: typeof window === 'undefined' ? 390 : window.visualViewport?.width ?? window.innerWidth,
+    height: typeof window === 'undefined' ? 844 : window.visualViewport?.height ?? window.innerHeight,
+  }))
   const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackingRef = useRef<HandTrackingSession | undefined>(undefined)
@@ -82,6 +103,22 @@ export default function App() {
   ).slice(0, 8) : [], [data.nodes, query])
 
   const persist = (next: KnowledgeData) => setData(next)
+
+  useEffect(() => {
+    const updateViewport = () => setViewportSize({
+      width: window.visualViewport?.width ?? window.innerWidth,
+      height: window.visualViewport?.height ?? window.innerHeight,
+    })
+    updateViewport()
+    window.addEventListener('resize', updateViewport)
+    window.addEventListener('orientationchange', updateViewport)
+    window.visualViewport?.addEventListener('resize', updateViewport)
+    return () => {
+      window.removeEventListener('resize', updateViewport)
+      window.removeEventListener('orientationchange', updateViewport)
+      window.visualViewport?.removeEventListener('resize', updateViewport)
+    }
+  }, [])
 
   useEffect(() => {
     if (!gestureEnabled) {
@@ -99,6 +136,13 @@ export default function App() {
     setGestureStatus(emptyGestureStatus(true))
     session.start(video, (nextHands) => {
       if (cancelled) return
+      if (video.videoWidth && video.videoHeight) {
+        setVideoSize((current) => (
+          current.width === video.videoWidth && current.height === video.videoHeight
+            ? current
+            : { width: video.videoWidth, height: video.videoHeight }
+        ))
+      }
       setHands(nextHands)
       setGestureStatus(gestureMachineRef.current.update(nextHands, performance.now(), true, 'ready'))
     }).then(() => {
@@ -154,7 +198,7 @@ export default function App() {
       {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
         <video ref={videoRef} className="camera-sensor" muted playsInline aria-hidden="true" />
       ) : null}
-      <HandEnergyOverlay hands={hands} status={gestureStatus} />
+      <HandEnergyOverlay hands={hands} status={gestureStatus} videoSize={videoSize} viewportSize={viewportSize} />
       <div className="camera-controls">
         {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
           <div className={`gesture-pill ${gestureStatus.activeGesture !== 'none' ? 'active' : ''}`}>
