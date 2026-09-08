@@ -43,6 +43,15 @@ const isContentNode = (node: KnowledgeNode) => (
   !!node.url || ['resource', 'website', 'project', 'file'].includes(node.type)
 ) && !isClusterNode(node)
 
+const getTouchMetrics = (touches: React.TouchList) => {
+  const a = touches.item(0)
+  const b = touches.item(1)
+  if (!a || !b) return { distance: 0, midpoint: new THREE.Vector2() }
+  const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+  const midpoint = new THREE.Vector2((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
+  return { distance, midpoint }
+}
+
 const createSoftDiscTexture = () => {
   const canvas = document.createElement('canvas')
   canvas.width = 128
@@ -56,6 +65,31 @@ const createSoftDiscTexture = () => {
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, 128, 128)
   return new THREE.CanvasTexture(canvas)
+}
+
+const createNodeLabelTexture = (title: string) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 128
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.font = '700 34px "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineWidth = 5
+  ctx.strokeStyle = 'rgba(3, 8, 19, 0.78)'
+  ctx.fillStyle = 'rgba(242, 248, 255, 0.92)'
+  const maxWidth = 214
+  let text = title
+  while (ctx.measureText(text).width > maxWidth && text.length > 2) {
+    text = `${text.slice(0, -2)}…`
+  }
+  ctx.strokeText(text, 128, 64)
+  ctx.fillText(text, 128, 64)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  return texture
 }
 
 const createStarFlareTexture = () => {
@@ -143,15 +177,31 @@ export default function KnowledgeGraph3D({
   const nebulaRef = useRef<THREE.Sprite[]>([])
   const selectedEffectsRef = useRef<THREE.Object3D[]>([])
   const contentMarkersRef = useRef<THREE.Object3D[]>([])
+  const coreEffectsRef = useRef<THREE.Object3D[]>([])
+  const labelSpritesRef = useRef<THREE.Sprite[]>([])
   const relatedHalosRef = useRef<THREE.Object3D[]>([])
   const raycasterRef = useRef(new THREE.Raycaster())
   const pointerRef = useRef(new THREE.Vector2(10, 10))
   const dragRef = useRef({ active: false, moved: false, x: 0, y: 0, rotX: 0, rotY: 0 })
-  const touchRef = useRef({ pinching: false, startDistance: 0, startZoom: 34 })
+  const touchRef = useRef({
+    mode: 'none' as 'none' | 'rotate' | 'gesturePending' | 'pinchZoom' | 'twoFingerPan',
+    startDistance: 0,
+    startZoom: 34,
+    startMidpoint: new THREE.Vector2(),
+    lastMidpoint: new THREE.Vector2(),
+    startTarget: new THREE.Vector3(),
+    startCameraPosition: new THREE.Vector3(),
+  })
   const groupRef = useRef<THREE.Group | null>(null)
+  const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
+  const selectedIdRef = useRef<string | undefined>(selectedId)
   const layout = useMemo(() => makeLayout(data), [data])
   const softDiscTexture = useMemo(() => createSoftDiscTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId
+  }, [selectedId])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -207,6 +257,7 @@ export default function KnowledgeGraph3D({
       frame = requestAnimationFrame(animate)
       const time = performance.now() * 0.001
       group.rotation.y += 0.00085
+      camera.lookAt(cameraTargetRef.current)
       starfieldsRef.current.forEach((field) => {
         field.rotation.y += field.userData.drift
         const colorAttribute = field.geometry.getAttribute('color') as THREE.BufferAttribute
@@ -259,6 +310,18 @@ export default function KnowledgeGraph3D({
         material.opacity = (object.userData.baseOpacity ?? 0.22) * (1 - pulse * (object.userData.fade ?? 0.45))
         if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
       })
+      coreEffectsRef.current.forEach((object, index) => {
+        if (object.userData.orbit) {
+          object.rotation.z += object.userData.speed ?? 0.004
+          object.rotation.x += (object.userData.tiltDrift ?? 0.0006)
+          return
+        }
+        const material = (object as THREE.Mesh | THREE.Sprite).material as THREE.MeshBasicMaterial | THREE.SpriteMaterial
+        const breath = Math.sin(time * (object.userData.speed ?? 0.48) + index * 0.8) * 0.5 + 0.5
+        material.opacity = (object.userData.baseOpacity ?? 0.1) + breath * (object.userData.opacityRange ?? 0.04)
+        if (object.userData.spin) object.rotation.z += object.userData.spin
+        if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
+      })
       contentMarkersRef.current.forEach((object, index) => {
         const material = (object as THREE.Mesh | THREE.Sprite).material as THREE.MeshBasicMaterial | THREE.SpriteMaterial
         const breath = Math.sin(time * 0.72 + index * 0.6) * 0.5 + 0.5
@@ -269,6 +332,21 @@ export default function KnowledgeGraph3D({
       relatedHalosRef.current.forEach((object, index) => {
         const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial
         material.opacity = 0.12 + Math.sin(time * 1.05 + index) * 0.04
+      })
+      labelSpritesRef.current.forEach((label) => {
+        const world = new THREE.Vector3()
+        label.getWorldPosition(world)
+        const distance = camera.position.distanceTo(world)
+        const screenRadius = ((label.userData.nodeRadius ?? 0.36) / Math.max(1, distance)) * (renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5))))
+        const selected = selectedIdRef.current === label.userData.nodeId
+        const visible = selected || ((label.userData.isCluster ?? false) && screenRadius > 6.5) || screenRadius > 16
+        label.visible = visible
+        if (visible) {
+          const material = label.material as THREE.SpriteMaterial
+          material.opacity = selected ? 0.92 : label.userData.isCluster ? 0.78 : 0.66
+          const boost = selected ? 1.2 : label.userData.isCluster ? 1.08 : 1
+          label.scale.set((label.userData.baseWidth ?? 1) * boost, (label.userData.baseHeight ?? 0.5) * boost, 1)
+        }
       })
       renderer.render(scene, camera)
     }
@@ -297,6 +375,8 @@ export default function KnowledgeGraph3D({
     linkObjectsRef.current = []
     selectedEffectsRef.current = []
     contentMarkersRef.current = []
+    coreEffectsRef.current = []
+    labelSpritesRef.current = []
     relatedHalosRef.current = []
     const relatedIds = getRelatedIds(data, selectedId)
     data.links.forEach((link) => {
@@ -414,6 +494,64 @@ export default function KnowledgeGraph3D({
         clusterGlow.userData = { nodeId: node.id, markerKind: 'cluster-glow', baseOpacity: 0.045, opacityRange: 0.025, baseScale: 1, scaleRange: 0.04 }
         contentMarkersRef.current.push(clusterGlow)
         group.add(clusterGlow)
+        const innerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.16, 24, 14), makeHaloMaterial(typeColors[node.type], 0.1))
+        innerGlow.position.copy(mesh.position)
+        innerGlow.userData = { baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42 }
+        coreEffectsRef.current.push(innerGlow)
+        group.add(innerGlow)
+        const outerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.72, 24, 14), makeHaloMaterial(typeColors[node.type], 0.045))
+        outerGlow.position.copy(mesh.position)
+        outerGlow.userData = { baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28 }
+        coreEffectsRef.current.push(outerGlow)
+        group.add(outerGlow)
+        ;[
+          { radius: 0.92, width: 0.035, rotation: [0.85, 0.2, 0.1], speed: 0.0018, opacity: 0.22 },
+          { radius: 1.18, width: 0.022, rotation: [1.15, -0.5, 0.45], speed: -0.0012, opacity: 0.14 },
+        ].forEach((ringConfig) => {
+          const coreRing = new THREE.Mesh(
+            new THREE.RingGeometry(ringConfig.radius, ringConfig.radius + ringConfig.width, 80),
+            makeHaloMaterial(typeColors[node.type], ringConfig.opacity),
+          )
+          coreRing.position.copy(mesh.position)
+          coreRing.rotation.set(ringConfig.rotation[0], ringConfig.rotation[1], ringConfig.rotation[2])
+          coreRing.userData = { baseOpacity: ringConfig.opacity * 0.48, opacityRange: ringConfig.opacity * 0.24, speed: 0.36, spin: ringConfig.speed }
+          coreEffectsRef.current.push(coreRing)
+          group.add(coreRing)
+        })
+        const orbit = new THREE.Object3D()
+        orbit.position.copy(mesh.position)
+        orbit.rotation.set(0.9, 0.18, 0.2)
+        orbit.userData = { orbit: true, speed: 0.0032, tiltDrift: 0.00015 }
+        Array.from({ length: 4 }).forEach((_, dotIndex) => {
+          const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.035, 8, 6),
+            new THREE.MeshBasicMaterial({
+              color: typeColors[node.type],
+              transparent: true,
+              opacity: 0.42,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            }),
+          )
+          const angle = (dotIndex / 4) * Math.PI * 2
+          dot.position.set(Math.cos(angle) * 1.24, Math.sin(angle) * 1.24, 0)
+          orbit.add(dot)
+        })
+        coreEffectsRef.current.push(orbit)
+        group.add(orbit)
+        const coreFlare = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: starFlareTexture,
+          color: typeColors[node.type],
+          opacity: 0.1,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        coreFlare.position.copy(mesh.position)
+        coreFlare.scale.setScalar(1.56)
+        coreFlare.userData = { baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true }
+        coreEffectsRef.current.push(coreFlare)
+        group.add(coreFlare)
       }
       if (selectedId && node.id === selectedId) {
         const color = typeColors[node.type]
@@ -458,6 +596,22 @@ export default function KnowledgeGraph3D({
         relatedHalosRef.current.push(relatedHalo)
         group.add(relatedHalo)
       }
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: createNodeLabelTexture(node.title),
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        depthWrite: false,
+      }))
+      label.position.copy(mesh.position)
+      label.renderOrder = 20
+      const labelWidth = nodeRadius * (isCluster ? 2.55 : 2.22)
+      const labelHeight = nodeRadius * (isCluster ? 1.26 : 1.08)
+      label.scale.set(labelWidth, labelHeight, 1)
+      label.visible = false
+      label.userData = { nodeId: node.id, nodeRadius, isCluster, baseWidth: labelWidth, baseHeight: labelHeight }
+      labelSpritesRef.current.push(label)
+      group.add(label)
     })
   }, [data, layout, selectedId])
 
@@ -499,8 +653,8 @@ export default function KnowledgeGraph3D({
     if (!mesh || !camera) return
     const world = new THREE.Vector3()
     mesh.getWorldPosition(world)
+    cameraTargetRef.current.lerp(world, 0.55)
     camera.position.lerp(new THREE.Vector3(world.x, world.y + 2, world.z + 18), 0.35)
-    camera.lookAt(world)
   }, [focusId])
 
   const updatePointer = (event: React.PointerEvent) => {
@@ -577,25 +731,54 @@ export default function KnowledgeGraph3D({
       }}
       onTouchStart={(event) => {
         if (event.touches.length === 2 && cameraRef.current) {
-          const [a, b] = Array.from(event.touches)
+          const { distance, midpoint } = getTouchMetrics(event.touches)
           touchRef.current = {
-            pinching: true,
-            startDistance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+            mode: 'gesturePending',
+            startDistance: distance,
             startZoom: cameraRef.current.position.z,
+            startMidpoint: midpoint.clone(),
+            lastMidpoint: midpoint.clone(),
+            startTarget: cameraTargetRef.current.clone(),
+            startCameraPosition: cameraRef.current.position.clone(),
           }
+          dragRef.current.moved = true
+        } else if (event.touches.length === 1) {
+          touchRef.current.mode = 'rotate'
         }
       }}
       onTouchMove={(event) => {
-        if (event.touches.length === 2 && touchRef.current.pinching && cameraRef.current) {
-          const [a, b] = Array.from(event.touches)
-          const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
-          const scale = touchRef.current.startDistance / Math.max(1, distance)
-          cameraRef.current.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
+        if (event.touches.length === 2 && cameraRef.current) {
+          event.preventDefault()
+          const camera = cameraRef.current
+          const { distance, midpoint } = getTouchMetrics(event.touches)
+          const distanceDelta = Math.abs(distance - touchRef.current.startDistance)
+          const midpointDelta = midpoint.distanceTo(touchRef.current.startMidpoint)
+          if (touchRef.current.mode === 'gesturePending') {
+            if (distanceDelta > 9) touchRef.current.mode = 'pinchZoom'
+            else if (midpointDelta > 7) touchRef.current.mode = 'twoFingerPan'
+          }
+          if (touchRef.current.mode === 'pinchZoom') {
+            const scale = touchRef.current.startDistance / Math.max(1, distance)
+            camera.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
+          } else if (touchRef.current.mode === 'twoFingerPan') {
+            const dx = midpoint.x - touchRef.current.startMidpoint.x
+            const dy = midpoint.y - touchRef.current.startMidpoint.y
+            const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
+            const panScale = targetDistance * 0.00175
+            const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
+            const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
+            const offset = new THREE.Vector3()
+              .addScaledVector(right, -dx * panScale)
+              .addScaledVector(up, dy * panScale)
+            cameraTargetRef.current.copy(touchRef.current.startTarget).add(offset)
+            camera.position.copy(touchRef.current.startCameraPosition).add(offset)
+          }
+          touchRef.current.lastMidpoint.copy(midpoint)
           dragRef.current.moved = true
         }
       }}
       onTouchEnd={(event) => {
-        if (event.touches.length < 2) touchRef.current.pinching = false
+        if (event.touches.length < 2) touchRef.current.mode = 'none'
       }}
       onWheel={(event) => {
         if (!cameraRef.current) return
