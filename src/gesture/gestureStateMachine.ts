@@ -9,6 +9,8 @@ const PAN_CLAMP = 0.036
 const SMOOTHING = 0.34
 const POINTER_HOLD_MS = 300
 const POINTER_LOST_GRACE_MS = 150
+const MIN_ZOOM_IN_DISTANCE = 0.22
+const MAX_ZOOM_OUT_DISTANCE = 0.74
 
 type ZoomSession = 'none' | 'zoomIn' | 'zoomOut'
 type ZoomPose = 'none' | 'palmsForward' | 'palmsFacing'
@@ -262,22 +264,22 @@ export class GestureStateMachine {
     }
 
     if (this.zoomSession === 'zoomIn') {
-      if (pose !== 'palmsForward' || !this.isSeparating(distanceDelta, leftDeltaX, rightDeltaX)) {
+      if (pose !== 'palmsForward' || currentDistance < MIN_ZOOM_IN_DISTANCE || distanceDelta < -DEAD_ZONE * 1.35) {
         this.clearZoomSession(currentDistance)
         return this.zoomIdleStatus(enabled, cameraStatus, handsDetected, pair)
       }
-      const distanceGain = 0.85 + clamp((currentDistance - 0.24) / 0.46, 0, 1) * 1.75
-      this.smoothedZoom += (Math.max(0, distanceDelta) * distanceGain - this.smoothedZoom) * SMOOTHING
+      const zoomSpeed = this.getZoomInSpeed(currentDistance)
+      this.smoothedZoom += (zoomSpeed - this.smoothedZoom) * SMOOTHING
       return this.zoomActiveStatus(enabled, cameraStatus, handsDetected, pair, 'zoomIn', Math.max(0, this.smoothedZoom))
     }
 
     if (this.zoomSession === 'zoomOut') {
-      if (pose !== 'palmsFacing' || !this.isApproaching(distanceDelta, leftDeltaX, rightDeltaX)) {
+      if (pose !== 'palmsFacing' || currentDistance > MAX_ZOOM_OUT_DISTANCE || distanceDelta > DEAD_ZONE * 1.35) {
         this.clearZoomSession(currentDistance)
         return this.zoomIdleStatus(enabled, cameraStatus, handsDetected, pair)
       }
-      const distanceGain = 0.95 + clamp((0.64 - currentDistance) / 0.42, 0, 1) * 1.95
-      this.smoothedZoom += (Math.min(0, distanceDelta) * distanceGain - this.smoothedZoom) * SMOOTHING
+      const zoomSpeed = this.getZoomOutSpeed(currentDistance)
+      this.smoothedZoom += (zoomSpeed - this.smoothedZoom) * SMOOTHING
       return this.zoomActiveStatus(enabled, cameraStatus, handsDetected, pair, 'zoomOut', Math.min(0, this.smoothedZoom))
     }
 
@@ -298,6 +300,16 @@ export class GestureStateMachine {
   private isApproaching(distanceDelta: number, leftDeltaX: number, rightDeltaX: number) {
     const inwardMotion = leftDeltaX > HAND_MOTION_THRESHOLD * 0.55 || rightDeltaX < -HAND_MOTION_THRESHOLD * 0.55
     return distanceDelta < -DEAD_ZONE * 0.82 && inwardMotion
+  }
+
+  private getZoomInSpeed(currentDistance: number) {
+    const distancePower = clamp((currentDistance - MIN_ZOOM_IN_DISTANCE) / 0.48, 0, 1)
+    return 0.0028 + distancePower * 0.0105
+  }
+
+  private getZoomOutSpeed(currentDistance: number) {
+    const distancePower = clamp((MAX_ZOOM_OUT_DISTANCE - currentDistance) / 0.52, 0, 1)
+    return -(0.0028 + distancePower * 0.0115)
   }
 
   private zoomActiveStatus(
@@ -466,7 +478,7 @@ export class GestureStateMachine {
     this.pointerLostAt = undefined
   }
 
-  private reset() {
+  reset() {
     this.openSince.clear()
     this.fistSince.clear()
     this.pointerSince.clear()

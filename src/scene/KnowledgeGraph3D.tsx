@@ -3,11 +3,14 @@ import * as THREE from 'three'
 import type { KnowledgeData, KnowledgeNode } from '../types/knowledge'
 import { createBrightStarfield, createGalaxyBand, createStarfield } from './Starfield'
 
+type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search'
+
 type Props = {
   data: KnowledgeData
   selectedId?: string
   hoveredId?: string
   focusId?: string
+  controlResetKey?: number
   gestureControl?: {
     activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'pointer' | 'rotate'
     zoomDelta: number
@@ -15,7 +18,7 @@ type Props = {
     pointerScreen?: { x: number; y: number }
     rotateDelta: { x: number; y: number }
   }
-  onSelect: (node: KnowledgeNode) => void
+  onSelect: (node: KnowledgeNode, source: SelectionSource) => void
   onHover: (id?: string) => void
   onClearSelection: () => void
   immersive?: boolean
@@ -305,6 +308,7 @@ export default function KnowledgeGraph3D({
   selectedId,
   hoveredId,
   focusId,
+  controlResetKey = 0,
   gestureControl,
   onSelect,
   onHover,
@@ -377,6 +381,21 @@ export default function KnowledgeGraph3D({
       nextCometAtRef.current = 0
     }
   }, [immersive])
+
+  useEffect(() => {
+    dragRef.current.active = false
+    dragRef.current.dragging = false
+    dragRef.current.pendingTap = false
+    dragRef.current.pointerType = ''
+    touchRef.current.mode = 'none'
+    touchRef.current.startDistance = 0
+    touchRef.current.lastMidpoint.set(0, 0)
+    touchRef.current.startMidpoint.set(0, 0)
+    dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
+    if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
+    if (mountRef.current) mountRef.current.dataset.activeTouches = '0'
+    onHover(undefined)
+  }, [controlResetKey, onHover])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -527,7 +546,7 @@ export default function KnowledgeGraph3D({
             const burst = createSelectBurst(hit.world, nodeColor, starFlareTexture)
             scene.add(burst)
             selectBurstRef.current.push(burst)
-            onSelect(hit.node)
+            onSelect(hit.node, 'pointerGesture')
             onHover(hit.id)
           }
         } else {
@@ -1025,14 +1044,14 @@ export default function KnowledgeGraph3D({
     pointerRef.current.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -(((event.clientY - rect.top) / rect.height) * 2 - 1))
   }
 
-  const pick = () => {
+  const pick = (source: SelectionSource) => {
     const camera = cameraRef.current
     if (!camera) return
     raycasterRef.current.setFromCamera(pointerRef.current, camera)
     const hit = raycasterRef.current.intersectObjects([...nodeMeshesRef.current.values()])[0]
     if (hit) {
       const node = hit.object.userData.node as KnowledgeNode
-      onSelect(node)
+      onSelect(node, source)
       onHover(node.id)
       return
     }
@@ -1092,6 +1111,9 @@ export default function KnowledgeGraph3D({
         }
       }}
       onPointerUp={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }
         const beforeRelease = Number(mountRef.current?.dataset.activeTouches ?? '1')
         const activeTouches = Math.max(0, beforeRelease - 1)
         if (mountRef.current) mountRef.current.dataset.activeTouches = String(activeTouches)
@@ -1103,17 +1125,21 @@ export default function KnowledgeGraph3D({
         const pointerTap = dragRef.current.pointerType !== 'touch'
         if (dragRef.current.pendingTap && !dragRef.current.dragging && beforeRelease <= 1 && distance < 14 && (touchTap || pointerTap)) {
           updatePointer(event)
-          pick()
+          pick(dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
         }
         dragRef.current.active = false
         dragRef.current.dragging = false
         dragRef.current.pendingTap = false
       }}
-      onPointerCancel={() => {
+      onPointerCancel={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }
         if (mountRef.current) mountRef.current.dataset.activeTouches = '0'
         dragRef.current.active = false
         dragRef.current.dragging = false
         dragRef.current.pendingTap = false
+        touchRef.current.mode = 'none'
       }}
       onTouchStart={(event) => {
         if (event.touches.length === 2 && cameraRef.current) {

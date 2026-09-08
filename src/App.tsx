@@ -40,6 +40,8 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
     return `${center.x + Math.cos(angle) * radius},${center.y + Math.sin(angle) * radius}`
   }).join(' ')
 
+type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | undefined
+
 function HandEnergyOverlay({
   hands,
   status,
@@ -114,13 +116,18 @@ function HandEnergyOverlay({
               className="star-cursor-trail"
               cx={point.x}
               cy={point.y}
-              r={Math.max(1.2, 5.8 - index * 0.48)}
-              opacity={Math.max(0, 0.34 - index * 0.035)}
+              r={Math.max(1.4, 7.2 - index * 0.58)}
+              opacity={Math.max(0, 0.48 - index * 0.048)}
             />
           ))}
-          <circle className="star-cursor-halo" cx={cursor.point.x} cy={cursor.point.y} r="18" />
-          <polygon className="star-cursor-core" points={createStarPoints(cursor.point, 13, 4.6)} />
-          <circle className="star-cursor-center" cx={cursor.point.x} cy={cursor.point.y} r="3.4" />
+          <circle className="star-cursor-outer-halo" cx={cursor.point.x} cy={cursor.point.y} r="30" />
+          <circle className="star-cursor-halo" cx={cursor.point.x} cy={cursor.point.y} r="22" />
+          <polygon className="star-cursor-flare" points={createStarPoints(cursor.point, 24, 2.7)} />
+          <polygon className="star-cursor-core" points={createStarPoints(cursor.point, 16.5, 5.6)} />
+          <circle className="star-cursor-center" cx={cursor.point.x} cy={cursor.point.y} r="4.6" />
+          <circle className="star-cursor-sparkle sparkle-a" cx={cursor.point.x + 16} cy={cursor.point.y - 13} r="2" />
+          <circle className="star-cursor-sparkle sparkle-b" cx={cursor.point.x - 14} cy={cursor.point.y + 11} r="1.7" />
+          <circle className="star-cursor-sparkle sparkle-c" cx={cursor.point.x + 6} cy={cursor.point.y + 18} r="1.35" />
         </g>
       ))}
     </svg>
@@ -130,6 +137,7 @@ function HandEnergyOverlay({
 export default function App() {
   const [data, setData] = useState<KnowledgeData>(() => knowledgeRepository.load())
   const [selectedId, setSelectedId] = useState<string>()
+  const [selectionSource, setSelectionSource] = useState<SelectionSource>()
   const [hoveredId, setHoveredId] = useState<string>()
   const [focusId, setFocusId] = useState<string>()
   const [query, setQuery] = useState('')
@@ -140,6 +148,7 @@ export default function App() {
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
   const [immersive, setImmersive] = useState(false)
+  const [controlResetKey, setControlResetKey] = useState(0)
   const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
   const [viewportSize, setViewportSize] = useState(() => ({
     width: typeof window === 'undefined' ? 390 : window.visualViewport?.width ?? window.innerWidth,
@@ -150,6 +159,8 @@ export default function App() {
   const trackingRef = useRef<HandTrackingSession | undefined>(undefined)
   const gestureMachineRef = useRef(new GestureStateMachine())
   const idleTimerRef = useRef<number | undefined>(undefined)
+  const selectionSourceRef = useRef<SelectionSource>(undefined)
+  const pointerWasActiveRef = useRef(false)
 
   const selected = data.nodes.find((node) => node.id === selectedId)
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
@@ -160,11 +171,38 @@ export default function App() {
     : undefined
 
   const persist = (next: KnowledgeData) => setData(next)
+  const clearSelection = useCallback(() => {
+    setSelectedId(undefined)
+    setFocusId(undefined)
+    setHoveredId(undefined)
+    setSelectionSource(undefined)
+  }, [])
+  const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
+    setSelectedId(node.id)
+    setFocusId(node.id)
+    setSelectionSource(source)
+  }, [])
+  const clearPointerSelection = useCallback(() => {
+    if (selectionSourceRef.current !== 'pointerGesture') return
+    clearSelection()
+  }, [clearSelection])
   const resetIdle = useCallback(() => {
     setImmersive(false)
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current)
     idleTimerRef.current = window.setTimeout(() => setImmersive(true), 10000)
   }, [])
+
+  useEffect(() => {
+    selectionSourceRef.current = selectionSource
+  }, [selectionSource])
+
+  useEffect(() => {
+    const pointerActive = gestureStatus.activeGesture === 'pointer'
+    if (pointerWasActiveRef.current && !pointerActive) {
+      clearPointerSelection()
+    }
+    pointerWasActiveRef.current = pointerActive
+  }, [gestureStatus.activeGesture, clearPointerSelection])
 
   useEffect(() => {
     const updateViewport = () => setViewportSize({
@@ -195,8 +233,13 @@ export default function App() {
     if (!gestureEnabled) {
       trackingRef.current?.stop()
       trackingRef.current = undefined
+      gestureMachineRef.current.reset()
+      pointerWasActiveRef.current = false
       setHands([])
       setGestureStatus(emptyGestureStatus(false))
+      setHoveredId(undefined)
+      setControlResetKey((value) => value + 1)
+      clearPointerSelection()
       return
     }
     const video = videoRef.current
@@ -268,6 +311,7 @@ export default function App() {
         selectedId={selectedId}
         hoveredId={hoveredId}
         focusId={focusId}
+        controlResetKey={controlResetKey}
         gestureControl={{
           activeGesture: gestureStatus.activeGesture,
           zoomDelta: gestureStatus.zoomDelta,
@@ -276,8 +320,8 @@ export default function App() {
           rotateDelta: gestureStatus.rotateDelta,
         }}
         onHover={setHoveredId}
-        onSelect={(node) => { setSelectedId(node.id); setFocusId(node.id) }}
-        onClearSelection={() => { setSelectedId(undefined); setFocusId(undefined); setHoveredId(undefined) }}
+        onSelect={selectNode}
+        onClearSelection={clearSelection}
         immersive={immersive}
       />
       {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
@@ -300,7 +344,7 @@ export default function App() {
             {query ? <button className="clear-search" aria-label="清除搜尋" onClick={() => { setQuery(''); setFocusId(undefined); setHoveredId(undefined) }}>×</button> : null}
           </div>
           {results.length ? <div className="search-results">{results.map((node) => (
-            <button key={node.id} onClick={() => { setSelectedId(node.id); setFocusId(node.id); setQuery('') }}>{node.title}<small>{node.category}</small></button>
+            <button key={node.id} onClick={() => { selectNode(node, 'search'); setQuery('') }}>{node.title}<small>{node.category}</small></button>
           ))}</div> : null}
         </section>
         <div className="camera-controls">
@@ -341,7 +385,7 @@ export default function App() {
         onDelete={(node) => {
           if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
             persist(knowledgeRepository.deleteNode(data, node.id))
-            setSelectedId(undefined)
+            clearSelection()
           }
         }}
         onAddRelation={() => setRelationOpen(true)}

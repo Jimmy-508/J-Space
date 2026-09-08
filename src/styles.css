@@ -379,48 +379,101 @@ button:disabled {
 
 .star-cursor {
   mix-blend-mode: screen;
-  filter: drop-shadow(0 0 8px rgba(255, 219, 132, 0.52));
+  filter:
+    drop-shadow(0 0 10px rgba(255, 230, 160, 0.66))
+    drop-shadow(0 0 22px rgba(244, 178, 67, 0.34));
 }
 
 .star-cursor-trail {
-  fill: rgba(255, 223, 145, 0.72);
+  fill: rgba(255, 232, 171, 0.82);
+  filter: drop-shadow(0 0 8px rgba(255, 213, 120, 0.36));
+}
+
+.star-cursor-outer-halo {
+  fill: rgba(239, 177, 61, 0.085);
+  stroke: rgba(255, 238, 188, 0.13);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  animation: star-cursor-outer 2.35s ease-in-out infinite;
 }
 
 .star-cursor-halo {
-  fill: rgba(245, 195, 83, 0.12);
-  stroke: rgba(255, 239, 198, 0.3);
+  fill: rgba(248, 199, 88, 0.18);
+  stroke: rgba(255, 242, 203, 0.42);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
-  animation: star-cursor-breathe 1.75s ease-in-out infinite;
+  animation: star-cursor-breathe 1.45s ease-in-out infinite;
+}
+
+.star-cursor-flare {
+  fill: rgba(255, 246, 218, 0.36);
+  stroke: rgba(255, 226, 144, 0.62);
+  stroke-width: 0.9px;
+  vector-effect: non-scaling-stroke;
+  animation: star-cursor-flare 1.85s ease-in-out infinite;
 }
 
 .star-cursor-core {
-  fill: rgba(255, 244, 213, 0.86);
-  stroke: rgba(246, 196, 82, 0.76);
-  stroke-width: 1.2px;
+  fill: rgba(255, 248, 226, 0.95);
+  stroke: rgba(255, 210, 98, 0.94);
+  stroke-width: 1.35px;
   vector-effect: non-scaling-stroke;
-  animation: star-cursor-spark 1.1s ease-in-out infinite;
+  animation: star-cursor-spark 0.92s ease-in-out infinite;
 }
 
 .star-cursor-center {
-  fill: rgba(255, 255, 247, 0.96);
-  animation: star-cursor-core 0.95s ease-in-out infinite;
+  fill: rgba(255, 255, 250, 1);
+  filter: drop-shadow(0 0 9px rgba(255, 245, 204, 0.92));
+  animation: star-cursor-core 0.78s ease-in-out infinite;
+}
+
+.star-cursor-sparkle {
+  fill: rgba(255, 247, 221, 0.92);
+  filter: drop-shadow(0 0 7px rgba(255, 219, 128, 0.72));
+  animation: star-cursor-glint 1.28s ease-in-out infinite;
+}
+
+.star-cursor-sparkle.sparkle-b {
+  animation-duration: 1.66s;
+  animation-delay: -0.52s;
+}
+
+.star-cursor-sparkle.sparkle-c {
+  animation-duration: 1.04s;
+  animation-delay: -0.18s;
 }
 
 @keyframes star-cursor-breathe {
-  0%, 100% { opacity: 0.58; }
-  50% { opacity: 0.98; }
+  0%, 100% { opacity: 0.54; }
+  42% { opacity: 0.98; }
+  68% { opacity: 0.72; }
+}
+
+@keyframes star-cursor-outer {
+  0%, 100% { opacity: 0.34; }
+  48% { opacity: 0.82; }
+}
+
+@keyframes star-cursor-flare {
+  0%, 100% { opacity: 0.46; }
+  38% { opacity: 0.9; }
+  64% { opacity: 0.58; }
 }
 
 @keyframes star-cursor-spark {
-  0%, 100% { opacity: 0.74; }
+  0%, 100% { opacity: 0.82; }
   42% { opacity: 1; }
-  68% { opacity: 0.86; }
+  68% { opacity: 0.9; }
 }
 
 @keyframes star-cursor-core {
-  0%, 100% { opacity: 0.82; }
+  0%, 100% { opacity: 0.78; }
   50% { opacity: 1; }
+}
+
+@keyframes star-cursor-glint {
+  0%, 72%, 100% { opacity: 0.16; }
+  38% { opacity: 1; }
 }
 
 .gesture-pill {
