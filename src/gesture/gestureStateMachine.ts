@@ -4,6 +4,7 @@ const HOLD_MS = 240
 const LOST_GRACE_MS = 420
 const COOLDOWN_MS = 180
 const DEAD_ZONE = 0.006
+const HAND_MOTION_THRESHOLD = 0.0035
 const SMOOTHING = 0.28
 
 const distance = (a: NormalizedPoint, b: NormalizedPoint) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -30,6 +31,7 @@ export class GestureStateMachine {
   private mode: GestureStatus['activeGesture'] = 'none'
   private modeSince = 0
   private lastDistance?: number
+  private lastPalmCenters = new Map<string, NormalizedPoint>()
   private smoothedZoom = 0
   private rotationHand?: string
   private lastRotationPoint?: NormalizedPoint
@@ -53,7 +55,7 @@ export class GestureStateMachine {
     }
 
     hands.forEach((hand) => {
-      if (hand.gesture === 'open' && hand.palmFacing) {
+      if (hand.gesture === 'open') {
         if (!this.openSince.has(hand.id)) this.openSince.set(hand.id, now)
       } else {
         this.openSince.delete(hand.id)
@@ -78,20 +80,42 @@ export class GestureStateMachine {
       const currentDistance = distance(pair[0].palmCenter, pair[1].palmCenter)
       const previousDistance = this.lastDistance ?? currentDistance
       const distanceDelta = currentDistance - previousDistance
-      const towardEachOther = Math.sign(pair[0].palmSide) !== Math.sign(pair[1].palmSide)
-      const zoomInReady = distanceDelta > DEAD_ZONE
-      const zoomOutReady = distanceDelta < -DEAD_ZONE && towardEachOther
+      const leftPrevious = this.lastPalmCenters.get(pair[0].id) ?? pair[0].palmCenter
+      const rightPrevious = this.lastPalmCenters.get(pair[1].id) ?? pair[1].palmCenter
+      const leftDeltaX = pair[0].palmCenter.x - leftPrevious.x
+      const rightDeltaX = pair[1].palmCenter.x - rightPrevious.x
+      const palmsForward = pair.every((hand) => hand.palmFacing)
+      const palmsFacingEachOther = !palmsForward && Math.sign(pair[0].palmSide) !== Math.sign(pair[1].palmSide)
+      const separating = distanceDelta > DEAD_ZONE && leftDeltaX < -HAND_MOTION_THRESHOLD && rightDeltaX > HAND_MOTION_THRESHOLD
+      const approaching = distanceDelta < -DEAD_ZONE && leftDeltaX > HAND_MOTION_THRESHOLD && rightDeltaX < -HAND_MOTION_THRESHOLD
+      const zoomInReady = palmsForward && separating
+      const zoomOutReady = palmsFacingEachOther && approaching
 
       this.lastDistance = currentDistance
+      this.lastPalmCenters.set(pair[0].id, pair[0].palmCenter)
+      this.lastPalmCenters.set(pair[1].id, pair[1].palmCenter)
       this.clearRotation()
 
       if ((zoomInReady || zoomOutReady) && (this.mode === 'none' || now - this.modeSince > COOLDOWN_MS || this.mode === 'zoomIn' || this.mode === 'zoomOut')) {
         this.mode = zoomInReady ? 'zoomIn' : 'zoomOut'
         if (this.modeSince === 0) this.modeSince = now
+      } else if (!zoomInReady && !zoomOutReady) {
+        this.mode = 'none'
+        this.modeSince = 0
+        this.smoothedZoom += (0 - this.smoothedZoom) * SMOOTHING
+        return {
+          enabled,
+          cameraStatus,
+          handsDetected: hands.length,
+          activeGesture: 'none',
+          zoomHands: pair.map((hand) => hand.id),
+          zoomDelta: 0,
+          rotateDelta: { x: 0, y: 0 },
+        }
       }
 
       if (this.mode === 'zoomIn' || this.mode === 'zoomOut') {
-        const targetZoom = Math.abs(distanceDelta) < DEAD_ZONE ? 0 : distanceDelta
+        const targetZoom = this.mode === 'zoomIn' ? Math.max(0, distanceDelta) : Math.min(0, distanceDelta)
         this.smoothedZoom += (targetZoom - this.smoothedZoom) * SMOOTHING
         if (Math.abs(this.smoothedZoom) < 0.0015) this.smoothedZoom = 0
         return {
@@ -106,6 +130,7 @@ export class GestureStateMachine {
       }
     } else {
       this.lastDistance = undefined
+      this.lastPalmCenters.clear()
       this.smoothedZoom = 0
       if (this.mode === 'zoomIn' || this.mode === 'zoomOut') this.mode = 'none'
     }
@@ -165,6 +190,7 @@ export class GestureStateMachine {
     this.mode = 'none'
     this.modeSince = 0
     this.lastDistance = undefined
+    this.lastPalmCenters.clear()
     this.smoothedZoom = 0
     this.clearRotation()
   }

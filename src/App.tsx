@@ -34,19 +34,6 @@ function HandEnergyOverlay({ hands, status }: { hands: TrackedHand[]; status: Ge
   const activeIds = new Set([...(status.zoomHands ?? []), status.rotationHand].filter(Boolean) as string[])
   return (
     <svg className="hand-energy-layer" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
-      {status.zoomHands?.length === 2 ? (() => {
-        const pair = status.zoomHands.map((id) => hands.find((hand) => hand.id === id)).filter(Boolean) as TrackedHand[]
-        if (pair.length !== 2) return null
-        return (
-          <line
-            className="hand-bridge active"
-            x1={mirrorX(pair[0].palmCenter.x)}
-            y1={pair[0].palmCenter.y}
-            x2={mirrorX(pair[1].palmCenter.x)}
-            y2={pair[1].palmCenter.y}
-          />
-        )
-      })() : null}
       {hands.map((hand) => {
         const active = activeIds.has(hand.id)
         const points = hand.landmarks
@@ -164,27 +151,31 @@ export default function App() {
         onSelect={(node) => { setSelectedId(node.id); setFocusId(node.id) }}
         onClearSelection={() => { setSelectedId(undefined); setFocusId(undefined); setHoveredId(undefined) }}
       />
-      <button
-        className={`camera-button ${gestureEnabled ? 'active' : ''} ${gestureStatus.cameraStatus === 'error' ? 'error' : ''}`}
-        aria-label={gestureEnabled ? '關閉手勢控制' : '開啟手勢控制'}
-        onClick={() => setGestureEnabled((value) => !value)}
-      >
-        <span className="camera-icon" aria-hidden="true" />
-        <span className="camera-status-dot" aria-hidden="true" />
-      </button>
-      {gestureEnabled ? <video ref={videoRef} className="camera-preview active" muted playsInline /> : null}
-      <HandEnergyOverlay hands={hands} status={gestureStatus} />
       {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
-        <div className={`gesture-pill ${gestureStatus.activeGesture !== 'none' ? 'active' : ''}`}>
-          <span />
-          {gestureStatus.cameraStatus === 'requesting' ? '啟動中' :
-            gestureStatus.cameraStatus === 'error' ? gestureStatus.message :
-              gestureStatus.activeGesture === 'zoomIn' ? '放大' :
-                gestureStatus.activeGesture === 'zoomOut' ? '縮小' :
-                  gestureStatus.activeGesture === 'rotate' ? '旋轉' :
-                    hands.length ? `手 ${hands.length}` : '待偵測'}
-        </div>
+        <video ref={videoRef} className="camera-sensor" muted playsInline aria-hidden="true" />
       ) : null}
+      <HandEnergyOverlay hands={hands} status={gestureStatus} />
+      <div className="camera-controls">
+        {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
+          <div className={`gesture-pill ${gestureStatus.activeGesture !== 'none' ? 'active' : ''}`}>
+            <span />
+            {gestureStatus.cameraStatus === 'requesting' ? '啟動中' :
+              gestureStatus.cameraStatus === 'error' ? gestureStatus.message :
+                gestureStatus.activeGesture === 'zoomIn' ? '放大' :
+                  gestureStatus.activeGesture === 'zoomOut' ? '縮小' :
+                    gestureStatus.activeGesture === 'rotate' ? '旋轉' :
+                      hands.length ? '已偵測' : '待偵測'}
+          </div>
+        ) : null}
+        <button
+          className={`camera-button ${gestureEnabled ? 'active' : ''} ${gestureStatus.cameraStatus === 'error' ? 'error' : ''}`}
+          aria-label={gestureEnabled ? '關閉手勢控制' : '開啟手勢控制'}
+          onClick={() => setGestureEnabled((value) => !value)}
+        >
+          <span className="camera-icon" aria-hidden="true" />
+          <span className="camera-status-dot" aria-hidden="true" />
+        </button>
+      </div>
       <header className="title-panel">
         <strong>J-Space</strong>
         <span>個人資源宇宙原型</span>
