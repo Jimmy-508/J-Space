@@ -151,6 +151,9 @@ export default function App() {
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
   ).slice(0, 8) : [], [data.nodes, query])
+  const gesturePointerScreen = gestureStatus.activeGesture === 'pointer' && gestureStatus.pointerPoint
+    ? normalizedToCoverViewport(gestureStatus.pointerPoint, videoSize, viewportSize, true)
+    : undefined
 
   const persist = (next: KnowledgeData) => setData(next)
 
@@ -240,6 +243,7 @@ export default function App() {
           activeGesture: gestureStatus.activeGesture,
           zoomDelta: gestureStatus.zoomDelta,
           panDelta: gestureStatus.panDelta,
+          pointerScreen: gesturePointerScreen,
           rotateDelta: gestureStatus.rotateDelta,
         }}
         onHover={setHoveredId}

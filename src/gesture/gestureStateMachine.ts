@@ -1,17 +1,18 @@
 import type { GestureStatus, NormalizedPoint, TrackedHand } from './gestureTypes'
 
-const HOLD_MS = 210
+const HOLD_MS = 170
 const LOST_GRACE_MS = 420
-const DEAD_ZONE = 0.0048
-const HAND_MOTION_THRESHOLD = 0.0022
+const DEAD_ZONE = 0.0032
+const HAND_MOTION_THRESHOLD = 0.0014
 const PAN_DEAD_ZONE = 0.0015
 const PAN_CLAMP = 0.036
-const SMOOTHING = 0.3
+const SMOOTHING = 0.34
 
 type ZoomSession = 'none' | 'zoomIn' | 'zoomOut'
 type ZoomPose = 'none' | 'palmsForward' | 'palmsFacing'
 
 const distance = (a: NormalizedPoint, b: NormalizedPoint) => Math.hypot(a.x - b.x, a.y - b.y)
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
 const emptyStatus = (
   enabled: boolean,
@@ -238,7 +239,8 @@ export class GestureStateMachine {
         this.clearZoomSession(currentDistance)
         return this.zoomIdleStatus(enabled, cameraStatus, handsDetected, pair)
       }
-      this.smoothedZoom += (Math.max(0, distanceDelta) - this.smoothedZoom) * SMOOTHING
+      const distanceGain = 0.85 + clamp((currentDistance - 0.24) / 0.46, 0, 1) * 1.75
+      this.smoothedZoom += (Math.max(0, distanceDelta) * distanceGain - this.smoothedZoom) * SMOOTHING
       return this.zoomActiveStatus(enabled, cameraStatus, handsDetected, pair, 'zoomIn', Math.max(0, this.smoothedZoom))
     }
 
@@ -247,7 +249,8 @@ export class GestureStateMachine {
         this.clearZoomSession(currentDistance)
         return this.zoomIdleStatus(enabled, cameraStatus, handsDetected, pair)
       }
-      this.smoothedZoom += (Math.min(0, distanceDelta) - this.smoothedZoom) * SMOOTHING
+      const distanceGain = 0.95 + clamp((0.64 - currentDistance) / 0.42, 0, 1) * 1.95
+      this.smoothedZoom += (Math.min(0, distanceDelta) * distanceGain - this.smoothedZoom) * SMOOTHING
       return this.zoomActiveStatus(enabled, cameraStatus, handsDetected, pair, 'zoomOut', Math.min(0, this.smoothedZoom))
     }
 
@@ -266,7 +269,8 @@ export class GestureStateMachine {
   }
 
   private isApproaching(distanceDelta: number, leftDeltaX: number, rightDeltaX: number) {
-    return distanceDelta < -DEAD_ZONE && leftDeltaX > HAND_MOTION_THRESHOLD && rightDeltaX < -HAND_MOTION_THRESHOLD
+    const inwardMotion = leftDeltaX > HAND_MOTION_THRESHOLD * 0.55 || rightDeltaX < -HAND_MOTION_THRESHOLD * 0.55
+    return distanceDelta < -DEAD_ZONE * 0.82 && inwardMotion
   }
 
   private zoomActiveStatus(

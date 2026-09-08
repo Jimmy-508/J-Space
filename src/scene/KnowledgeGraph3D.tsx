@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { KnowledgeData, KnowledgeNode } from '../types/knowledge'
-import { createGalaxyBand, createStarfield } from './Starfield'
+import { createBrightStarfield, createGalaxyBand, createStarfield } from './Starfield'
 
 type Props = {
   data: KnowledgeData
@@ -12,6 +12,7 @@ type Props = {
     activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'pointer' | 'rotate'
     zoomDelta: number
     panDelta: { x: number; y: number }
+    pointerScreen?: { x: number; y: number }
     rotateDelta: { x: number; y: number }
   }
   onSelect: (node: KnowledgeNode) => void
@@ -48,6 +49,8 @@ const isClusterNode = (node: KnowledgeNode) => node.tags?.includes('cluster') ??
 const isContentNode = (node: KnowledgeNode) => (
   !!node.url || ['resource', 'website', 'project', 'file'].includes(node.type)
 ) && !isClusterNode(node)
+
+const DWELL_SELECT_MS = 600
 
 const getTouchMetrics = (touches: React.TouchList) => {
   const a = touches.item(0)
@@ -135,6 +138,65 @@ const createStarFlareTexture = () => {
   return new THREE.CanvasTexture(canvas)
 }
 
+const getScreenHit = (
+  screenPoint: { x: number; y: number },
+  meshes: Map<string, THREE.Mesh>,
+  camera: THREE.PerspectiveCamera,
+  renderer: THREE.WebGLRenderer,
+) => {
+  const best = { id: undefined as string | undefined, node: undefined as KnowledgeNode | undefined, distance: Infinity, world: new THREE.Vector3(), screenRadius: 0 }
+  const viewportWidth = renderer.domElement.clientWidth
+  const viewportHeight = renderer.domElement.clientHeight
+  const projectionScale = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)))
+  meshes.forEach((mesh, id) => {
+    const world = new THREE.Vector3()
+    mesh.getWorldPosition(world)
+    const projected = world.clone().project(camera)
+    if (projected.z < -1 || projected.z > 1) return
+    const sx = (projected.x * 0.5 + 0.5) * viewportWidth
+    const sy = (-projected.y * 0.5 + 0.5) * viewportHeight
+    const node = mesh.userData.node as KnowledgeNode
+    const radius = isClusterNode(node) ? 0.68 : isContentNode(node) ? 0.4 : 0.34
+    const screenRadius = (radius / Math.max(1, camera.position.distanceTo(world))) * projectionScale
+    const hitRadius = Math.max(24, screenRadius + 18)
+    const distance = Math.hypot(screenPoint.x - sx, screenPoint.y - sy)
+    if (distance <= hitRadius && distance < best.distance) {
+      best.id = id
+      best.node = node
+      best.distance = distance
+      best.world.copy(world)
+      best.screenRadius = screenRadius
+    }
+  })
+  return best.node ? best : undefined
+}
+
+const createSelectBurst = (position: THREE.Vector3, color: number, texture: THREE.Texture) => {
+  const group = new THREE.Group()
+  group.position.copy(position)
+  group.userData.createdAt = performance.now() * 0.001
+  ;[0, 1].forEach((index) => {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.72 + index * 0.22, 0.86 + index * 0.22, 72),
+      makeHaloMaterial(color, 0.34 - index * 0.08),
+    )
+    ring.userData = { baseScale: 1 + index * 0.24, speed: 1.1 + index * 0.35 }
+    group.add(ring)
+  })
+  const flare = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture,
+    color,
+    opacity: 0.46,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  }))
+  flare.scale.setScalar(2.35)
+  flare.userData = { flare: true }
+  group.add(flare)
+  return group
+}
+
 const getRelatedIds = (data: KnowledgeData, selectedId?: string) => {
   const related = new Set<string>()
   if (!selectedId) return related
@@ -197,6 +259,9 @@ export default function KnowledgeGraph3D({
   const coreEffectsRef = useRef<THREE.Object3D[]>([])
   const labelSpritesRef = useRef<THREE.Sprite[]>([])
   const relatedHalosRef = useRef<THREE.Object3D[]>([])
+  const dwellFeedbackRef = useRef<THREE.Mesh | null>(null)
+  const selectBurstRef = useRef<THREE.Object3D[]>([])
+  const dwellRef = useRef<{ nodeId?: string; since: number; triggeredAt: number }>({ since: 0, triggeredAt: 0 })
   const raycasterRef = useRef(new THREE.Raycaster())
   const pointerRef = useRef(new THREE.Vector2(10, 10))
   const dragRef = useRef({
@@ -251,22 +316,24 @@ export default function KnowledgeGraph3D({
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
     scene.add(light)
-    const deepDust = createStarfield({ count: 4200, radiusMin: 118, radiusMax: 270, size: 0.028, opacity: 0.42, drift: 0.000025, twinkle: 0.22, occasional: 0.025, banded: true })
-    const galaxyBand = createGalaxyBand({ count: 5200, width: 18, length: 150, depth: 145, size: 0.044, opacity: 0.52, drift: -0.000035 })
-    const farStars = createStarfield({ count: 2400, radiusMin: 82, radiusMax: 205, size: 0.044, opacity: 0.5, drift: 0.00007, twinkle: 0.36, occasional: 0.06, banded: true })
-    const midStars = createStarfield({ count: 1250, radiusMin: 42, radiusMax: 116, size: 0.08, opacity: 0.55, drift: -0.00013, twinkle: 0.24, occasional: 0.04, banded: true })
-    const nearDust = createStarfield({ count: 320, radiusMin: 24, radiusMax: 66, size: 0.05, opacity: 0.2, drift: 0.0002, twinkle: 0.08, occasional: 0.008 })
-    starfieldsRef.current = [deepDust, galaxyBand, farStars, midStars, nearDust]
+    const deepDust = createStarfield({ count: 6200, radiusMin: 118, radiusMax: 285, size: 0.026, opacity: 0.46, drift: 0.000025, twinkle: 0.26, occasional: 0.035, banded: true })
+    const galaxyBand = createGalaxyBand({ count: 8800, width: 27, length: 170, depth: 150, size: 0.058, opacity: 0.72, drift: -0.000035 })
+    const farStars = createStarfield({ count: 3200, radiusMin: 82, radiusMax: 215, size: 0.05, opacity: 0.58, drift: 0.00007, twinkle: 0.42, occasional: 0.09, banded: true })
+    const visibleStars = createBrightStarfield({ count: 2800, radiusMin: 68, radiusMax: 190, size: 0.074, opacity: 0.72, drift: 0.000095 })
+    const midStars = createStarfield({ count: 1500, radiusMin: 42, radiusMax: 122, size: 0.09, opacity: 0.6, drift: -0.00013, twinkle: 0.3, occasional: 0.065, banded: true })
+    const brightStars = createBrightStarfield({ count: 420, radiusMin: 50, radiusMax: 168, size: 0.16, opacity: 0.82, drift: -0.000055, bright: true })
+    const nearDust = createStarfield({ count: 420, radiusMin: 24, radiusMax: 68, size: 0.052, opacity: 0.24, drift: 0.0002, twinkle: 0.12, occasional: 0.018 })
+    starfieldsRef.current = [deepDust, galaxyBand, farStars, visibleStars, midStars, brightStars, nearDust]
     starfieldsRef.current.forEach((field) => scene.add(field))
     const nebulaLayer = [
-      { color: 0x27456f, opacity: 0.09, position: [-30, 12, -72], scale: [52, 28, 1] },
-      { color: 0x3b527d, opacity: 0.065, position: [34, -8, -84], scale: [46, 24, 1] },
-      { color: 0x2f4068, opacity: 0.055, position: [-4, -24, -96], scale: [62, 30, 1] },
-      { color: 0x496082, opacity: 0.045, position: [4, 28, -118], scale: [70, 34, 1] },
-      { color: 0x516f96, opacity: 0.052, position: [-18, -2, -132], scale: [112, 20, 1] },
-      { color: 0x345d87, opacity: 0.044, position: [22, 10, -150], scale: [128, 18, 1] },
-      { color: 0x5a4f86, opacity: 0.034, position: [-44, -18, -156], scale: [54, 26, 1] },
-      { color: 0x2d6d8d, opacity: 0.03, position: [48, 24, -172], scale: [64, 28, 1] },
+      { color: 0x27456f, opacity: 0.12, position: [-30, 12, -72], scale: [56, 30, 1] },
+      { color: 0x3b527d, opacity: 0.086, position: [34, -8, -84], scale: [50, 25, 1] },
+      { color: 0x2f4068, opacity: 0.074, position: [-4, -24, -96], scale: [66, 32, 1] },
+      { color: 0x496082, opacity: 0.06, position: [4, 28, -118], scale: [76, 36, 1] },
+      { color: 0x516f96, opacity: 0.08, position: [-18, -2, -132], scale: [132, 24, 1] },
+      { color: 0x345d87, opacity: 0.067, position: [22, 10, -150], scale: [148, 22, 1] },
+      { color: 0x5a4f86, opacity: 0.048, position: [-44, -18, -156], scale: [58, 28, 1] },
+      { color: 0x2d6d8d, opacity: 0.044, position: [48, 24, -172], scale: [70, 30, 1] },
     ].map((item, index) => {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
@@ -285,6 +352,14 @@ export default function KnowledgeGraph3D({
     nebulaRef.current = nebulaLayer
     const group = new THREE.Group()
     scene.add(group)
+    const dwellFeedback = new THREE.Mesh(
+      new THREE.RingGeometry(0.8, 0.92, 72),
+      makeHaloMaterial(0xffdf8a, 0),
+    )
+    dwellFeedback.visible = false
+    dwellFeedback.renderOrder = 30
+    scene.add(dwellFeedback)
+    dwellFeedbackRef.current = dwellFeedback
     sceneRef.current = scene
     cameraRef.current = camera
     rendererRef.current = renderer
@@ -311,6 +386,48 @@ export default function KnowledgeGraph3D({
           THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
           targetDistance * 0.0017,
         )
+      }
+      camera.lookAt(cameraTargetRef.current)
+      camera.updateMatrixWorld()
+      if (activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen) {
+        const hit = getScreenHit(activeGesture.pointerScreen, nodeMeshesRef.current, camera, renderer)
+        if (hit?.id) {
+          if (dwellRef.current.nodeId !== hit.id) {
+            dwellRef.current = { nodeId: hit.id, since: performance.now(), triggeredAt: dwellRef.current.triggeredAt }
+            onHover(hit.id)
+          }
+          const dwellMs = performance.now() - dwellRef.current.since
+          const progress = THREE.MathUtils.clamp(dwellMs / DWELL_SELECT_MS, 0, 1)
+          const nodeColor = typeColors[hit.node?.type ?? 'topic']
+          const feedback = dwellFeedbackRef.current
+          if (feedback) {
+            const material = feedback.material as THREE.MeshBasicMaterial
+            feedback.visible = true
+            feedback.position.copy(hit.world)
+            feedback.quaternion.copy(camera.quaternion)
+            feedback.scale.setScalar(0.86 + progress * 0.52)
+            material.color.setHex(nodeColor)
+            material.opacity = 0.16 + progress * 0.38
+          }
+          const nowMs = performance.now()
+          if (progress >= 1 && hit.node && hit.id !== selectedIdRef.current && nowMs - dwellRef.current.triggeredAt > 950) {
+            dwellRef.current.triggeredAt = nowMs
+            dwellRef.current.since = nowMs
+            const burst = createSelectBurst(hit.world, nodeColor, starFlareTexture)
+            scene.add(burst)
+            selectBurstRef.current.push(burst)
+            onSelect(hit.node)
+            onHover(hit.id)
+          }
+        } else {
+          if (dwellRef.current.nodeId) onHover(undefined)
+          dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
+          if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
+        }
+      } else {
+        if (dwellRef.current.nodeId) onHover(undefined)
+        dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
+        if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
       }
       camera.lookAt(cameraTargetRef.current)
       starfieldsRef.current.forEach((field) => {
@@ -364,6 +481,27 @@ export default function KnowledgeGraph3D({
         object.scale.setScalar(baseScale + pulse * (object.userData.scaleRange ?? 0.3))
         material.opacity = (object.userData.baseOpacity ?? 0.22) * (1 - pulse * (object.userData.fade ?? 0.45))
         if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
+      })
+      selectBurstRef.current = selectBurstRef.current.filter((burst) => {
+        const age = time - (burst.userData.createdAt ?? time)
+        burst.children.forEach((child, index) => {
+          if (child instanceof THREE.Mesh) {
+            child.quaternion.copy(camera.quaternion)
+            child.scale.setScalar((child.userData.baseScale ?? 1) + age * (1.4 + index * 0.4))
+            const material = child.material as THREE.MeshBasicMaterial
+            material.opacity = Math.max(0, 0.42 * (1 - age / 0.82))
+          } else if (child instanceof THREE.Sprite) {
+            child.quaternion.copy(camera.quaternion)
+            child.scale.setScalar(2.35 + age * 1.45)
+            const material = child.material as THREE.SpriteMaterial
+            material.opacity = Math.max(0, 0.46 * (1 - age / 0.55))
+          }
+        })
+        if (age > 0.86) {
+          scene.remove(burst)
+          return false
+        }
+        return true
       })
       coreEffectsRef.current.forEach((object, index) => {
         const distanceBoost = object.userData.distanceAware
