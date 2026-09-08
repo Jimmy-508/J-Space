@@ -9,7 +9,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           three: ['three'],
-          mediapipe: ['@mediapipe/tasks-vision'],
         },
       },
     },

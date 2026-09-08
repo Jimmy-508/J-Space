@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
-import { GestureStateMachine } from './gesture/gestureStateMachine'
-import { toScreenPoint } from './gesture/coordinateTransform'
-import type { GestureStatus, TrackedHand } from './gesture/gestureTypes'
 import { knowledgeRepository, validateKnowledgeData } from './repository/knowledgeRepository'
 import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
 import NodeHUD from './scene/NodeHUD'
@@ -17,13 +14,7 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<KnowledgeNode | 'new'>()
   const [relationOpen, setRelationOpen] = useState(false)
-  const [performanceMode, setPerformanceMode] = useState(false)
-  const [debugMode, setDebugMode] = useState(false)
-  const [previewHidden, setPreviewHidden] = useState(false)
-  const [gesture, setGesture] = useState<GestureStatus>({ enabled: false, cameraStatus: 'idle', handsDetected: 0, activeGesture: 'none', radialMenuOpen: false })
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const trackerRef = useRef<{ stop: () => void } | null>(null)
-  const stateMachineRef = useRef(new GestureStateMachine())
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const selected = data.nodes.find((node) => node.id === selectedId)
@@ -31,32 +22,7 @@ export default function App() {
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
   ).slice(0, 8) : [], [data.nodes, query])
 
-  useEffect(() => () => trackerRef.current?.stop(), [])
-
   const persist = (next: KnowledgeData) => setData(next)
-
-  const startGesture = async () => {
-    if (!videoRef.current) return
-    setGesture((current) => ({ ...current, enabled: true, cameraStatus: 'requesting', message: 'Camera requesting' }))
-    try {
-      const { HandTrackingSession } = await import('./gesture/handTracking')
-      const tracker = new HandTrackingSession()
-      trackerRef.current = tracker
-      await tracker.start(videoRef.current, (hands: TrackedHand[]) => {
-        const next = stateMachineRef.current.update(hands, performance.now(), true, 'ready')
-        setGesture(next)
-      })
-      setGesture((current) => ({ ...current, enabled: true, cameraStatus: 'ready' }))
-    } catch (error) {
-      setGesture({ enabled: false, cameraStatus: 'error', handsDetected: 0, activeGesture: 'none', radialMenuOpen: false, message: error instanceof Error ? error.message : 'Gesture Mode failed' })
-    }
-  }
-
-  const stopGesture = () => {
-    trackerRef.current?.stop()
-    stateMachineRef.current.closeRadialMenu()
-    setGesture({ enabled: false, cameraStatus: 'idle', handsDetected: 0, activeGesture: 'none', radialMenuOpen: false })
-  }
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -74,30 +40,43 @@ export default function App() {
     persist(knowledgeRepository.save(parsed))
   }
 
-  const pointerScreen = gesture.pointer ? toScreenPoint(gesture.pointer, window.innerWidth, window.innerHeight, true) : undefined
-
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${advancedOpen ? 'advanced-open' : ''}`}>
       <KnowledgeGraph3D
         data={data}
         selectedId={selectedId}
         hoveredId={hoveredId}
         focusId={focusId}
-        performanceMode={performanceMode}
-        pointer={gesture.pointer}
         onHover={setHoveredId}
         onSelect={(node) => { setSelectedId(node.id); setFocusId(node.id) }}
+        onClearSelection={() => { setSelectedId(undefined); setFocusId(undefined); setHoveredId(undefined) }}
       />
-      <header className="topbar">
-        <div><strong>J-Space Prototype</strong><span>3D Knowledge Graph</span></div>
-        <button onClick={() => setEditing('new')}>＋ 新增節點</button>
+      <header className="title-panel">
+        <strong>J-Space</strong>
+        <span>個人資源宇宙原型</span>
       </header>
       <section className="search-panel">
-        <input placeholder="搜尋節點，例如：二分" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <div className="search-box">
+          <span className="search-icon" aria-hidden="true" />
+          <input
+            aria-label="搜尋節點"
+            placeholder="搜尋節點，例如：二分"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {query ? <button className="clear-search" aria-label="清除搜尋" onClick={() => { setQuery(''); setFocusId(undefined); setHoveredId(undefined) }}>×</button> : null}
+        </div>
         {results.length ? <div className="search-results">{results.map((node) => (
           <button key={node.id} onClick={() => { setSelectedId(node.id); setFocusId(node.id); setQuery('') }}>{node.title}<small>{node.category}</small></button>
         ))}</div> : null}
       </section>
+      <nav className="action-bar" aria-label="主要功能">
+        <button onClick={() => setEditing('new')}>新增節點</button>
+        <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯目前節點</button>
+        <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
+        <button className="danger" onClick={() => confirm('確定要重設為預設資料嗎？') && persist(knowledgeRepository.reset())}>重設資料</button>
+        <button onClick={() => setAdvancedOpen((value) => !value)}>{advancedOpen ? '收合進階' : '進階功能'}</button>
+      </nav>
       <NodeHUD
         node={selected}
         data={data}
@@ -111,13 +90,16 @@ export default function App() {
         onAddRelation={() => setRelationOpen(true)}
         onDeleteLink={(link: KnowledgeLink) => persist(knowledgeRepository.deleteLink(data, link.id))}
       />
-      <section className="bottom-controls">
-        <button onClick={() => performanceMode ? setPerformanceMode(false) : setPerformanceMode(true)}>Performance {performanceMode ? 'On' : 'Off'}</button>
-        <button onClick={() => setDebugMode((value) => !value)}>Debug {debugMode ? 'On' : 'Off'}</button>
-        <button onClick={exportJson}>匯出 JSON</button>
-        <button onClick={() => fileInputRef.current?.click()}>匯入 JSON</button>
-        <button className="danger" onClick={() => confirm('確定要重設為預設資料嗎？') && persist(knowledgeRepository.reset())}>重設</button>
-      </section>
+      {advancedOpen ? (
+        <section className="advanced-panel">
+          <div>
+            <strong>資料搬移</strong>
+            <span>匯入前會先驗證格式，錯誤時不覆蓋現有資料。</span>
+          </div>
+          <button onClick={exportJson}>匯出 JSON</button>
+          <button onClick={() => fileInputRef.current?.click()}>匯入 JSON</button>
+        </section>
+      ) : null}
       <input
         ref={fileInputRef}
         type="file"
@@ -129,15 +111,6 @@ export default function App() {
           event.currentTarget.value = ''
         }}
       />
-      <section className="gesture-panel">
-        <button onClick={gesture.enabled ? stopGesture : startGesture}>Gesture Mode {gesture.enabled ? 'On' : 'Off'}</button>
-        <button onClick={() => setPreviewHidden((value) => !value)}>{previewHidden ? '顯示預覽' : '隱藏預覽'}</button>
-        <video className={previewHidden ? 'hidden' : ''} ref={videoRef} playsInline muted />
-        <small>{gesture.cameraStatus} / hands {gesture.handsDetected}</small>
-      </section>
-      {gesture.radialMenuOpen ? <div className="radial-menu"><button onClick={() => setEditing('new')}>新增</button><button onClick={() => selected && setEditing(selected)}>編輯</button><button onClick={() => stateMachineRef.current.closeRadialMenu()}>關閉</button></div> : null}
-      {pointerScreen ? <div className="gesture-pointer" style={{ left: pointerScreen.x, top: pointerScreen.y }} /> : null}
-      {debugMode ? <pre className="debug-panel">{JSON.stringify({ selected: selected?.title, hoveredId, gesture, performanceMode }, null, 2)}</pre> : null}
       {editing ? (
         <NodeForm
           node={editing === 'new' ? undefined : editing}

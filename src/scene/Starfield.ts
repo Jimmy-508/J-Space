@@ -1,11 +1,20 @@
 import * as THREE from 'three'
 
-export const createStarfield = (count: number) => {
+type StarfieldOptions = {
+  count: number
+  radiusMin: number
+  radiusMax: number
+  size: number
+  opacity: number
+  drift: number
+}
+
+export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, drift }: StarfieldOptions) => {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(count * 3)
   const colors = new Float32Array(count * 3)
   for (let i = 0; i < count; i += 1) {
-    const radius = 65 + Math.random() * 85
+    const radius = radiusMin + Math.random() * (radiusMax - radiusMin)
     const theta = Math.random() * Math.PI * 2
     const phi = Math.acos(2 * Math.random() - 1)
     positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
@@ -19,11 +28,15 @@ export const createStarfield = (count: number) => {
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   const material = new THREE.PointsMaterial({
-    size: 0.09,
+    size,
     vertexColors: true,
     transparent: true,
-    opacity: 0.68,
+    opacity,
     depthWrite: false,
   })
-  return new THREE.Points(geometry, material)
+  const field = new THREE.Points(geometry, material)
+  field.userData.drift = drift
+  field.userData.baseOpacity = opacity
+  field.userData.phase = Math.random() * Math.PI * 2
+  return field
 }
