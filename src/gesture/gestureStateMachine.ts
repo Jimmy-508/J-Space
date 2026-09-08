@@ -7,6 +7,8 @@ const HAND_MOTION_THRESHOLD = 0.0014
 const PAN_DEAD_ZONE = 0.0015
 const PAN_CLAMP = 0.036
 const SMOOTHING = 0.34
+const POINTER_HOLD_MS = 300
+const POINTER_LOST_GRACE_MS = 150
 
 type ZoomSession = 'none' | 'zoomIn' | 'zoomOut'
 type ZoomPose = 'none' | 'palmsForward' | 'palmsFacing'
@@ -45,6 +47,9 @@ export class GestureStateMachine {
   private lastPanMidpoint?: NormalizedPoint
   private smoothedPan: NormalizedPoint = { x: 0, y: 0 }
   private pointerSince = new Map<string, number>()
+  private activePointerHand?: string
+  private lastPointerPoint?: NormalizedPoint
+  private pointerLostAt?: number
   private rotationHand?: string
   private lastRotationPoint?: NormalizedPoint
   private smoothedRotation: NormalizedPoint = { x: 0, y: 0 }
@@ -129,10 +134,13 @@ export class GestureStateMachine {
 
     const pointerHand = hands.find((hand) => {
       const since = this.pointerSince.get(hand.id)
-      return hand.gesture === 'fistWithIndex' && since !== undefined && now - since >= Math.max(120, HOLD_MS * 0.55)
+      return hand.gesture === 'fistWithIndex' && since !== undefined && now - since >= POINTER_HOLD_MS
     })
 
     if (pointerHand) {
+      this.activePointerHand = pointerHand.id
+      this.lastPointerPoint = pointerHand.landmarks[8] ?? pointerHand.pointer
+      this.pointerLostAt = undefined
       this.clearRotation()
       return {
         enabled,
@@ -145,6 +153,25 @@ export class GestureStateMachine {
         panDelta: { x: 0, y: 0 },
         rotateDelta: { x: 0, y: 0 },
       }
+    }
+
+    if (this.activePointerHand && this.lastPointerPoint) {
+      if (this.pointerLostAt === undefined) this.pointerLostAt = now
+      if (now - this.pointerLostAt <= POINTER_LOST_GRACE_MS) {
+        this.clearRotation()
+        return {
+          enabled,
+          cameraStatus,
+          handsDetected: hands.length,
+          activeGesture: 'pointer',
+          pointerHand: this.activePointerHand,
+          pointerPoint: this.lastPointerPoint,
+          zoomDelta: 0,
+          panDelta: { x: 0, y: 0 },
+          rotateDelta: { x: 0, y: 0 },
+        }
+      }
+      this.clearPointer()
     }
 
     const stableFist = hands.find((hand) => {
@@ -433,6 +460,12 @@ export class GestureStateMachine {
     this.smoothedPan = { x: 0, y: 0 }
   }
 
+  private clearPointer() {
+    this.activePointerHand = undefined
+    this.lastPointerPoint = undefined
+    this.pointerLostAt = undefined
+  }
+
   private reset() {
     this.openSince.clear()
     this.fistSince.clear()
@@ -440,6 +473,7 @@ export class GestureStateMachine {
     this.lastSeen.clear()
     this.clearZoom()
     this.clearPan()
+    this.clearPointer()
     this.clearRotation()
   }
 }

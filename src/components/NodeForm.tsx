@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { NODE_TYPE_LABELS, NODE_TYPES } from '../constants/nodeTypes'
 import type { KnowledgeNode, NodeType } from '../types/knowledge'
 
 type FormValue = Omit<KnowledgeNode, 'id' | 'createdAt' | 'updatedAt'>
@@ -8,8 +9,6 @@ type Props = {
   onCancel: () => void
   onSubmit: (value: FormValue) => void
 }
-
-const types: NodeType[] = ['topic', 'resource', 'website', 'project', 'file']
 
 export default function NodeForm({ node, onCancel, onSubmit }: Props) {
   const [value, setValue] = useState<FormValue>({
@@ -44,7 +43,7 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
       >
         <h2>{node ? '編輯節點' : '新增節點'}</h2>
         <label>標題<input required value={value.title} onChange={(event) => setValue({ ...value, title: event.target.value })} /></label>
-        <label>類型<select value={value.type} onChange={(event) => setValue({ ...value, type: event.target.value as NodeType })}>{types.map((type) => <option key={type}>{type}</option>)}</select></label>
+        <label>類型<select value={value.type} onChange={(event) => setValue({ ...value, type: event.target.value as NodeType })}>{NODE_TYPES.map((type) => <option key={type} value={type}>{NODE_TYPE_LABELS[type]}</option>)}</select></label>
         <label>分類<input value={value.category ?? ''} onChange={(event) => setValue({ ...value, category: event.target.value })} /></label>
         <label>簡介<textarea value={value.description ?? ''} onChange={(event) => setValue({ ...value, description: event.target.value })} /></label>
         <label>Tags<input value={(value.tags ?? []).join(', ')} onChange={(event) => setValue({ ...value, tags: event.target.value.split(',').map((tag) => tag.trim()) })} /></label>

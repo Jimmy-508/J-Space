@@ -18,6 +18,7 @@ type Props = {
   onSelect: (node: KnowledgeNode) => void
   onHover: (id?: string) => void
   onClearSelection: () => void
+  immersive?: boolean
 }
 
 const typeColors: Record<string, number> = {
@@ -197,6 +198,69 @@ const createSelectBurst = (position: THREE.Vector3, color: number, texture: THRE
   return group
 }
 
+const randomCometDelay = () => 8 + Math.random() * 17
+
+const createComet = (texture: THREE.Texture) => {
+  const group = new THREE.Group()
+  const fromLeft = Math.random() > 0.5
+  const startX = fromLeft ? -58 - Math.random() * 22 : 58 + Math.random() * 22
+  const startY = 26 + Math.random() * 24
+  const startZ = -42 - Math.random() * 60
+  const direction = new THREE.Vector3(fromLeft ? 1 : -1, -0.42 - Math.random() * 0.3, 0.08 + Math.random() * 0.12).normalize()
+  const speed = 12 + Math.random() * 8
+  const tailLength = 10 + Math.random() * 6
+  const points = Array.from({ length: 14 }, (_, index) => direction.clone().multiplyScalar(-tailLength * (index / 13)))
+  const geometry = new THREE.BufferGeometry().setFromPoints(points)
+  const colors = new Float32Array(points.length * 3)
+  for (let i = 0; i < points.length; i += 1) {
+    const strength = 1 - i / points.length
+    colors[i * 3] = 0.58 * strength
+    colors[i * 3 + 1] = 0.78 * strength
+    colors[i * 3 + 2] = 1.18 * strength
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  const tail = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.54,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  }))
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture,
+    color: 0xf1f8ff,
+    opacity: 0.86,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  }))
+  core.scale.setScalar(1.3 + Math.random() * 0.6)
+  group.add(tail)
+  group.add(core)
+  group.position.set(startX, startY, startZ)
+  group.userData = {
+    createdAt: performance.now() * 0.001,
+    life: 2.5 + Math.random() * 0.9,
+    direction,
+    speed,
+  }
+  return group
+}
+
+const disposeComet = (comet: THREE.Object3D) => {
+  comet.traverse((child) => {
+    if (child instanceof THREE.Line) {
+      child.geometry.dispose()
+      child.material.dispose()
+    }
+    if (child instanceof THREE.Sprite) {
+      child.material.dispose()
+    }
+  })
+}
+
 const getRelatedIds = (data: KnowledgeData, selectedId?: string) => {
   const related = new Set<string>()
   if (!selectedId) return related
@@ -245,6 +309,7 @@ export default function KnowledgeGraph3D({
   onSelect,
   onHover,
   onClearSelection,
+  immersive = false,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -289,6 +354,9 @@ export default function KnowledgeGraph3D({
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
   const selectedIdRef = useRef<string | undefined>(selectedId)
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
+  const immersiveRef = useRef(immersive)
+  const cometsRef = useRef<THREE.Object3D[]>([])
+  const nextCometAtRef = useRef(0)
   const layout = useMemo(() => makeLayout(data), [data])
   const softDiscTexture = useMemo(() => createSoftDiscTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
@@ -300,6 +368,15 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     gestureControlRef.current = gestureControl
   }, [gestureControl])
+
+  useEffect(() => {
+    immersiveRef.current = immersive
+    if (immersive) {
+      nextCometAtRef.current = performance.now() * 0.001 + 1.4 + Math.random() * 3
+    } else {
+      nextCometAtRef.current = 0
+    }
+  }, [immersive])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -493,6 +570,42 @@ export default function KnowledgeGraph3D({
         material.rotation += index % 2 === 0 ? 0.00045 : -0.00032
         sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))
       })
+      if (immersiveRef.current) {
+        if (time >= nextCometAtRef.current && cometsRef.current.length < 1) {
+          const comet = createComet(starFlareTexture)
+          scene.add(comet)
+          cometsRef.current.push(comet)
+          nextCometAtRef.current = time + randomCometDelay()
+        }
+      } else if (cometsRef.current.length) {
+        cometsRef.current.forEach((comet) => {
+          scene.remove(comet)
+          disposeComet(comet)
+        })
+        cometsRef.current = []
+      }
+      cometsRef.current = cometsRef.current.filter((comet) => {
+        const age = time - (comet.userData.createdAt ?? time)
+        const life = comet.userData.life ?? 3
+        const direction = comet.userData.direction as THREE.Vector3
+        comet.position.addScaledVector(direction, comet.userData.speed * 0.016)
+        comet.children.forEach((child) => {
+          if (child instanceof THREE.Line) {
+            ;(child.material as THREE.LineBasicMaterial).opacity = 0.54 * Math.max(0, 1 - age / life)
+          }
+          if (child instanceof THREE.Sprite) {
+            const material = child.material as THREE.SpriteMaterial
+            const pulse = Math.sin(time * 4.2) * 0.5 + 0.5
+            material.opacity = (0.62 + pulse * 0.24) * Math.max(0, 1 - age / life)
+          }
+        })
+        if (age > life) {
+          scene.remove(comet)
+          disposeComet(comet)
+          return false
+        }
+        return true
+      })
       linkObjectsRef.current.forEach((object, index) => {
         const age = Math.max(0, time - (object.userData.createdAt ?? time))
         const intro = Math.min(1, age / 0.75)
@@ -612,6 +725,7 @@ export default function KnowledgeGraph3D({
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', resize)
       renderer.dispose()
+      cometsRef.current.forEach(disposeComet)
       mount.removeChild(renderer.domElement)
     }
   }, [])

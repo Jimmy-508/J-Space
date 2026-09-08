@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { KnowledgeData, KnowledgeLink, KnowledgeNode, NodeType } from '../types/knowledge'
+import { NODE_TYPE_LABELS } from '../constants/nodeTypes'
+import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from '../types/knowledge'
 
 type Props = {
   node?: KnowledgeNode
@@ -8,14 +9,6 @@ type Props = {
   onDelete: (node: KnowledgeNode) => void
   onAddRelation: () => void
   onDeleteLink: (link: KnowledgeLink) => void
-}
-
-const typeLabels: Record<NodeType, string> = {
-  topic: '主題',
-  resource: '資源',
-  website: '網站',
-  project: '作品',
-  file: '檔案',
 }
 
 export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, onDeleteLink }: Props) {
@@ -34,7 +27,7 @@ export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, o
     <aside className={`node-drawer ${expanded ? 'expanded' : ''}`}>
       <button className="drawer-summary" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
         <span>
-          <small>{typeLabels[node.type]} / {node.category || '未分類'}</small>
+          <small>{NODE_TYPE_LABELS[node.type]} / {node.category || '未分類'}</small>
           <strong>{node.title}</strong>
         </span>
         <span className="drawer-toggle">{expanded ? '收合' : '展開'}</span>

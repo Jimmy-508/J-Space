@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
 import { normalizedToCoverViewport } from './gesture/coordinateTransform'
@@ -58,14 +58,16 @@ function HandEnergyOverlay({
   }
   const activeIds = new Set([...(status.zoomHands ?? []), ...(status.panHands ?? []), status.pointerHand, status.rotationHand].filter(Boolean) as string[])
   const slots: Array<TrackedHand | undefined> = [hands[0], hands[1]]
-  const pointerHands = slots.filter((hand): hand is TrackedHand => hand?.gesture === 'fistWithIndex')
-  const pointerIds = new Set(pointerHands.map((hand) => hand.id))
+  const pointerIds = new Set(status.pointerHand ? [status.pointerHand] : [])
   for (const id of cursorTrailsRef.current.keys()) {
     if (!pointerIds.has(id)) cursorTrailsRef.current.delete(id)
   }
-  const pointerCursors = pointerHands.map((hand) => {
-    const fingertip = normalizedToCoverViewport(hand.landmarks[8] ?? hand.pointer, videoSize, viewportSize, true)
-    const trail = cursorTrailsRef.current.get(hand.id) ?? []
+  const pointerCursors = status.activeGesture === 'pointer' && status.pointerHand && status.pointerPoint ? [{
+    id: status.pointerHand,
+    pointerPoint: status.pointerPoint,
+  }].map(({ id, pointerPoint }) => {
+    const fingertip = normalizedToCoverViewport(pointerPoint, videoSize, viewportSize, true)
+    const trail = cursorTrailsRef.current.get(id) ?? []
     const latest = trail[0]
     if (!latest || distance2d(latest, fingertip) > 1.15) {
       trail.unshift(fingertip)
@@ -74,9 +76,9 @@ function HandEnergyOverlay({
       if (trail.length > 1) trail.pop()
     }
     trail.length = Math.min(trail.length, 10)
-    cursorTrailsRef.current.set(hand.id, trail)
-    return { id: hand.id, point: fingertip, trail: [...trail] }
-  })
+    cursorTrailsRef.current.set(id, trail)
+    return { id, point: fingertip, trail: [...trail] }
+  }) : []
   return (
     <svg
       className="hand-energy-layer"
@@ -137,6 +139,7 @@ export default function App() {
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
+  const [immersive, setImmersive] = useState(false)
   const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
   const [viewportSize, setViewportSize] = useState(() => ({
     width: typeof window === 'undefined' ? 390 : window.visualViewport?.width ?? window.innerWidth,
@@ -146,6 +149,7 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackingRef = useRef<HandTrackingSession | undefined>(undefined)
   const gestureMachineRef = useRef(new GestureStateMachine())
+  const idleTimerRef = useRef<number | undefined>(undefined)
 
   const selected = data.nodes.find((node) => node.id === selectedId)
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
@@ -156,6 +160,11 @@ export default function App() {
     : undefined
 
   const persist = (next: KnowledgeData) => setData(next)
+  const resetIdle = useCallback(() => {
+    setImmersive(false)
+    if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = window.setTimeout(() => setImmersive(true), 10000)
+  }, [])
 
   useEffect(() => {
     const updateViewport = () => setViewportSize({
@@ -172,6 +181,15 @@ export default function App() {
       window.visualViewport?.removeEventListener('resize', updateViewport)
     }
   }, [])
+
+  useEffect(() => {
+    resetIdle()
+    window.addEventListener('keydown', resetIdle)
+    return () => {
+      window.removeEventListener('keydown', resetIdle)
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current)
+    }
+  }, [resetIdle])
 
   useEffect(() => {
     if (!gestureEnabled) {
@@ -197,7 +215,9 @@ export default function App() {
         ))
       }
       setHands(nextHands)
-      setGestureStatus(gestureMachineRef.current.update(nextHands, performance.now(), true, 'ready'))
+      const nextStatus = gestureMachineRef.current.update(nextHands, performance.now(), true, 'ready')
+      if (nextHands.length || nextStatus.activeGesture !== 'none') resetIdle()
+      setGestureStatus(nextStatus)
     }).then(() => {
       if (!cancelled) setGestureStatus((current) => ({ ...current, cameraStatus: 'ready' }))
     }).catch((error) => {
@@ -214,7 +234,7 @@ export default function App() {
       cancelled = true
       session.stop()
     }
-  }, [gestureEnabled])
+  }, [gestureEnabled, resetIdle])
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -233,7 +253,16 @@ export default function App() {
   }
 
   return (
-    <main className={`app-shell ${advancedOpen ? 'advanced-open' : ''}`}>
+    <main
+      className={`app-shell ${advancedOpen ? 'advanced-open' : ''} ${immersive ? 'immersive' : ''}`}
+      onPointerMoveCapture={resetIdle}
+      onPointerDownCapture={resetIdle}
+      onClickCapture={resetIdle}
+      onTouchStartCapture={resetIdle}
+      onTouchMoveCapture={resetIdle}
+      onWheelCapture={resetIdle}
+      onInputCapture={resetIdle}
+    >
       <KnowledgeGraph3D
         data={data}
         selectedId={selectedId}
@@ -249,53 +278,55 @@ export default function App() {
         onHover={setHoveredId}
         onSelect={(node) => { setSelectedId(node.id); setFocusId(node.id) }}
         onClearSelection={() => { setSelectedId(undefined); setFocusId(undefined); setHoveredId(undefined) }}
+        immersive={immersive}
       />
       {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
         <video ref={videoRef} className="camera-sensor" muted playsInline aria-hidden="true" />
       ) : null}
       <HandEnergyOverlay hands={hands} status={gestureStatus} videoSize={videoSize} viewportSize={viewportSize} />
-      <div className="camera-controls">
-        {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
-          <div className={`gesture-pill ${gestureStatus.activeGesture !== 'none' ? 'active' : ''}`}>
-            <span />
-            {gestureStatus.cameraStatus === 'requesting' ? '啟動中' :
-              gestureStatus.cameraStatus === 'error' ? gestureStatus.message :
-                gestureStatus.activeGesture === 'zoomIn' ? '放大' :
-                  gestureStatus.activeGesture === 'zoomOut' ? '縮小' :
-                    gestureStatus.activeGesture === 'pan' ? '平移' :
-                      gestureStatus.activeGesture === 'pointer' ? '游標' :
-                        gestureStatus.activeGesture === 'rotate' ? '旋轉' :
-                          hands.length ? '已偵測' : '待偵測'}
-          </div>
-        ) : null}
-        <button
-          className={`camera-button ${gestureEnabled ? 'active' : ''} ${gestureStatus.cameraStatus === 'error' ? 'error' : ''}`}
-          aria-label={gestureEnabled ? '關閉手勢控制' : '開啟手勢控制'}
-          onClick={() => setGestureEnabled((value) => !value)}
-        >
-          <span className="camera-icon" aria-hidden="true" />
-          <span className="camera-status-dot" aria-hidden="true" />
-        </button>
-      </div>
-      <header className="title-panel">
-        <strong>J-Space</strong>
-        <span>個人資源宇宙原型</span>
-      </header>
-      <section className="search-panel">
-        <div className="search-box">
-          <span className="search-icon" aria-hidden="true" />
-          <input
-            aria-label="搜尋節點"
-            placeholder="搜尋節點，例如：二分"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {query ? <button className="clear-search" aria-label="清除搜尋" onClick={() => { setQuery(''); setFocusId(undefined); setHoveredId(undefined) }}>×</button> : null}
+      <header className="top-bar">
+        <div className="title-panel">
+          <strong>J-Space</strong>
         </div>
-        {results.length ? <div className="search-results">{results.map((node) => (
-          <button key={node.id} onClick={() => { setSelectedId(node.id); setFocusId(node.id); setQuery('') }}>{node.title}<small>{node.category}</small></button>
-        ))}</div> : null}
-      </section>
+        <section className="search-panel">
+          <div className="search-box">
+            <span className="search-icon" aria-hidden="true" />
+            <input
+              aria-label="搜尋節點"
+              placeholder="探索"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            {query ? <button className="clear-search" aria-label="清除搜尋" onClick={() => { setQuery(''); setFocusId(undefined); setHoveredId(undefined) }}>×</button> : null}
+          </div>
+          {results.length ? <div className="search-results">{results.map((node) => (
+            <button key={node.id} onClick={() => { setSelectedId(node.id); setFocusId(node.id); setQuery('') }}>{node.title}<small>{node.category}</small></button>
+          ))}</div> : null}
+        </section>
+        <div className="camera-controls">
+          {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
+            <div className={`gesture-pill ${gestureStatus.activeGesture !== 'none' ? 'active' : ''}`}>
+              <span />
+              {gestureStatus.cameraStatus === 'requesting' ? '啟動中' :
+                gestureStatus.cameraStatus === 'error' ? gestureStatus.message :
+                  gestureStatus.activeGesture === 'zoomIn' ? '放大' :
+                    gestureStatus.activeGesture === 'zoomOut' ? '縮小' :
+                      gestureStatus.activeGesture === 'pan' ? '平移' :
+                        gestureStatus.activeGesture === 'pointer' ? '游標' :
+                          gestureStatus.activeGesture === 'rotate' ? '旋轉' :
+                            hands.length ? '已偵測' : '待偵測'}
+            </div>
+          ) : null}
+          <button
+            className={`camera-button ${gestureEnabled ? 'active' : ''} ${gestureStatus.cameraStatus === 'error' ? 'error' : ''}`}
+            aria-label={gestureEnabled ? '關閉手勢控制' : '開啟手勢控制'}
+            onClick={() => setGestureEnabled((value) => !value)}
+          >
+            <span className="camera-icon" aria-hidden="true" />
+            <span className="camera-status-dot" aria-hidden="true" />
+          </button>
+        </div>
+      </header>
       <nav className="action-bar" aria-label="主要功能">
         <button onClick={() => setEditing('new')}>新增節點</button>
         <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯目前節點</button>
