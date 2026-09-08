@@ -55,6 +55,10 @@ const isContentNode = (node: KnowledgeNode) => (
 ) && !isClusterNode(node)
 
 const DWELL_SELECT_MS = 600
+const DEFAULT_CAMERA_POSITION = new THREE.Vector3(0, 2, 34)
+const DEFAULT_CAMERA_TARGET = new THREE.Vector3(0, 0, 0)
+const DOUBLE_TAP_MS = 320
+const DOUBLE_TAP_DISTANCE = 28
 
 const getTouchMetrics = (touches: React.TouchList) => {
   const a = touches.item(0)
@@ -345,10 +349,17 @@ export default function KnowledgeGraph3D({
     rotX: 0,
     rotY: 0,
   })
+  const lastTapRef = useRef({
+    time: 0,
+    x: 0,
+    y: 0,
+    pointerType: '',
+    blank: false,
+  })
   const touchRef = useRef({
     mode: 'none' as 'none' | 'rotate' | 'gesturePending' | 'pinchZoom' | 'twoFingerPan',
     startDistance: 0,
-    startZoom: 34,
+    startZoom: DEFAULT_CAMERA_POSITION.z,
     startMidpoint: new THREE.Vector2(),
     lastMidpoint: new THREE.Vector2(),
     startTarget: new THREE.Vector3(),
@@ -403,7 +414,7 @@ export default function KnowledgeGraph3D({
     const scene = new THREE.Scene()
     scene.fog = new THREE.FogExp2(0x030713, 0.018)
     const camera = new THREE.PerspectiveCamera(55, mount.clientWidth / mount.clientHeight, 0.1, 500)
-    camera.position.set(0, 2, 34)
+    camera.position.copy(DEFAULT_CAMERA_POSITION)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.setClearColor(0x030713)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
@@ -551,8 +562,9 @@ export default function KnowledgeGraph3D({
           }
         } else {
           if (dwellRef.current.nodeId) onHover(undefined)
-          dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
-          if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
+    dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
+    lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false }
+    if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
         }
       } else {
         if (dwellRef.current.nodeId) onHover(undefined)
@@ -1044,19 +1056,28 @@ export default function KnowledgeGraph3D({
     pointerRef.current.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -(((event.clientY - rect.top) / rect.height) * 2 - 1))
   }
 
-  const pick = (source: SelectionSource) => {
+  const getPointerHitNode = () => {
+    const camera = cameraRef.current
+    if (!camera) return undefined
+    raycasterRef.current.setFromCamera(pointerRef.current, camera)
+    return raycasterRef.current.intersectObjects([...nodeMeshesRef.current.values()])[0]
+  }
+
+  const resetView = () => {
     const camera = cameraRef.current
     if (!camera) return
-    raycasterRef.current.setFromCamera(pointerRef.current, camera)
-    const hit = raycasterRef.current.intersectObjects([...nodeMeshesRef.current.values()])[0]
-    if (hit) {
-      const node = hit.object.userData.node as KnowledgeNode
-      onSelect(node, source)
-      onHover(node.id)
-      return
-    }
-    onHover(undefined)
-    onClearSelection()
+    camera.position.copy(DEFAULT_CAMERA_POSITION)
+    cameraTargetRef.current.copy(DEFAULT_CAMERA_TARGET)
+    if (groupRef.current) groupRef.current.rotation.set(0, 0, 0)
+    touchRef.current.mode = 'none'
+    touchRef.current.startDistance = 0
+    touchRef.current.startZoom = DEFAULT_CAMERA_POSITION.z
+    touchRef.current.startMidpoint.set(0, 0)
+    touchRef.current.lastMidpoint.set(0, 0)
+    touchRef.current.startTarget.copy(DEFAULT_CAMERA_TARGET)
+    touchRef.current.startCameraPosition.copy(DEFAULT_CAMERA_POSITION)
+    camera.lookAt(cameraTargetRef.current)
+    camera.updateMatrixWorld()
   }
 
   const hoverAtPointer = () => {
@@ -1125,7 +1146,37 @@ export default function KnowledgeGraph3D({
         const pointerTap = dragRef.current.pointerType !== 'touch'
         if (dragRef.current.pendingTap && !dragRef.current.dragging && beforeRelease <= 1 && distance < 14 && (touchTap || pointerTap)) {
           updatePointer(event)
-          pick(dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
+          const hit = getPointerHitNode()
+          const now = performance.now()
+          const blankTap = !hit
+          const previousTap = lastTapRef.current
+          const doubleBlankTap = blankTap &&
+            previousTap.blank &&
+            previousTap.pointerType === dragRef.current.pointerType &&
+            now - previousTap.time <= DOUBLE_TAP_MS &&
+            Math.hypot(event.clientX - previousTap.x, event.clientY - previousTap.y) <= DOUBLE_TAP_DISTANCE
+          if (doubleBlankTap) {
+            resetView()
+            onHover(undefined)
+            onClearSelection()
+            lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false }
+          } else {
+            if (hit) {
+              const node = hit.object.userData.node as KnowledgeNode
+              onSelect(node, dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
+              onHover(node.id)
+            } else {
+              onHover(undefined)
+              onClearSelection()
+            }
+            lastTapRef.current = {
+              time: now,
+              x: event.clientX,
+              y: event.clientY,
+              pointerType: dragRef.current.pointerType,
+              blank: blankTap,
+            }
+          }
         }
         dragRef.current.active = false
         dragRef.current.dragging = false
