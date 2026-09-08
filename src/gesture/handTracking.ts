@@ -1,6 +1,6 @@
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
 import { clampPoint } from './coordinateTransform'
-import { detectGesture, getPointerPoint } from './gestureDetector'
+import { detectGesture, getPalmCenter, getPalmSide, getPalmSize, getPointerPoint, isPalmFacingCamera } from './gestureDetector'
 import type { TrackedHand } from './gestureTypes'
 
 export class HandTrackingSession {
@@ -35,6 +35,11 @@ export class HandTrackingSession {
           handedness,
           gesture: detectGesture(landmarks),
           pointer: clampPoint(getPointerPoint(landmarks)),
+          landmarks: landmarks.map((point) => clampPoint({ x: point.x, y: point.y })),
+          palmCenter: clampPoint(getPalmCenter(landmarks)),
+          palmSize: getPalmSize(landmarks),
+          palmFacing: isPalmFacingCamera(landmarks),
+          palmSide: getPalmSide(landmarks),
         }
       })
       onHands(hands)

@@ -215,6 +215,193 @@ button:disabled {
   white-space: nowrap;
 }
 
+.camera-button {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 4;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(6, 13, 28, 0.58);
+  box-shadow: 0 0 28px rgba(86, 119, 188, 0.13);
+  backdrop-filter: blur(18px);
+}
+
+.camera-button.active {
+  border-color: rgba(166, 222, 255, 0.72);
+  box-shadow: 0 0 26px rgba(111, 183, 255, 0.28);
+}
+
+.camera-button.error {
+  border-color: rgba(255, 150, 150, 0.56);
+}
+
+.camera-icon {
+  position: relative;
+  width: 21px;
+  height: 15px;
+  border: 2px solid #d9e9ff;
+  border-radius: 4px;
+}
+
+.camera-icon::before {
+  position: absolute;
+  left: 4px;
+  top: -6px;
+  width: 8px;
+  height: 5px;
+  content: "";
+  border: 2px solid #d9e9ff;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+
+.camera-icon::after {
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 6px;
+  height: 6px;
+  content: "";
+  border: 2px solid #d9e9ff;
+  border-radius: 999px;
+}
+
+.camera-status-dot {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(128, 150, 178, 0.8);
+  box-shadow: 0 0 0 rgba(122, 221, 255, 0);
+}
+
+.camera-button.active .camera-status-dot {
+  background: #88f3d2;
+  box-shadow: 0 0 12px rgba(136, 243, 210, 0.8);
+}
+
+.camera-button.error .camera-status-dot {
+  background: #ff9c9c;
+  box-shadow: 0 0 12px rgba(255, 156, 156, 0.72);
+}
+
+.camera-preview {
+  position: fixed;
+  top: calc(max(14px, env(safe-area-inset-top)) + 56px);
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 3;
+  width: 112px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid rgba(170, 213, 255, 0.2);
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(-1);
+  box-shadow: 0 0 22px rgba(86, 119, 188, 0.14);
+  transition: opacity 160ms ease;
+}
+
+.camera-preview.active {
+  opacity: 0.28;
+}
+
+.hand-energy-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.hand-energy line {
+  stroke: rgba(160, 217, 255, 0.3);
+  stroke-width: 0.0022;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px rgba(96, 174, 255, 0.32));
+}
+
+.hand-energy circle {
+  fill: rgba(198, 236, 255, 0.55);
+  filter: drop-shadow(0 0 5px rgba(103, 190, 255, 0.48));
+}
+
+.hand-energy .palm-aura {
+  fill: rgba(95, 174, 255, 0.08);
+  stroke: rgba(176, 226, 255, 0.2);
+  stroke-width: 0.0015;
+}
+
+.hand-energy.active line,
+.hand-energy.fist line {
+  stroke: rgba(198, 235, 255, 0.56);
+}
+
+.hand-energy.active circle,
+.hand-energy.fist circle {
+  fill: rgba(230, 248, 255, 0.78);
+}
+
+.hand-energy.active .palm-aura,
+.hand-energy.fist .palm-aura {
+  fill: rgba(120, 207, 255, 0.16);
+  stroke: rgba(216, 245, 255, 0.42);
+}
+
+.hand-bridge {
+  stroke: rgba(160, 217, 255, 0.16);
+  stroke-width: 0.002;
+  stroke-linecap: round;
+}
+
+.hand-bridge.active {
+  stroke: rgba(206, 239, 255, 0.42);
+  filter: drop-shadow(0 0 8px rgba(111, 202, 255, 0.42));
+}
+
+.gesture-pill {
+  position: fixed;
+  top: calc(max(14px, env(safe-area-inset-top)) + 4px);
+  right: calc(max(14px, env(safe-area-inset-right)) + 54px);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 32px;
+  border: 1px solid rgba(180, 210, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.32rem 0.62rem;
+  color: #cfe1ff;
+  background: rgba(6, 13, 28, 0.58);
+  box-shadow: 0 0 20px rgba(86, 119, 188, 0.12);
+  backdrop-filter: blur(18px);
+  font-size: 0.78rem;
+}
+
+.gesture-pill span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #8aa0bf;
+}
+
+.gesture-pill.active {
+  border-color: rgba(166, 222, 255, 0.5);
+  color: #eef8ff;
+}
+
+.gesture-pill.active span {
+  background: #88f3d2;
+  box-shadow: 0 0 10px rgba(136, 243, 210, 0.8);
+}
+
 .advanced-panel {
   left: max(14px, env(safe-area-inset-left));
   right: max(14px, env(safe-area-inset-right));

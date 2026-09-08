@@ -8,6 +8,11 @@ type Props = {
   selectedId?: string
   hoveredId?: string
   focusId?: string
+  gestureControl?: {
+    activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'rotate'
+    zoomDelta: number
+    rotateDelta: { x: number; y: number }
+  }
   onSelect: (node: KnowledgeNode) => void
   onHover: (id?: string) => void
   onClearSelection: () => void
@@ -163,6 +168,7 @@ export default function KnowledgeGraph3D({
   selectedId,
   hoveredId,
   focusId,
+  gestureControl,
   onSelect,
   onHover,
   onClearSelection,
@@ -195,6 +201,7 @@ export default function KnowledgeGraph3D({
   const groupRef = useRef<THREE.Group | null>(null)
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
   const selectedIdRef = useRef<string | undefined>(selectedId)
+  const gestureControlRef = useRef<Props['gestureControl']>(undefined)
   const layout = useMemo(() => makeLayout(data), [data])
   const softDiscTexture = useMemo(() => createSoftDiscTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
@@ -202,6 +209,10 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
+
+  useEffect(() => {
+    gestureControlRef.current = gestureControl
+  }, [gestureControl])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -257,6 +268,14 @@ export default function KnowledgeGraph3D({
       frame = requestAnimationFrame(animate)
       const time = performance.now() * 0.001
       group.rotation.y += 0.00085
+      const activeGesture = gestureControlRef.current
+      if (activeGesture?.activeGesture === 'rotate') {
+        group.rotation.y += THREE.MathUtils.clamp(activeGesture.rotateDelta.x * 4.2, -0.045, 0.045)
+        group.rotation.x += THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035)
+      } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
+        const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
+        camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
+      }
       camera.lookAt(cameraTargetRef.current)
       starfieldsRef.current.forEach((field) => {
         field.rotation.y += field.userData.drift
@@ -311,6 +330,9 @@ export default function KnowledgeGraph3D({
         if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
       })
       coreEffectsRef.current.forEach((object, index) => {
+        const distanceBoost = object.userData.distanceAware
+          ? THREE.MathUtils.clamp((camera.position.distanceTo(object.position) - 24) / 46, 0, 0.18)
+          : 0
         if (object.userData.orbit) {
           object.rotation.z += object.userData.speed ?? 0.004
           object.rotation.x += (object.userData.tiltDrift ?? 0.0006)
@@ -318,7 +340,7 @@ export default function KnowledgeGraph3D({
         }
         const material = (object as THREE.Mesh | THREE.Sprite).material as THREE.MeshBasicMaterial | THREE.SpriteMaterial
         const breath = Math.sin(time * (object.userData.speed ?? 0.48) + index * 0.8) * 0.5 + 0.5
-        material.opacity = (object.userData.baseOpacity ?? 0.1) + breath * (object.userData.opacityRange ?? 0.04)
+        material.opacity = (object.userData.baseOpacity ?? 0.1) + distanceBoost + breath * (object.userData.opacityRange ?? 0.04)
         if (object.userData.spin) object.rotation.z += object.userData.spin
         if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
       })
@@ -347,6 +369,17 @@ export default function KnowledgeGraph3D({
           const boost = selected ? 1.2 : label.userData.isCluster ? 1.08 : 1
           label.scale.set((label.userData.baseWidth ?? 1) * boost, (label.userData.baseHeight ?? 0.5) * boost, 1)
         }
+      })
+      nodeMeshesRef.current.forEach((mesh) => {
+        const node = mesh.userData.node as KnowledgeNode
+        if (!isClusterNode(node)) return
+        const material = mesh.material as THREE.MeshStandardMaterial
+        const world = new THREE.Vector3()
+        mesh.getWorldPosition(world)
+        const distance = camera.position.distanceTo(world)
+        const farBoost = THREE.MathUtils.clamp((distance - 22) / 48, 0, 0.62)
+        const selected = selectedIdRef.current === node.id
+        material.emissiveIntensity = Math.max(material.emissiveIntensity, (selected ? 1.75 : 0.86) + farBoost + Math.sin(time * 0.55) * 0.06)
       })
       renderer.render(scene, camera)
     }
@@ -496,12 +529,12 @@ export default function KnowledgeGraph3D({
         group.add(clusterGlow)
         const innerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.16, 24, 14), makeHaloMaterial(typeColors[node.type], 0.1))
         innerGlow.position.copy(mesh.position)
-        innerGlow.userData = { baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42 }
+        innerGlow.userData = { baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42, distanceAware: true }
         coreEffectsRef.current.push(innerGlow)
         group.add(innerGlow)
         const outerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.72, 24, 14), makeHaloMaterial(typeColors[node.type], 0.045))
         outerGlow.position.copy(mesh.position)
-        outerGlow.userData = { baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28 }
+        outerGlow.userData = { baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28, distanceAware: true }
         coreEffectsRef.current.push(outerGlow)
         group.add(outerGlow)
         ;[
@@ -549,7 +582,7 @@ export default function KnowledgeGraph3D({
         }))
         coreFlare.position.copy(mesh.position)
         coreFlare.scale.setScalar(1.56)
-        coreFlare.userData = { baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true }
+        coreFlare.userData = { baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true, distanceAware: true }
         coreEffectsRef.current.push(coreFlare)
         group.add(coreFlare)
       }
