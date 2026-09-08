@@ -1,4 +1,4 @@
-export type GestureName = 'none' | 'fist' | 'open'
+export type GestureName = 'none' | 'fist' | 'fistWithIndex' | 'open'
 
 export type HandRole = 'zoom' | 'rotation' | 'unassigned'
 
@@ -23,9 +23,11 @@ export type GestureStatus = {
   enabled: boolean
   cameraStatus: 'idle' | 'requesting' | 'ready' | 'error'
   handsDetected: number
-  activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'rotate'
+  activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'pointer' | 'rotate'
   zoomHands?: string[]
   panHands?: string[]
+  pointerHand?: string
+  pointerPoint?: NormalizedPoint
   rotationHand?: string
   zoomDelta: number
   panDelta: NormalizedPoint

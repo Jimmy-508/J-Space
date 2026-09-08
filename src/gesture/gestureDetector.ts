@@ -16,6 +16,7 @@ export const detectGesture = (landmarks: Landmark[]): GestureName => {
   const pinky = fingerExtended(landmarks, 20, 18, wrist)
   const thumb = distance(landmarks[4], landmarks[17]) > distance(landmarks[2], landmarks[17]) * 1.06
   const foldedCount = [index, middle, ring, pinky].filter((extended) => !extended).length
+  if (index && !middle && !ring && !pinky) return 'fistWithIndex'
   if (foldedCount >= 4) return 'fist'
   if ([thumb, index, middle, ring, pinky].filter(Boolean).length >= 4) return 'open'
   return 'none'

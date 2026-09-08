@@ -30,9 +30,9 @@ export const createStarfield = ({ count, radiusMin, radiusMax, size, opacity, dr
     let theta = Math.random() * Math.PI * 2
     let phi = Math.acos(2 * Math.random() - 1)
     if (banded) {
-      if (Math.random() < 0.62) {
+      if (Math.random() < 0.72) {
         theta = Math.random() * Math.PI * 2
-        phi = Math.PI * 0.5 + (Math.random() - 0.5) * 0.34 + Math.sin(theta * 1.7) * 0.09
+        phi = Math.PI * 0.5 + (Math.random() - 0.5) * 0.26 + Math.sin(theta * 1.7) * 0.105
       } else {
         const cluster = clusterCenters[Math.floor(Math.random() * clusterCenters.length)]
         theta = cluster.theta + (Math.random() - 0.5) * cluster.spread

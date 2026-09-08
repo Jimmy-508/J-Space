@@ -29,6 +29,17 @@ const handConnections = [
   [5, 9], [9, 13], [13, 17],
 ]
 
+type ScreenPoint = { x: number; y: number }
+
+const distance2d = (a: ScreenPoint, b: ScreenPoint) => Math.hypot(a.x - b.x, a.y - b.y)
+
+const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius: number) =>
+  Array.from({ length: 16 }, (_, index) => {
+    const angle = -Math.PI / 2 + (index / 16) * Math.PI * 2
+    const radius = index % 2 === 0 ? outerRadius : innerRadius
+    return `${center.x + Math.cos(angle) * radius},${center.y + Math.sin(angle) * radius}`
+  }).join(' ')
+
 function HandEnergyOverlay({
   hands,
   status,
@@ -40,9 +51,32 @@ function HandEnergyOverlay({
   videoSize: { width: number; height: number }
   viewportSize: { width: number; height: number }
 }) {
-  if (!status.enabled || status.cameraStatus !== 'ready') return null
-  const activeIds = new Set([...(status.zoomHands ?? []), ...(status.panHands ?? []), status.rotationHand].filter(Boolean) as string[])
+  const cursorTrailsRef = useRef(new Map<string, ScreenPoint[]>())
+  if (!status.enabled || status.cameraStatus !== 'ready') {
+    cursorTrailsRef.current.clear()
+    return null
+  }
+  const activeIds = new Set([...(status.zoomHands ?? []), ...(status.panHands ?? []), status.pointerHand, status.rotationHand].filter(Boolean) as string[])
   const slots: Array<TrackedHand | undefined> = [hands[0], hands[1]]
+  const pointerHands = slots.filter((hand): hand is TrackedHand => hand?.gesture === 'fistWithIndex')
+  const pointerIds = new Set(pointerHands.map((hand) => hand.id))
+  for (const id of cursorTrailsRef.current.keys()) {
+    if (!pointerIds.has(id)) cursorTrailsRef.current.delete(id)
+  }
+  const pointerCursors = pointerHands.map((hand) => {
+    const fingertip = normalizedToCoverViewport(hand.landmarks[8] ?? hand.pointer, videoSize, viewportSize, true)
+    const trail = cursorTrailsRef.current.get(hand.id) ?? []
+    const latest = trail[0]
+    if (!latest || distance2d(latest, fingertip) > 1.15) {
+      trail.unshift(fingertip)
+    } else {
+      trail[0] = fingertip
+      if (trail.length > 1) trail.pop()
+    }
+    trail.length = Math.min(trail.length, 10)
+    cursorTrailsRef.current.set(hand.id, trail)
+    return { id: hand.id, point: fingertip, trail: [...trail] }
+  })
   return (
     <svg
       className="hand-energy-layer"
@@ -53,8 +87,6 @@ function HandEnergyOverlay({
         if (!hand) return <g key={slotIndex} className="hand-energy" visibility="hidden" />
         const active = activeIds.has(hand.id)
         const points = hand.landmarks.map((point) => normalizedToCoverViewport(point, videoSize, viewportSize, true))
-        const palmCenter = normalizedToCoverViewport(hand.palmCenter, videoSize, viewportSize, true)
-        const palmRadius = Math.max(20, Math.min(54, hand.palmSize * Math.max(videoSize.width, videoSize.height) * Math.max(viewportSize.width / Math.max(1, videoSize.width), viewportSize.height / Math.max(1, videoSize.height)) * 0.42))
         return (
           <g key={slotIndex} className={`hand-energy ${active ? 'active' : ''} ${hand.gesture}`}>
             {handConnections.map(([from, to]) => points[from] && points[to] ? (
@@ -69,11 +101,26 @@ function HandEnergyOverlay({
             {points.map((point, index) => (
               <circle key={index} cx={point.x} cy={point.y} r={active ? 4.4 : 3.1} />
             ))}
-            <circle className="palm-aura" cx={palmCenter.x} cy={palmCenter.y} r={active ? palmRadius * 1.2 : palmRadius} />
-            {active ? <circle className="palm-core" cx={palmCenter.x} cy={palmCenter.y} r={Math.max(5, palmRadius * 0.16)} /> : null}
           </g>
         )
       })}
+      {pointerCursors.map((cursor) => (
+        <g key={`cursor-${cursor.id}`} className="star-cursor">
+          {cursor.trail.slice(1).map((point, index) => (
+            <circle
+              key={index}
+              className="star-cursor-trail"
+              cx={point.x}
+              cy={point.y}
+              r={Math.max(1.2, 5.8 - index * 0.48)}
+              opacity={Math.max(0, 0.34 - index * 0.035)}
+            />
+          ))}
+          <circle className="star-cursor-halo" cx={cursor.point.x} cy={cursor.point.y} r="18" />
+          <polygon className="star-cursor-core" points={createStarPoints(cursor.point, 13, 4.6)} />
+          <circle className="star-cursor-center" cx={cursor.point.x} cy={cursor.point.y} r="3.4" />
+        </g>
+      ))}
     </svg>
   )
 }
@@ -212,8 +259,9 @@ export default function App() {
                 gestureStatus.activeGesture === 'zoomIn' ? '放大' :
                   gestureStatus.activeGesture === 'zoomOut' ? '縮小' :
                     gestureStatus.activeGesture === 'pan' ? '平移' :
-                      gestureStatus.activeGesture === 'rotate' ? '旋轉' :
-                        hands.length ? '已偵測' : '待偵測'}
+                      gestureStatus.activeGesture === 'pointer' ? '游標' :
+                        gestureStatus.activeGesture === 'rotate' ? '旋轉' :
+                          hands.length ? '已偵測' : '待偵測'}
           </div>
         ) : null}
         <button

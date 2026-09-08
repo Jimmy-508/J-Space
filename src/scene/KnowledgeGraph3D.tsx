@@ -9,7 +9,7 @@ type Props = {
   hoveredId?: string
   focusId?: string
   gestureControl?: {
-    activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'rotate'
+    activeGesture: 'none' | 'zoomIn' | 'zoomOut' | 'pan' | 'pointer' | 'rotate'
     zoomDelta: number
     panDelta: { x: number; y: number }
     rotateDelta: { x: number; y: number }
@@ -251,10 +251,10 @@ export default function KnowledgeGraph3D({
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
     scene.add(light)
-    const deepGalaxy = createStarfield({ count: 1750, radiusMin: 96, radiusMax: 225, size: 0.04, opacity: 0.5, drift: 0.00005, twinkle: 0.28, occasional: 0.035, banded: true })
-    const farStars = createStarfield({ count: 1450, radiusMin: 82, radiusMax: 190, size: 0.05, opacity: 0.54, drift: 0.00008, twinkle: 0.3, occasional: 0.045, banded: true })
-    const midStars = createStarfield({ count: 720, radiusMin: 42, radiusMax: 108, size: 0.088, opacity: 0.58, drift: -0.00013, twinkle: 0.16, occasional: 0.024, banded: true })
-    const nearDust = createStarfield({ count: 230, radiusMin: 24, radiusMax: 64, size: 0.052, opacity: 0.2, drift: 0.0002, twinkle: 0.06, occasional: 0.006 })
+    const deepGalaxy = createStarfield({ count: 2800, radiusMin: 96, radiusMax: 235, size: 0.036, opacity: 0.48, drift: 0.00005, twinkle: 0.34, occasional: 0.045, banded: true })
+    const farStars = createStarfield({ count: 2200, radiusMin: 82, radiusMax: 198, size: 0.046, opacity: 0.52, drift: 0.00008, twinkle: 0.34, occasional: 0.055, banded: true })
+    const midStars = createStarfield({ count: 1050, radiusMin: 42, radiusMax: 112, size: 0.082, opacity: 0.56, drift: -0.00013, twinkle: 0.2, occasional: 0.032, banded: true })
+    const nearDust = createStarfield({ count: 320, radiusMin: 24, radiusMax: 66, size: 0.05, opacity: 0.2, drift: 0.0002, twinkle: 0.08, occasional: 0.008 })
     starfieldsRef.current = [deepGalaxy, farStars, midStars, nearDust]
     starfieldsRef.current.forEach((field) => scene.add(field))
     const nebulaLayer = [
@@ -262,6 +262,8 @@ export default function KnowledgeGraph3D({
       { color: 0x3b527d, opacity: 0.065, position: [34, -8, -84], scale: [46, 24, 1] },
       { color: 0x2f4068, opacity: 0.055, position: [-4, -24, -96], scale: [62, 30, 1] },
       { color: 0x496082, opacity: 0.045, position: [4, 28, -118], scale: [70, 34, 1] },
+      { color: 0x516f96, opacity: 0.042, position: [-18, -2, -132], scale: [96, 18, 1] },
+      { color: 0x345d87, opacity: 0.034, position: [22, 10, -150], scale: [112, 16, 1] },
     ].map((item, index) => {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
@@ -302,9 +304,9 @@ export default function KnowledgeGraph3D({
         panCameraView(
           camera,
           cameraTargetRef.current,
-          THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.026, 0.026) * 520,
-          THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.026, 0.026) * 520,
-          targetDistance * 0.00155,
+          THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * 760,
+          THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
+          targetDistance * 0.0017,
         )
       }
       camera.lookAt(cameraTargetRef.current)

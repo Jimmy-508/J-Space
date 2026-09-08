@@ -339,31 +339,42 @@ button:disabled {
   fill: rgba(248, 221, 156, 0.68);
 }
 
-.hand-energy .palm-aura {
-  fill: rgba(239, 186, 82, 0.08);
-  stroke: rgba(248, 221, 156, 0.26);
-  stroke-width: 1.2px;
-  vector-effect: non-scaling-stroke;
-}
-
-.hand-energy .palm-core {
-  fill: rgba(255, 236, 183, 0.76);
-}
-
 .hand-energy.active line,
-.hand-energy.fist line {
+.hand-energy.fist line,
+.hand-energy.fistWithIndex line {
   stroke: rgba(255, 225, 153, 0.68);
 }
 
 .hand-energy.active circle,
-.hand-energy.fist circle {
+.hand-energy.fist circle,
+.hand-energy.fistWithIndex circle {
   fill: rgba(255, 236, 183, 0.84);
 }
 
-.hand-energy.active .palm-aura,
-.hand-energy.fist .palm-aura {
-  fill: rgba(245, 189, 74, 0.16);
-  stroke: rgba(255, 236, 186, 0.52);
+.star-cursor {
+  mix-blend-mode: screen;
+}
+
+.star-cursor-trail {
+  fill: rgba(255, 223, 145, 0.72);
+}
+
+.star-cursor-halo {
+  fill: rgba(245, 195, 83, 0.12);
+  stroke: rgba(255, 239, 198, 0.3);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.star-cursor-core {
+  fill: rgba(255, 244, 213, 0.86);
+  stroke: rgba(246, 196, 82, 0.76);
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.star-cursor-center {
+  fill: rgba(255, 255, 247, 0.96);
 }
 
 .gesture-pill {

@@ -1,11 +1,11 @@
 import type { GestureStatus, NormalizedPoint, TrackedHand } from './gestureTypes'
 
-const HOLD_MS = 260
+const HOLD_MS = 210
 const LOST_GRACE_MS = 420
-const DEAD_ZONE = 0.007
-const HAND_MOTION_THRESHOLD = 0.0038
-const PAN_DEAD_ZONE = 0.0028
-const PAN_CLAMP = 0.026
+const DEAD_ZONE = 0.0048
+const HAND_MOTION_THRESHOLD = 0.0022
+const PAN_DEAD_ZONE = 0.0015
+const PAN_CLAMP = 0.036
 const SMOOTHING = 0.3
 
 type ZoomSession = 'none' | 'zoomIn' | 'zoomOut'
@@ -43,6 +43,7 @@ export class GestureStateMachine {
   private panHands: string[] = []
   private lastPanMidpoint?: NormalizedPoint
   private smoothedPan: NormalizedPoint = { x: 0, y: 0 }
+  private pointerSince = new Map<string, number>()
   private rotationHand?: string
   private lastRotationPoint?: NormalizedPoint
   private smoothedRotation: NormalizedPoint = { x: 0, y: 0 }
@@ -60,6 +61,7 @@ export class GestureStateMachine {
       if (!visibleIds.has(id) && now - seenAt > LOST_GRACE_MS) {
         this.openSince.delete(id)
         this.fistSince.delete(id)
+        this.pointerSince.delete(id)
         this.lastPalmCenters.delete(id)
         if (this.rotationHand === id) this.clearRotation()
       }
@@ -78,6 +80,13 @@ export class GestureStateMachine {
       } else {
         this.fistSince.delete(hand.id)
         if (this.rotationHand === hand.id) this.clearRotation()
+      }
+
+      if (hand.gesture === 'fistWithIndex') {
+        if (!this.pointerSince.has(hand.id)) this.pointerSince.set(hand.id, now)
+        if (this.rotationHand === hand.id) this.clearRotation()
+      } else {
+        this.pointerSince.delete(hand.id)
       }
     })
 
@@ -115,6 +124,26 @@ export class GestureStateMachine {
       }
     } else {
       this.clearPan()
+    }
+
+    const pointerHand = hands.find((hand) => {
+      const since = this.pointerSince.get(hand.id)
+      return hand.gesture === 'fistWithIndex' && since !== undefined && now - since >= Math.max(120, HOLD_MS * 0.55)
+    })
+
+    if (pointerHand) {
+      this.clearRotation()
+      return {
+        enabled,
+        cameraStatus,
+        handsDetected: hands.length,
+        activeGesture: 'pointer',
+        pointerHand: pointerHand.id,
+        pointerPoint: pointerHand.landmarks[8] ?? pointerHand.pointer,
+        zoomDelta: 0,
+        panDelta: { x: 0, y: 0 },
+        rotateDelta: { x: 0, y: 0 },
+      }
     }
 
     const stableFist = hands.find((hand) => {
@@ -403,6 +432,7 @@ export class GestureStateMachine {
   private reset() {
     this.openSince.clear()
     this.fistSince.clear()
+    this.pointerSince.clear()
     this.lastSeen.clear()
     this.clearZoom()
     this.clearPan()
