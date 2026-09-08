@@ -29,6 +29,25 @@ const clusterPositions: Record<string, THREE.Vector3> = {
   '我的作品': new THREE.Vector3(11, -6, 3),
 }
 
+const makeHaloMaterial = (color: number, opacity: number) => new THREE.MeshBasicMaterial({
+  color,
+  transparent: true,
+  opacity,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+})
+
+const getRelatedIds = (data: KnowledgeData, selectedId?: string) => {
+  const related = new Set<string>()
+  if (!selectedId) return related
+  related.add(selectedId)
+  data.links.forEach((link) => {
+    if (link.source === selectedId) related.add(link.target)
+    if (link.target === selectedId) related.add(link.source)
+  })
+  return related
+}
+
 const makeLayout = (data: KnowledgeData) => {
   const positions = new Map<string, THREE.Vector3>()
   const grouped = new Map<string, KnowledgeNode[]>()
@@ -73,6 +92,8 @@ export default function KnowledgeGraph3D({
   const nodeMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
+  const selectedEffectsRef = useRef<THREE.Object3D[]>([])
+  const relatedHalosRef = useRef<THREE.Object3D[]>([])
   const raycasterRef = useRef(new THREE.Raycaster())
   const pointerRef = useRef(new THREE.Vector2(10, 10))
   const dragRef = useRef({ active: false, moved: false, x: 0, y: 0, rotX: 0, rotY: 0 })
@@ -96,9 +117,9 @@ export default function KnowledgeGraph3D({
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
     scene.add(light)
-    const farStars = createStarfield({ count: 760, radiusMin: 72, radiusMax: 160, size: 0.065, opacity: 0.48, drift: 0.00008 })
-    const midStars = createStarfield({ count: 420, radiusMin: 42, radiusMax: 92, size: 0.105, opacity: 0.62, drift: -0.00013 })
-    const nearDust = createStarfield({ count: 150, radiusMin: 24, radiusMax: 58, size: 0.055, opacity: 0.2, drift: 0.0002 })
+    const farStars = createStarfield({ count: 760, radiusMin: 72, radiusMax: 160, size: 0.065, opacity: 0.5, drift: 0.00008, twinkle: 0.26, occasional: 0.035 })
+    const midStars = createStarfield({ count: 420, radiusMin: 42, radiusMax: 92, size: 0.105, opacity: 0.62, drift: -0.00013, twinkle: 0.14, occasional: 0.018 })
+    const nearDust = createStarfield({ count: 150, radiusMin: 24, radiusMax: 58, size: 0.055, opacity: 0.2, drift: 0.0002, twinkle: 0.06, occasional: 0.004 })
     starfieldsRef.current = [farStars, midStars, nearDust]
     starfieldsRef.current.forEach((field) => scene.add(field))
     const group = new THREE.Group()
@@ -115,12 +136,52 @@ export default function KnowledgeGraph3D({
       group.rotation.y += 0.00085
       starfieldsRef.current.forEach((field) => {
         field.rotation.y += field.userData.drift
-        const material = field.material as THREE.PointsMaterial
-        material.opacity = field.userData.baseOpacity + Math.sin(time * 0.55 + field.userData.phase) * 0.035
+        const colorAttribute = field.geometry.getAttribute('color') as THREE.BufferAttribute
+        const colors = colorAttribute.array as Float32Array
+        const baseColors = field.geometry.userData.baseColors as Float32Array
+        const phases = field.geometry.userData.phases as Float32Array
+        const speeds = field.geometry.userData.speeds as Float32Array
+        const twinkleAmounts = field.geometry.userData.twinkleAmounts as Float32Array
+        for (let i = 0; i < phases.length; i += 1) {
+          const pulse = 1 + Math.sin(time * speeds[i] + phases[i]) * twinkleAmounts[i]
+          colors[i * 3] = baseColors[i * 3] * pulse
+          colors[i * 3 + 1] = baseColors[i * 3 + 1] * pulse
+          colors[i * 3 + 2] = baseColors[i * 3 + 2] * pulse
+        }
+        colorAttribute.needsUpdate = true
       })
-      linkObjectsRef.current.forEach((line, index) => {
-        const material = (line as THREE.Line | THREE.Mesh).material as THREE.Material & { opacity: number }
-        material.opacity = 0.3 + Math.sin(time * 1.8 + index * 0.7) * 0.11
+      linkObjectsRef.current.forEach((object, index) => {
+        const age = Math.max(0, time - (object.userData.createdAt ?? time))
+        const intro = Math.min(1, age / 0.75)
+        if (object.userData.drawRange && object instanceof THREE.Line) {
+          object.geometry.setDrawRange(0, Math.max(2, Math.floor(object.userData.pointCount * intro)))
+        }
+        if (object.userData.curve && object.userData.energyDot) {
+          const dot = object.userData.energyDot as THREE.Mesh
+          const offset = object.userData.energyOffset as number
+          const travel = Math.max(0, (age - 0.18) * 0.28 + offset) % 1
+          dot.position.copy((object.userData.curve as THREE.CatmullRomCurve3).getPointAt(travel))
+          const dotMaterial = dot.material as THREE.MeshBasicMaterial
+          dotMaterial.opacity = 0.18 + Math.sin(time * 2.2 + index) * 0.05
+          dot.visible = intro > 0.35
+        }
+        if (object instanceof THREE.Line || object instanceof THREE.Mesh) {
+          const material = object.material as THREE.Material & { opacity: number }
+          const baseOpacity = object.userData.baseOpacity ?? 0.28
+          material.opacity = (baseOpacity + Math.sin(time * 1.25 + index * 0.7) * 0.055) * intro
+        }
+      })
+      selectedEffectsRef.current.forEach((object, index) => {
+        const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial
+        const baseScale = object.userData.baseScale ?? 1
+        const pulse = Math.sin(time * (object.userData.speed ?? 1) + index * 1.4) * 0.5 + 0.5
+        object.scale.setScalar(baseScale + pulse * (object.userData.scaleRange ?? 0.3))
+        material.opacity = (object.userData.baseOpacity ?? 0.22) * (1 - pulse * (object.userData.fade ?? 0.45))
+        if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
+      })
+      relatedHalosRef.current.forEach((object, index) => {
+        const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial
+        material.opacity = 0.08 + Math.sin(time * 1.05 + index) * 0.025
       })
       renderer.render(scene, camera)
     }
@@ -147,35 +208,75 @@ export default function KnowledgeGraph3D({
     group.clear()
     nodeMeshesRef.current.clear()
     linkObjectsRef.current = []
+    selectedEffectsRef.current = []
+    relatedHalosRef.current = []
+    const relatedIds = getRelatedIds(data, selectedId)
     data.links.forEach((link) => {
       const source = layout.get(link.source)
       const target = layout.get(link.target)
       if (!source || !target) return
       const related = selectedId && (link.source === selectedId || link.target === selectedId)
       if (!related) return
-      const geometry = new THREE.BufferGeometry().setFromPoints([source, target])
+      const start = link.source === selectedId ? source : target
+      const end = link.source === selectedId ? target : source
+      const curve = new THREE.CatmullRomCurve3([start, end])
+      const points = curve.getPoints(34)
+      const geometry = new THREE.BufferGeometry().setFromPoints(points)
       const materialLine = new THREE.LineBasicMaterial({
         color: 0xaed2ff,
         transparent: true,
-        opacity: 0.4,
+        opacity: 0,
         blending: THREE.AdditiveBlending,
+        depthWrite: false,
       })
       const line = new THREE.Line(geometry, materialLine)
+      line.geometry.setDrawRange(0, 2)
+      line.userData = {
+        baseOpacity: 0.34,
+        createdAt: performance.now() * 0.001,
+        drawRange: true,
+        pointCount: points.length,
+      }
       linkObjectsRef.current.push(line)
       group.add(line)
-      const curve = new THREE.CatmullRomCurve3([source, target])
       const glow = new THREE.Mesh(
         new THREE.TubeGeometry(curve, 18, 0.025, 8, false),
         new THREE.MeshBasicMaterial({
           color: 0x9ec8ff,
           transparent: true,
-          opacity: 0.24,
+          opacity: 0,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         }),
       )
+      glow.userData = {
+        baseOpacity: 0.16,
+        createdAt: line.userData.createdAt,
+      }
       linkObjectsRef.current.push(glow)
       group.add(glow)
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.07, 10, 8),
+        new THREE.MeshBasicMaterial({
+          color: 0xe4f0ff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      )
+      dot.visible = false
+      const carrier = new THREE.Object3D()
+      carrier.userData = {
+        baseOpacity: 0,
+        createdAt: line.userData.createdAt,
+        curve,
+        energyDot: dot,
+        energyOffset: Math.random() * 0.16,
+      }
+      linkObjectsRef.current.push(carrier)
+      group.add(dot)
+      group.add(carrier)
     })
     data.nodes.forEach((node) => {
       const isCluster = node.tags?.includes('cluster')
@@ -192,6 +293,36 @@ export default function KnowledgeGraph3D({
       mesh.userData.node = node
       group.add(mesh)
       nodeMeshesRef.current.set(node.id, mesh)
+      if (selectedId && node.id === selectedId) {
+        const color = typeColors[node.type]
+        const halo = new THREE.Mesh(new THREE.SphereGeometry(isCluster ? 1.15 : 0.82, 24, 16), makeHaloMaterial(color, 0.17))
+        halo.position.copy(mesh.position)
+        halo.userData = { baseOpacity: 0.18, baseScale: 1, scaleRange: 0.16, speed: 0.85, fade: 0.25 }
+        selectedEffectsRef.current.push(halo)
+        group.add(halo)
+        ;[0, 1].forEach((ringIndex) => {
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(isCluster ? 0.92 : 0.66, isCluster ? 1 : 0.74, 48),
+            makeHaloMaterial(color, ringIndex === 0 ? 0.22 : 0.14),
+          )
+          ring.position.copy(mesh.position)
+          ring.userData = {
+            baseOpacity: ringIndex === 0 ? 0.18 : 0.12,
+            baseScale: 1.05 + ringIndex * 0.34,
+            scaleRange: 0.55,
+            speed: 0.55 + ringIndex * 0.18,
+            fade: 0.92,
+            faceCamera: true,
+          }
+          selectedEffectsRef.current.push(ring)
+          group.add(ring)
+        })
+      } else if (selectedId && relatedIds.has(node.id)) {
+        const relatedHalo = new THREE.Mesh(new THREE.SphereGeometry(isCluster ? 0.78 : 0.5, 16, 10), makeHaloMaterial(typeColors[node.type], 0.08))
+        relatedHalo.position.copy(mesh.position)
+        relatedHalosRef.current.push(relatedHalo)
+        group.add(relatedHalo)
+      }
     })
   }, [data, layout, selectedId])
 
