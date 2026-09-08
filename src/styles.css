@@ -76,6 +76,8 @@ button:disabled {
 .graph-canvas {
   z-index: 0;
   touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .title-panel,

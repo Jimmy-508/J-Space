@@ -188,7 +188,17 @@ export default function KnowledgeGraph3D({
   const relatedHalosRef = useRef<THREE.Object3D[]>([])
   const raycasterRef = useRef(new THREE.Raycaster())
   const pointerRef = useRef(new THREE.Vector2(10, 10))
-  const dragRef = useRef({ active: false, moved: false, x: 0, y: 0, rotX: 0, rotY: 0 })
+  const dragRef = useRef({
+    active: false,
+    dragging: false,
+    pendingTap: false,
+    pointerType: '',
+    pointerDownTime: 0,
+    startX: 0,
+    startY: 0,
+    rotX: 0,
+    rotY: 0,
+  })
   const touchRef = useRef({
     mode: 'none' as 'none' | 'rotate' | 'gesturePending' | 'pinchZoom' | 'twoFingerPan',
     startDistance: 0,
@@ -726,13 +736,20 @@ export default function KnowledgeGraph3D({
         updatePointer(event)
         if (event.pointerType === 'touch' && event.currentTarget.hasPointerCapture(event.pointerId)) {
           const activeTouches = Number(event.currentTarget.dataset.activeTouches ?? '0')
-          if (activeTouches > 1) return
+          if (activeTouches > 1) {
+            dragRef.current.pendingTap = false
+            return
+          }
         }
         if (dragRef.current.active) {
-          const dx = event.clientX - dragRef.current.x
-          const dy = event.clientY - dragRef.current.y
-          if (Math.abs(dx) + Math.abs(dy) > 5) dragRef.current.moved = true
-          if (groupRef.current) {
+          const dx = event.clientX - dragRef.current.startX
+          const dy = event.clientY - dragRef.current.startY
+          const distance = Math.hypot(dx, dy)
+          if (!dragRef.current.dragging && distance >= 14) {
+            dragRef.current.dragging = true
+            dragRef.current.pendingTap = false
+          }
+          if (dragRef.current.dragging && groupRef.current) {
             groupRef.current.rotation.y = dragRef.current.rotY + dx * 0.006
             groupRef.current.rotation.x = dragRef.current.rotX + dy * 0.004
           }
@@ -744,9 +761,12 @@ export default function KnowledgeGraph3D({
         event.currentTarget.dataset.activeTouches = String(activeTouches)
         dragRef.current = {
           active: true,
-          moved: false,
-          x: event.clientX,
-          y: event.clientY,
+          dragging: false,
+          pendingTap: activeTouches === 1,
+          pointerType: event.pointerType,
+          pointerDownTime: performance.now(),
+          startX: event.clientX,
+          startY: event.clientY,
           rotX: groupRef.current?.rotation.x ?? 0,
           rotY: groupRef.current?.rotation.y ?? 0,
         }
@@ -755,12 +775,25 @@ export default function KnowledgeGraph3D({
         const beforeRelease = Number(mountRef.current?.dataset.activeTouches ?? '1')
         const activeTouches = Math.max(0, beforeRelease - 1)
         if (mountRef.current) mountRef.current.dataset.activeTouches = String(activeTouches)
-        if (!dragRef.current.moved && beforeRelease <= 1) pick()
+        const dx = event.clientX - dragRef.current.startX
+        const dy = event.clientY - dragRef.current.startY
+        const distance = Math.hypot(dx, dy)
+        const elapsed = performance.now() - dragRef.current.pointerDownTime
+        const touchTap = dragRef.current.pointerType === 'touch' && elapsed <= 300
+        const pointerTap = dragRef.current.pointerType !== 'touch'
+        if (dragRef.current.pendingTap && !dragRef.current.dragging && beforeRelease <= 1 && distance < 14 && (touchTap || pointerTap)) {
+          updatePointer(event)
+          pick()
+        }
         dragRef.current.active = false
+        dragRef.current.dragging = false
+        dragRef.current.pendingTap = false
       }}
       onPointerCancel={() => {
         if (mountRef.current) mountRef.current.dataset.activeTouches = '0'
         dragRef.current.active = false
+        dragRef.current.dragging = false
+        dragRef.current.pendingTap = false
       }}
       onTouchStart={(event) => {
         if (event.touches.length === 2 && cameraRef.current) {
@@ -774,7 +807,8 @@ export default function KnowledgeGraph3D({
             startTarget: cameraTargetRef.current.clone(),
             startCameraPosition: cameraRef.current.position.clone(),
           }
-          dragRef.current.moved = true
+          dragRef.current.pendingTap = false
+          dragRef.current.dragging = false
         } else if (event.touches.length === 1) {
           touchRef.current.mode = 'rotate'
         }
@@ -807,7 +841,8 @@ export default function KnowledgeGraph3D({
             camera.position.copy(touchRef.current.startCameraPosition).add(offset)
           }
           touchRef.current.lastMidpoint.copy(midpoint)
-          dragRef.current.moved = true
+          dragRef.current.pendingTap = false
+          dragRef.current.dragging = false
         }
       }}
       onTouchEnd={(event) => {
