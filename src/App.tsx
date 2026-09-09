@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { AudioManager } from './audio/AudioManager'
 import { clearBackgroundMusic, loadBackgroundMusic, saveBackgroundMusic } from './audio/audioStorage'
 import NodeForm from './components/NodeForm'
@@ -11,6 +11,8 @@ import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
 import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
 import type { GestureStatus, TrackedHand } from './gesture/gestureTypes'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { auth } from './firebase'
 
 const emptyGestureStatus = (enabled = false): GestureStatus => ({
   enabled,
@@ -45,6 +47,7 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | undefined
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SETTINGS_KEY = 'j-space-settings'
+const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
 
 type AppSettings = {
   musicVolume: number
@@ -175,6 +178,12 @@ export default function App() {
   const [editing, setEditing] = useState<KnowledgeNode | 'new'>()
   const [relationOpen, setRelationOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [adminLoginOpen, setAdminLoginOpen] = useState(false)
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminLoginError, setAdminLoginError] = useState('')
+  const [adminLoggingIn, setAdminLoggingIn] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
@@ -189,6 +198,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const musicInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const adminPressTimerRef = useRef<number | undefined>(undefined)
   const trackingRef = useRef<HandTrackingSession | undefined>(undefined)
   const gestureMachineRef = useRef(new GestureStateMachine())
   const idleTimerRef = useRef<number | undefined>(undefined)
@@ -196,7 +206,6 @@ export default function App() {
   const selectedIdRef = useRef<string | undefined>(undefined)
   const audioManagerRef = useRef<AudioManager | undefined>(undefined)
   const pointerWasActiveRef = useRef(false)
-
   const selected = data.nodes.find((node) => node.id === selectedId)
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
@@ -246,6 +255,48 @@ export default function App() {
     })
   }, [])
 
+  const closeAdminLogin = useCallback(() => {
+    setAdminLoginOpen(false)
+    setAdminEmail('')
+    setAdminPassword('')
+    setAdminLoginError('')
+    setAdminLoggingIn(false)
+  }, [])
+
+  const handleAdminLogin = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAdminLoginError('')
+    setAdminLoggingIn(true)
+    try {
+      const credential = await signInWithEmailAndPassword(auth, adminEmail.trim(), adminPassword)
+      if (credential.user.uid !== ADMIN_UID) {
+        await signOut(auth).catch((error: unknown) => {
+          console.debug('Non-admin sign out failed.', error)
+        })
+        setIsAdmin(false)
+        setAdminLoginError('此帳號沒有管理權限')
+        return
+      }
+      setIsAdmin(true)
+      closeAdminLogin()
+    } catch {
+      setIsAdmin(false)
+      setAdminLoginError('帳號或密碼錯誤')
+    } finally {
+      setAdminLoggingIn(false)
+    }
+  }, [adminEmail, adminPassword, closeAdminLogin])
+
+  const handleAdminLogout = useCallback(async () => {
+    await signOut(auth).catch((error: unknown) => {
+      console.debug('Admin sign out failed.', error)
+    })
+    setIsAdmin(false)
+    setAdvancedOpen(false)
+    setEditing(undefined)
+    setRelationOpen(false)
+  }, [])
+
   useEffect(() => {
     selectionSourceRef.current = selectionSource
   }, [selectionSource])
@@ -253,6 +304,37 @@ export default function App() {
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
+
+  useEffect(() => {
+    if (isAdmin) return
+    setAdvancedOpen(false)
+    setEditing(undefined)
+    setRelationOpen(false)
+  }, [isAdmin])
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        setIsAdmin(false)
+        return
+      }
+      if (user.uid === ADMIN_UID) {
+        setIsAdmin(true)
+        return
+      }
+      signOut(auth).catch((error: unknown) => {
+        console.debug('Non-admin sign out failed.', error)
+      })
+      setIsAdmin(false)
+    })
+    return unsubscribe
+  }, [])
+
+  useEffect(() => () => {
+    if (adminPressTimerRef.current !== undefined) {
+      window.clearTimeout(adminPressTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     const audioManager = new AudioManager()
@@ -366,6 +448,27 @@ export default function App() {
     }
   }, [gestureEnabled, resetIdle])
 
+  const handleAdminPressStart = () => {
+    if (isAdmin) return
+    if (adminPressTimerRef.current !== undefined) {
+      window.clearTimeout(adminPressTimerRef.current)
+    }
+
+    adminPressTimerRef.current = window.setTimeout(() => {
+      resetIdle()
+      setAdminLoginError('')
+      setAdminLoginOpen(true)
+      adminPressTimerRef.current = undefined
+    }, 7000)
+  }
+
+  const handleAdminPressEnd = () => {
+    if (adminPressTimerRef.current !== undefined) {
+      window.clearTimeout(adminPressTimerRef.current)
+      adminPressTimerRef.current = undefined
+    }
+  }
+
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -417,7 +520,17 @@ export default function App() {
       <HandEnergyOverlay hands={hands} status={gestureStatus} videoSize={videoSize} viewportSize={viewportSize} />
       <header className="top-bar">
         <div className="title-panel">
-          <strong>J-Space</strong>
+          <strong
+            onMouseDown={handleAdminPressStart}
+            onMouseUp={handleAdminPressEnd}
+            onMouseLeave={handleAdminPressEnd}
+            onTouchStart={handleAdminPressStart}
+            onTouchEnd={handleAdminPressEnd}
+            onTouchCancel={handleAdminPressEnd}
+            onContextMenu={(event) => event.preventDefault()}
+          >
+            J-Space
+          </strong>
         </div>
         <section className="search-panel">
           <div className="search-box">
@@ -516,16 +629,20 @@ export default function App() {
           </div>
         </section>
       ) : null}
-      <nav className="action-bar" aria-label="主要功能">
-        <button onClick={() => setEditing('new')}>新增節點</button>
-        <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯目前節點</button>
-        <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
-        <button className="danger" onClick={() => confirm('確定要重設為預設資料嗎？') && persist(knowledgeRepository.reset())}>重設資料</button>
-        <button onClick={() => setAdvancedOpen((value) => !value)}>{advancedOpen ? '收合進階' : '進階功能'}</button>
-      </nav>
+      {isAdmin ? (
+        <nav className="action-bar" aria-label="主要功能">
+          <button onClick={() => setEditing('new')}>新增節點</button>
+          <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯目前節點</button>
+          <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
+          <button className="danger" onClick={() => confirm('確定要重設為預設資料嗎？') && persist(knowledgeRepository.reset())}>重設資料</button>
+          <button onClick={() => setAdvancedOpen((value) => !value)}>{advancedOpen ? '收合進階' : '進階功能'}</button>
+          <button onClick={handleAdminLogout}>管理者登出</button>
+        </nav>
+      ) : null}
       <NodeHUD
         node={selected}
         data={data}
+        isAdmin={isAdmin}
         onEdit={setEditing}
         onDelete={(node) => {
           if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
@@ -536,7 +653,7 @@ export default function App() {
         onAddRelation={() => setRelationOpen(true)}
         onDeleteLink={(link: KnowledgeLink) => persist(knowledgeRepository.deleteLink(data, link.id))}
       />
-      {advancedOpen ? (
+      {isAdmin && advancedOpen ? (
         <section className="advanced-panel">
           <div>
             <strong>資料搬移</strong>
@@ -587,7 +704,7 @@ export default function App() {
           event.currentTarget.value = ''
         }}
       />
-      {editing ? (
+      {isAdmin && editing ? (
         <NodeForm
           node={editing === 'new' ? undefined : editing}
           onCancel={() => setEditing(undefined)}
@@ -598,7 +715,7 @@ export default function App() {
           }}
         />
       ) : null}
-      {relationOpen && selected ? (
+      {isAdmin && relationOpen && selected ? (
         <RelationForm
           node={selected}
           data={data}
@@ -608,6 +725,40 @@ export default function App() {
             setRelationOpen(false)
           }}
         />
+      ) : null}
+      {adminLoginOpen ? (
+        <div className="modal-backdrop admin-login-backdrop" role="presentation">
+          <form className="modal admin-login-modal" onSubmit={handleAdminLogin}>
+            <h2>管理者登入</h2>
+            <label>
+              Email
+              <input
+                type="email"
+                autoComplete="username"
+                value={adminEmail}
+                onChange={(event) => setAdminEmail(event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                required
+              />
+            </label>
+            <div className="admin-login-error" aria-live="polite">
+              {adminLoginError}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={closeAdminLogin} disabled={adminLoggingIn}>取消</button>
+              <button type="submit" disabled={adminLoggingIn}>{adminLoggingIn ? '登入中' : '登入'}</button>
+            </div>
+          </form>
+        </div>
       ) : null}
     </main>
   )

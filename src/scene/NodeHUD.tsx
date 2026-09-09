@@ -5,6 +5,7 @@ import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from '../types/knowl
 type Props = {
   node?: KnowledgeNode
   data: KnowledgeData
+  isAdmin?: boolean
   onEdit: (node: KnowledgeNode) => void
   onDelete: (node: KnowledgeNode) => void
   onAddRelation: () => void
@@ -26,7 +27,7 @@ function DrawerArrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down
   )
 }
 
-export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, onDeleteLink }: Props) {
+export default function NodeHUD({ node, data, isAdmin = false, onEdit, onDelete, onAddRelation, onDeleteLink }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [layoutMode, setLayoutMode] = useState<'side' | 'bottom'>('bottom')
 
@@ -69,22 +70,28 @@ export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, o
         <p>{node.description || '尚未加入簡介。'}</p>
         <div className="hud-actions">
           {node.url ? <button onClick={() => window.open(node.url, '_blank', 'noopener,noreferrer')}>開啟連結</button> : null}
-          <button onClick={() => onEdit(node)}>編輯</button>
-          <button onClick={onAddRelation}>新增關聯</button>
-          <button className="danger" onClick={() => onDelete(node)}>刪除</button>
+          {isAdmin ? (
+            <>
+              <button onClick={() => onEdit(node)}>編輯</button>
+              <button onClick={onAddRelation}>新增關聯</button>
+              <button className="danger" onClick={() => onDelete(node)}>刪除</button>
+            </>
+          ) : null}
         </div>
-        <div className="relation-list">
-          <h3>既有關聯</h3>
-          {relations.length === 0 ? <p className="muted">尚無關聯。</p> : relations.map((link) => {
-            const other = link.source === node.id ? link.target : link.source
-            return (
-              <div className="relation-item" key={link.id}>
-                <span>{getTitle(other)} <small>{link.relation || '相關'}</small></span>
-                <button aria-label="刪除關聯" onClick={() => onDeleteLink(link)}>刪除</button>
-              </div>
-            )
-          })}
-        </div>
+        {isAdmin ? (
+          <div className="relation-list">
+            <h3>既有關聯</h3>
+            {relations.length === 0 ? <p className="muted">尚無關聯。</p> : relations.map((link) => {
+              const other = link.source === node.id ? link.target : link.source
+              return (
+                <div className="relation-item" key={link.id}>
+                  <span>{getTitle(other)} <small>{link.relation || '相關'}</small></span>
+                  <button aria-label="刪除關聯" onClick={() => onDeleteLink(link)}>刪除</button>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
       </div>
     </aside>
   )

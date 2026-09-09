@@ -128,6 +128,8 @@ button:disabled {
   letter-spacing: 0;
   color: rgba(238, 246, 255, 0.94);
   text-shadow: 0 0 18px rgba(139, 177, 255, 0.28);
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .search-panel {
@@ -948,6 +950,35 @@ textarea {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.admin-login-backdrop {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(118, 158, 232, 0.14), transparent 34%),
+    rgba(2, 6, 15, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.admin-login-modal {
+  width: min(420px, 100%);
+  border-color: rgba(244, 210, 134, 0.24);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(244, 210, 134, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(8, 17, 36, 0.96), rgba(5, 10, 24, 0.92));
+  box-shadow: 0 0 34px rgba(86, 119, 188, 0.16), 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+
+.admin-login-modal input {
+  border-radius: 10px;
+  background: rgba(3, 9, 22, 0.78);
+}
+
+.admin-login-error {
+  min-height: 1.2rem;
+  margin-top: 0.3rem;
+  color: #ffd0d0;
+  font-size: 0.88rem;
 }
 
 @media (min-width: 860px) {
