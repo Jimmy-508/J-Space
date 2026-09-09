@@ -459,9 +459,9 @@ export default function App() {
             onClick={() => setGestureEnabled((value) => !value)}
           >
             <svg className="camera-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4.75 8.25a2.5 2.5 0 0 1 2.5-2.5h9.5a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5h-9.5a2.5 2.5 0 0 1-2.5-2.5v-7.5Z" />
-              <path d="M19.25 10.35 22 8.9v6.2l-2.75-1.45" />
-              <circle cx="12" cy="12" r="3.05" />
+              <path d="M6.75 7.25h2.1l1.12-1.85h4.06l1.12 1.85h2.1a2.75 2.75 0 0 1 2.75 2.75v6.25A2.75 2.75 0 0 1 17.25 19H6.75A2.75 2.75 0 0 1 4 16.25V10a2.75 2.75 0 0 1 2.75-2.75Z" />
+              <circle cx="12" cy="13" r="3.25" />
+              <circle cx="17" cy="10.25" r="0.7" />
             </svg>
             <span className="camera-status-dot" aria-hidden="true" />
           </button>
