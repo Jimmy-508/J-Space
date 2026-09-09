@@ -279,9 +279,16 @@ export default function App() {
       }
       setIsAdmin(true)
       closeAdminLogin()
-    } catch {
+    } catch (error: unknown) {
+      console.error('Firebase login error:', error)
       setIsAdmin(false)
-      setAdminLoginError('帳號或密碼錯誤')
+      if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+        setAdminLoginError(`Firebase 錯誤：${error.code}`)
+      } else if (error instanceof Error) {
+        setAdminLoginError(error.message)
+      } else {
+        setAdminLoginError('帳號或密碼錯誤')
+      }
     } finally {
       setAdminLoggingIn(false)
     }
