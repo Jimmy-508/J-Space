@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AudioManager } from './audio/AudioManager'
-import { loadBackgroundMusic, saveBackgroundMusic } from './audio/audioStorage'
+import { clearBackgroundMusic, loadBackgroundMusic, saveBackgroundMusic } from './audio/audioStorage'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
 import { normalizedToCoverViewport } from './gesture/coordinateTransform'
@@ -233,6 +233,18 @@ export default function App() {
     resetIdle()
     audioManagerRef.current?.unlock()
   }, [resetIdle])
+  const restoreDefaultSettings = useCallback(() => {
+    clearBackgroundMusic().catch((error: unknown) => {
+      console.debug('Background music reset failed.', error)
+    })
+    audioManagerRef.current?.setBackgroundMusic(undefined)
+    setSettings({
+      musicVolume: 0,
+      sfxVolume: 80,
+      hasBackgroundMusic: false,
+      musicVolumeTouched: false,
+    })
+  }, [])
 
   useEffect(() => {
     selectionSourceRef.current = selectionSource
@@ -455,12 +467,8 @@ export default function App() {
             onClick={() => setSettingsOpen((value) => !value)}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4.2 7h15.6" />
-              <path d="M4.2 12h15.6" />
-              <path d="M4.2 17h15.6" />
-              <circle cx="9" cy="7" r="2" />
-              <circle cx="15" cy="12" r="2" />
-              <circle cx="11" cy="17" r="2" />
+              <path d="M12 3.3 13.15 5.45a6.9 6.9 0 0 1 1.58.66l2.34-.7 1.52 2.64-1.68 1.74c.08.38.12.78.12 1.21s-.04.83-.12 1.21l1.68 1.74-1.52 2.64-2.34-.7a6.9 6.9 0 0 1-1.58.66L12 20.7l-3.05-.01-1.1-2.14a6.9 6.9 0 0 1-1.58-.66l-2.34.7-1.52-2.64 1.68-1.74A6.2 6.2 0 0 1 3.97 11c0-.43.04-.83.12-1.21L2.41 8.05l1.52-2.64 2.34.7a6.9 6.9 0 0 1 1.58-.66L8.95 3.3H12Z" />
+              <circle cx="12" cy="12" r="2.85" />
             </svg>
           </button>
         </div>
@@ -496,7 +504,10 @@ export default function App() {
             />
           </label>
           <div className="music-import">
-            <button onClick={() => musicInputRef.current?.click()}>匯入外部背景音樂</button>
+            <div className="music-actions">
+              <button onClick={() => musicInputRef.current?.click()}>匯入外部背景音樂</button>
+              <button onClick={restoreDefaultSettings}>恢復預設值</button>
+            </div>
             <small>{settings.backgroundMusicName ? `目前：${settings.backgroundMusicName}` : '尚未匯入外部背景音樂'}</small>
           </div>
         </section>

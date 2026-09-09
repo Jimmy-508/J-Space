@@ -46,3 +46,16 @@ export async function saveBackgroundMusic(file: File) {
   })
   db.close()
 }
+
+export async function clearBackgroundMusic() {
+  if (typeof indexedDB === 'undefined') return
+  const db = await openAudioDb()
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite')
+    const request = transaction.objectStore(STORE_NAME).delete(MUSIC_KEY)
+    request.onerror = () => reject(request.error)
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () => reject(transaction.error)
+  })
+  db.close()
+}
