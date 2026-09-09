@@ -50,21 +50,25 @@ type AppSettings = {
   musicVolume: number
   sfxVolume: number
   backgroundMusicName?: string
+  hasBackgroundMusic?: boolean
+  musicVolumeTouched?: boolean
 }
 
 const loadSettings = (): AppSettings => {
-  if (typeof localStorage === 'undefined') return { musicVolume: 0, sfxVolume: 58 }
+  if (typeof localStorage === 'undefined') return { musicVolume: 0, sfxVolume: 80 }
   try {
     const saved = localStorage.getItem(SETTINGS_KEY)
-    if (!saved) return { musicVolume: 0, sfxVolume: 58 }
+    if (!saved) return { musicVolume: 0, sfxVolume: 80 }
     const parsed = JSON.parse(saved) as Partial<AppSettings>
     return {
       musicVolume: parsed.musicVolume ?? 0,
-      sfxVolume: parsed.sfxVolume ?? 58,
+      sfxVolume: parsed.sfxVolume ?? 80,
       backgroundMusicName: parsed.backgroundMusicName,
+      hasBackgroundMusic: parsed.hasBackgroundMusic ?? !!parsed.backgroundMusicName,
+      musicVolumeTouched: parsed.musicVolumeTouched ?? false,
     }
   } catch {
-    return { musicVolume: 0, sfxVolume: 58 }
+    return { musicVolume: 0, sfxVolume: 80 }
   }
 }
 
@@ -451,14 +455,12 @@ export default function App() {
             onClick={() => setSettingsOpen((value) => !value)}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 3.2v3" />
-              <path d="M12 17.8v3" />
-              <path d="M4.4 7.6l2.6 1.5" />
-              <path d="M17 14.9l2.6 1.5" />
-              <path d="M4.4 16.4 7 14.9" />
-              <path d="M17 9.1l2.6-1.5" />
-              <circle cx="12" cy="12" r="4.1" />
-              <circle cx="12" cy="12" r="1.3" />
+              <path d="M4.2 7h15.6" />
+              <path d="M4.2 12h15.6" />
+              <path d="M4.2 17h15.6" />
+              <circle cx="9" cy="7" r="2" />
+              <circle cx="15" cy="12" r="2" />
+              <circle cx="11" cy="17" r="2" />
             </svg>
           </button>
         </div>
@@ -467,7 +469,6 @@ export default function App() {
         <section className="settings-panel" aria-label="設定面板">
           <div className="settings-heading">
             <div>
-              <small>控制台</small>
               <strong>設定</strong>
             </div>
             <button className="icon-button" aria-label="關閉設定" onClick={() => setSettingsOpen(false)}>×</button>
@@ -480,7 +481,7 @@ export default function App() {
               max="100"
               value={settings.musicVolume}
               style={{ '--value': `${settings.musicVolume}%` } as CSSProperties}
-              onChange={(event) => setSettings((current) => ({ ...current, musicVolume: Number(event.target.value) }))}
+              onChange={(event) => setSettings((current) => ({ ...current, musicVolume: Number(event.target.value), musicVolumeTouched: true }))}
             />
           </label>
           <label className="range-control">
@@ -552,7 +553,15 @@ export default function App() {
             saveBackgroundMusic(file)
               .then(() => {
                 audioManagerRef.current?.setBackgroundMusic(file)
-                setSettings((current) => ({ ...current, backgroundMusicName: file.name }))
+                setSettings((current) => {
+                  const shouldApplyDefaultMusicVolume = !current.musicVolumeTouched && !current.hasBackgroundMusic && current.musicVolume === 0
+                  return {
+                    ...current,
+                    musicVolume: shouldApplyDefaultMusicVolume ? 80 : current.musicVolume,
+                    backgroundMusicName: file.name,
+                    hasBackgroundMusic: true,
+                  }
+                })
                 audioManagerRef.current?.unlock()
               })
               .catch((error: unknown) => {

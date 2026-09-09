@@ -30,7 +30,7 @@ export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, o
   }, [])
 
   useEffect(() => {
-    setExpanded(layoutMode === 'side')
+    setExpanded(false)
   }, [node?.id, layoutMode])
 
   if (!node) return null
@@ -49,7 +49,7 @@ export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, o
           {layoutMode === 'side' ? (expanded ? '→' : '←') : (expanded ? '↓' : '↑')}
         </span>
       </button>
-      <div className="drawer-content" hidden={!expanded}>
+      <div className="drawer-content" aria-hidden={!expanded}>
         {node.tags?.length ? <div className="tag-row">{node.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
         <p>{node.description || '尚未加入簡介。'}</p>
         <div className="hud-actions">

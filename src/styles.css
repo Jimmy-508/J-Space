@@ -684,8 +684,9 @@ small,
   right: max(14px, env(safe-area-inset-right));
   bottom: calc(max(14px, env(safe-area-inset-bottom)) + 68px);
   max-height: min(58vh, 440px);
-  overflow: auto;
+  overflow: hidden;
   border-radius: 12px 12px 8px 8px;
+  transition: opacity 360ms ease, transform 320ms ease, filter 360ms ease, width 320ms ease, max-height 320ms ease;
 }
 
 .node-drawer.side-drawer {
@@ -701,7 +702,8 @@ small,
 }
 
 .node-drawer.side-drawer.collapsed {
-  transform: translateX(calc(100% - 54px));
+  width: 54px;
+  transform: translateX(0);
   overflow: hidden;
 }
 
@@ -712,7 +714,7 @@ small,
 .node-drawer.side-drawer.collapsed .drawer-summary {
   min-height: 100%;
   justify-content: flex-start;
-  padding: 0.72rem;
+  padding: 0.58rem 0.5rem;
 }
 
 .node-drawer.side-drawer.collapsed .drawer-summary span:first-child {
@@ -721,11 +723,15 @@ small,
 }
 
 .node-drawer.side-drawer.collapsed .drawer-toggle {
-  margin-left: 0.12rem;
+  margin-left: 0;
 }
 
 .advanced-open .node-drawer {
   bottom: calc(max(14px, env(safe-area-inset-bottom)) + 138px);
+}
+
+.advanced-open .node-drawer.side-drawer {
+  bottom: max(14px, env(safe-area-inset-bottom));
 }
 
 .drawer-summary {
@@ -739,6 +745,10 @@ small,
   background: linear-gradient(90deg, rgba(15, 31, 57, 0.88), rgba(17, 28, 50, 0.58));
   padding: 0.78rem 0.9rem;
   text-align: left;
+}
+
+.node-drawer.bottom-drawer.collapsed .drawer-summary {
+  border-radius: 12px 12px 8px 8px;
 }
 
 .drawer-summary span:first-child {
@@ -768,7 +778,30 @@ small,
 }
 
 .drawer-content {
+  max-height: min(42vh, 330px);
+  overflow: auto;
   padding: 0 0.9rem 0.92rem;
+  opacity: 1;
+  transform: translateY(0);
+  transition: max-height 300ms ease, opacity 260ms ease, transform 300ms ease, padding 300ms ease;
+}
+
+.node-drawer.collapsed .drawer-content {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(18px);
+}
+
+.node-drawer.side-drawer .drawer-content {
+  max-height: none;
+  transform: translateX(0);
+}
+
+.node-drawer.side-drawer.collapsed .drawer-content {
+  transform: translateX(20px);
 }
 
 .drawer-content p {
@@ -922,6 +955,14 @@ textarea {
     right: max(16px, env(safe-area-inset-right));
     bottom: calc(max(16px, env(safe-area-inset-bottom)) + 78px);
     width: min(380px, calc(100vw - 32px));
+  }
+
+  .node-drawer.side-drawer {
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .node-drawer.side-drawer.collapsed {
+    width: 54px;
   }
 }
 
