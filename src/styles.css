@@ -675,6 +675,12 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+.advanced-panel .firestore-upload-status {
+  flex: 0 0 auto;
+  color: #f8e6b4;
+  white-space: nowrap;
+}
+
 .advanced-panel span,
 small,
 .muted {

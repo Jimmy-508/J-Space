@@ -6,6 +6,7 @@ import RelationForm from './components/RelationForm'
 import { normalizedToCoverViewport } from './gesture/coordinateTransform'
 import { GestureStateMachine } from './gesture/gestureStateMachine'
 import { HandTrackingSession } from './gesture/handTracking'
+import { firestoreKnowledgeRepository } from './repository/firestoreKnowledgeRepository'
 import { knowledgeRepository, validateKnowledgeData } from './repository/knowledgeRepository'
 import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
 import NodeHUD from './scene/NodeHUD'
@@ -184,6 +185,8 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('')
   const [adminLoginError, setAdminLoginError] = useState('')
   const [adminLoggingIn, setAdminLoggingIn] = useState(false)
+  const [firestoreUploading, setFirestoreUploading] = useState(false)
+  const [firestoreUploadMessage, setFirestoreUploadMessage] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
@@ -496,6 +499,32 @@ export default function App() {
     persist(knowledgeRepository.save(parsed))
   }
 
+  const uploadLocalDataToFirestore = async () => {
+    if (!isAdmin || firestoreUploading) return
+    const confirmed = confirm('這會把目前本機的節點與關聯寫入 Firestore。確定要繼續嗎？')
+    if (!confirmed) return
+
+    setFirestoreUploading(true)
+    setFirestoreUploadMessage('上傳中...')
+    try {
+      const localData = knowledgeRepository.load()
+      await Promise.all(localData.nodes.map((node) => firestoreKnowledgeRepository.saveNode(node)))
+      await Promise.all(localData.links.map((connection) => firestoreKnowledgeRepository.saveConnection(connection)))
+      setFirestoreUploadMessage(`已上傳 ${localData.nodes.length} 個節點、${localData.links.length} 個關聯`)
+    } catch (error: unknown) {
+      console.error('Firestore upload failed:', error)
+      if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+        setFirestoreUploadMessage(`Firestore 錯誤：${error.code}`)
+      } else if (error instanceof Error) {
+        setFirestoreUploadMessage(error.message)
+      } else {
+        setFirestoreUploadMessage('Firestore 上傳失敗')
+      }
+    } finally {
+      setFirestoreUploading(false)
+    }
+  }
+
   return (
     <main
       className={`app-shell ${advancedOpen ? 'advanced-open' : ''} ${immersive ? 'immersive' : ''}`}
@@ -672,6 +701,10 @@ export default function App() {
           </div>
           <button onClick={exportJson}>匯出 JSON</button>
           <button onClick={() => fileInputRef.current?.click()}>匯入 JSON</button>
+          <button onClick={uploadLocalDataToFirestore} disabled={firestoreUploading}>
+            {firestoreUploading ? '上傳中' : '上傳本機資料到 Firestore'}
+          </button>
+          {firestoreUploadMessage ? <span className="firestore-upload-status">{firestoreUploadMessage}</span> : null}
         </section>
       ) : null}
       <input
