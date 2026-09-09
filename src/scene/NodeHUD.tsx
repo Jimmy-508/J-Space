@@ -13,10 +13,25 @@ type Props = {
 
 export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, onDeleteLink }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [layoutMode, setLayoutMode] = useState<'side' | 'bottom'>('bottom')
 
   useEffect(() => {
-    setExpanded(false)
-  }, [node?.id])
+    const updateLayoutMode = () => {
+      const side = window.matchMedia('(min-width: 860px), (orientation: landscape)').matches
+      setLayoutMode(side ? 'side' : 'bottom')
+    }
+    updateLayoutMode()
+    window.addEventListener('resize', updateLayoutMode)
+    window.addEventListener('orientationchange', updateLayoutMode)
+    return () => {
+      window.removeEventListener('resize', updateLayoutMode)
+      window.removeEventListener('orientationchange', updateLayoutMode)
+    }
+  }, [])
+
+  useEffect(() => {
+    setExpanded(layoutMode === 'side')
+  }, [node?.id, layoutMode])
 
   if (!node) return null
 
@@ -24,13 +39,15 @@ export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, o
   const getTitle = (id: string) => data.nodes.find((item) => item.id === id)?.title ?? id
 
   return (
-    <aside className={`node-drawer ${expanded ? 'expanded' : ''}`}>
+    <aside className={`node-drawer ${expanded ? 'expanded' : 'collapsed'} ${layoutMode === 'side' ? 'side-drawer' : 'bottom-drawer'}`}>
       <button className="drawer-summary" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
         <span>
           <small>{NODE_TYPE_LABELS[node.type]} / {node.category || '未分類'}</small>
           <strong>{node.title}</strong>
         </span>
-        <span className="drawer-toggle">{expanded ? '收合' : '展開'}</span>
+        <span className="drawer-toggle" aria-hidden="true">
+          {layoutMode === 'side' ? (expanded ? '→' : '←') : (expanded ? '↓' : '↑')}
+        </span>
       </button>
       <div className="drawer-content" hidden={!expanded}>
         {node.tags?.length ? <div className="tag-row">{node.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}

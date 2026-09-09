@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AudioManager } from './audio/AudioManager'
+import { loadBackgroundMusic, saveBackgroundMusic } from './audio/audioStorage'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
 import { normalizedToCoverViewport } from './gesture/coordinateTransform'
@@ -43,6 +44,29 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | undefined
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
+const SETTINGS_KEY = 'j-space-settings'
+
+type AppSettings = {
+  musicVolume: number
+  sfxVolume: number
+  backgroundMusicName?: string
+}
+
+const loadSettings = (): AppSettings => {
+  if (typeof localStorage === 'undefined') return { musicVolume: 0, sfxVolume: 58 }
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY)
+    if (!saved) return { musicVolume: 0, sfxVolume: 58 }
+    const parsed = JSON.parse(saved) as Partial<AppSettings>
+    return {
+      musicVolume: parsed.musicVolume ?? 0,
+      sfxVolume: parsed.sfxVolume ?? 58,
+      backgroundMusicName: parsed.backgroundMusicName,
+    }
+  } catch {
+    return { musicVolume: 0, sfxVolume: 58 }
+  }
+}
 
 function HandEnergyOverlay({
   hands,
@@ -138,6 +162,7 @@ function HandEnergyOverlay({
 
 export default function App() {
   const [data, setData] = useState<KnowledgeData>(() => knowledgeRepository.load())
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const [selectedId, setSelectedId] = useState<string>()
   const [selectionSource, setSelectionSource] = useState<SelectionSource>()
   const [hoveredId, setHoveredId] = useState<string>()
@@ -146,6 +171,7 @@ export default function App() {
   const [editing, setEditing] = useState<KnowledgeNode | 'new'>()
   const [relationOpen, setRelationOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
@@ -157,6 +183,7 @@ export default function App() {
     height: typeof window === 'undefined' ? 844 : window.visualViewport?.height ?? window.innerHeight,
   }))
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const musicInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackingRef = useRef<HandTrackingSession | undefined>(undefined)
   const gestureMachineRef = useRef(new GestureStateMachine())
@@ -214,12 +241,27 @@ export default function App() {
   useEffect(() => {
     const audioManager = new AudioManager()
     audioManager.init(SELECT_SOUND_URL)
+    audioManager.setSfxVolume(settings.sfxVolume / 100)
+    audioManager.setMusicVolume(settings.musicVolume / 100)
     audioManagerRef.current = audioManager
+    loadBackgroundMusic()
+      .then((stored) => {
+        if (stored) audioManager.setBackgroundMusic(stored.blob)
+      })
+      .catch((error: unknown) => {
+        console.debug('Background music restore failed.', error)
+      })
     return () => {
       audioManager.dispose()
       audioManagerRef.current = undefined
     }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    audioManagerRef.current?.setSfxVolume(settings.sfxVolume / 100)
+    audioManagerRef.current?.setMusicVolume(settings.musicVolume / 100)
+  }, [settings])
 
   useEffect(() => {
     const pointerActive = gestureStatus.activeGesture === 'pointer'
@@ -403,8 +445,61 @@ export default function App() {
             <span className="camera-icon" aria-hidden="true" />
             <span className="camera-status-dot" aria-hidden="true" />
           </button>
+          <button
+            className={`settings-button ${settingsOpen ? 'active' : ''}`}
+            aria-label={settingsOpen ? '關閉設定' : '開啟設定'}
+            onClick={() => setSettingsOpen((value) => !value)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 3.2v3" />
+              <path d="M12 17.8v3" />
+              <path d="M4.4 7.6l2.6 1.5" />
+              <path d="M17 14.9l2.6 1.5" />
+              <path d="M4.4 16.4 7 14.9" />
+              <path d="M17 9.1l2.6-1.5" />
+              <circle cx="12" cy="12" r="4.1" />
+              <circle cx="12" cy="12" r="1.3" />
+            </svg>
+          </button>
         </div>
       </header>
+      {settingsOpen ? (
+        <section className="settings-panel" aria-label="設定面板">
+          <div className="settings-heading">
+            <div>
+              <small>控制台</small>
+              <strong>設定</strong>
+            </div>
+            <button className="icon-button" aria-label="關閉設定" onClick={() => setSettingsOpen(false)}>×</button>
+          </div>
+          <label className="range-control">
+            <span><strong>音樂音量</strong><small>{settings.musicVolume}%</small></span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={settings.musicVolume}
+              style={{ '--value': `${settings.musicVolume}%` } as CSSProperties}
+              onChange={(event) => setSettings((current) => ({ ...current, musicVolume: Number(event.target.value) }))}
+            />
+          </label>
+          <label className="range-control">
+            <span><strong>音效音量</strong><small>{settings.sfxVolume}%</small></span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={settings.sfxVolume}
+              style={{ '--value': `${settings.sfxVolume}%` } as CSSProperties}
+              onChange={(event) => setSettings((current) => ({ ...current, sfxVolume: Number(event.target.value) }))}
+            />
+          </label>
+          <div className="music-import">
+            <button onClick={() => musicInputRef.current?.click()}>匯入外部背景音樂</button>
+            <small>{settings.backgroundMusicName ? `目前：${settings.backgroundMusicName}` : '尚未匯入外部背景音樂'}</small>
+          </div>
+        </section>
+      ) : null}
       <nav className="action-bar" aria-label="主要功能">
         <button onClick={() => setEditing('new')}>新增節點</button>
         <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯目前節點</button>
@@ -443,6 +538,28 @@ export default function App() {
         onChange={(event) => {
           const file = event.target.files?.[0]
           if (file) importJson(file).catch((error) => alert(error instanceof Error ? error.message : '匯入失敗'))
+          event.currentTarget.value = ''
+        }}
+      />
+      <input
+        ref={musicInputRef}
+        type="file"
+        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/aac,.mp3,.wav,.m4a,.aac"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) {
+            saveBackgroundMusic(file)
+              .then(() => {
+                audioManagerRef.current?.setBackgroundMusic(file)
+                setSettings((current) => ({ ...current, backgroundMusicName: file.name }))
+                audioManagerRef.current?.unlock()
+              })
+              .catch((error: unknown) => {
+                console.debug('Background music import failed.', error)
+                alert('背景音樂匯入失敗，請換一個音訊檔案再試。')
+              })
+          }
           event.currentTarget.value = ''
         }}
       />
