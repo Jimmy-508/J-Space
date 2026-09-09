@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AudioManager } from './audio/AudioManager'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
 import { normalizedToCoverViewport } from './gesture/coordinateTransform'
@@ -162,7 +163,7 @@ export default function App() {
   const idleTimerRef = useRef<number | undefined>(undefined)
   const selectionSourceRef = useRef<SelectionSource>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
-  const selectSoundRef = useRef<HTMLAudioElement | undefined>(undefined)
+  const audioManagerRef = useRef<AudioManager | undefined>(undefined)
   const pointerWasActiveRef = useRef(false)
 
   const selected = data.nodes.find((node) => node.id === selectedId)
@@ -182,13 +183,7 @@ export default function App() {
   }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
     if (selectedIdRef.current !== node.id) {
-      const audio = selectSoundRef.current
-      if (audio) {
-        audio.currentTime = 0
-        audio.play().catch((error: unknown) => {
-          console.debug('Select sound playback was blocked or interrupted.', error)
-        })
-      }
+      audioManagerRef.current?.playSelect()
     }
     setSelectedId(node.id)
     setFocusId(node.id)
@@ -203,6 +198,10 @@ export default function App() {
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current)
     idleTimerRef.current = window.setTimeout(() => setImmersive(true), 10000)
   }, [])
+  const registerUserActivity = useCallback(() => {
+    resetIdle()
+    audioManagerRef.current?.unlock()
+  }, [resetIdle])
 
   useEffect(() => {
     selectionSourceRef.current = selectionSource
@@ -213,13 +212,12 @@ export default function App() {
   }, [selectedId])
 
   useEffect(() => {
-    const audio = new Audio(SELECT_SOUND_URL)
-    audio.preload = 'auto'
-    audio.volume = 0.58
-    selectSoundRef.current = audio
+    const audioManager = new AudioManager()
+    audioManager.init(SELECT_SOUND_URL)
+    audioManagerRef.current = audioManager
     return () => {
-      audio.pause()
-      selectSoundRef.current = undefined
+      audioManager.dispose()
+      audioManagerRef.current = undefined
     }
   }, [])
 
@@ -249,9 +247,13 @@ export default function App() {
 
   useEffect(() => {
     resetIdle()
-    window.addEventListener('keydown', resetIdle)
+    const handleKeyDown = () => {
+      resetIdle()
+      audioManagerRef.current?.unlock()
+    }
+    window.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener('keydown', resetIdle)
+      window.removeEventListener('keydown', handleKeyDown)
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current)
     }
   }, [resetIdle])
@@ -326,12 +328,12 @@ export default function App() {
     <main
       className={`app-shell ${advancedOpen ? 'advanced-open' : ''} ${immersive ? 'immersive' : ''}`}
       onPointerMoveCapture={resetIdle}
-      onPointerDownCapture={resetIdle}
-      onClickCapture={resetIdle}
-      onTouchStartCapture={resetIdle}
+      onPointerDownCapture={registerUserActivity}
+      onClickCapture={registerUserActivity}
+      onTouchStartCapture={registerUserActivity}
       onTouchMoveCapture={resetIdle}
-      onWheelCapture={resetIdle}
-      onInputCapture={resetIdle}
+      onWheelCapture={registerUserActivity}
+      onInputCapture={registerUserActivity}
     >
       <KnowledgeGraph3D
         data={data}
