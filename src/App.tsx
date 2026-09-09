@@ -302,6 +302,10 @@ export default function App() {
     setAdvancedOpen(false)
     setEditing(undefined)
     setRelationOpen(false)
+    setAdminLoginOpen(false)
+    setAdminEmail('')
+    setAdminPassword('')
+    setAdminLoginError('')
   }, [])
 
   useEffect(() => {
@@ -643,7 +647,7 @@ export default function App() {
           <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
           <button className="danger" onClick={() => confirm('確定要重設為預設資料嗎？') && persist(knowledgeRepository.reset())}>重設資料</button>
           <button onClick={() => setAdvancedOpen((value) => !value)}>{advancedOpen ? '收合進階' : '進階功能'}</button>
-          <button onClick={handleAdminLogout}>管理者登出</button>
+          <button onClick={handleAdminLogout}>登出</button>
         </nav>
       ) : null}
       <NodeHUD
