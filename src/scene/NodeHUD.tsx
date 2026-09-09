@@ -11,6 +11,21 @@ type Props = {
   onDeleteLink: (link: KnowledgeLink) => void
 }
 
+function DrawerArrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
+  const paths = {
+    left: 'M14.5 6.5 9 12l5.5 5.5M9.75 12H19',
+    right: 'M9.5 6.5 15 12l-5.5 5.5M5 12h9.25',
+    up: 'M6.5 14.5 12 9l5.5 5.5M12 9.75V19',
+    down: 'M6.5 9.5 12 15l5.5-5.5M12 5v9.25',
+  } satisfies Record<'left' | 'right' | 'up' | 'down', string>
+
+  return (
+    <svg className="drawer-arrow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={paths[direction]} />
+    </svg>
+  )
+}
+
 export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, onDeleteLink }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [layoutMode, setLayoutMode] = useState<'side' | 'bottom'>('bottom')
@@ -46,7 +61,7 @@ export default function NodeHUD({ node, data, onEdit, onDelete, onAddRelation, o
           <strong>{node.title}</strong>
         </span>
         <span className="drawer-toggle" aria-hidden="true">
-          {layoutMode === 'side' ? (expanded ? '→' : '←') : (expanded ? '↓' : '↑')}
+          <DrawerArrow direction={layoutMode === 'side' ? (expanded ? 'right' : 'left') : (expanded ? 'down' : 'up')} />
         </span>
       </button>
       <div className="drawer-content" aria-hidden={!expanded}>
