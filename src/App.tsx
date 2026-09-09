@@ -458,7 +458,11 @@ export default function App() {
             aria-label={gestureEnabled ? '關閉手勢控制' : '開啟手勢控制'}
             onClick={() => setGestureEnabled((value) => !value)}
           >
-            <span className="camera-icon" aria-hidden="true" />
+            <svg className="camera-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4.75 8.25a2.5 2.5 0 0 1 2.5-2.5h9.5a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5h-9.5a2.5 2.5 0 0 1-2.5-2.5v-7.5Z" />
+              <path d="M19.25 10.35 22 8.9v6.2l-2.75-1.45" />
+              <circle cx="12" cy="12" r="3.05" />
+            </svg>
             <span className="camera-status-dot" aria-hidden="true" />
           </button>
           <button
@@ -467,8 +471,8 @@ export default function App() {
             onClick={() => setSettingsOpen((value) => !value)}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 2.75 13.18 4.9c.62.12 1.2.34 1.75.64l2.38-.66 1.66 2.86-1.68 1.74c.1.5.15 1 .15 1.52s-.05 1.02-.15 1.52l1.68 1.74-1.66 2.86-2.38-.66c-.55.3-1.13.52-1.75.64L12 21.25 10.82 19.1a7.2 7.2 0 0 1-1.75-.64l-2.38.66-1.66-2.86 1.68-1.74A7.8 7.8 0 0 1 6.56 11c0-.52.05-1.02.15-1.52L5.03 7.74l1.66-2.86 2.38.66c.55-.3 1.13-.52 1.75-.64L12 2.75Z" />
-              <circle cx="12" cy="12" r="3.15" />
+              <path d="M10.34 3.94c.09-.54.56-.94 1.11-.94h1.1c.55 0 1.02.4 1.11.94l.18 1.08c.07.42.38.76.78.92.18.07.36.15.53.22.39.18.85.15 1.2-.1l.9-.64c.45-.32 1.07-.27 1.46.12l.78.78c.39.39.44 1.01.12 1.46l-.64.9c-.25.35-.28.81-.1 1.2.08.17.15.35.22.53.16.4.5.71.92.78l1.08.18c.54.09.94.56.94 1.11v1.1c0 .55-.4 1.02-.94 1.11l-1.08.18c-.42.07-.76.38-.92.78-.07.18-.14.36-.22.53-.18.39-.15.85.1 1.2l.64.9c.32.45.27 1.07-.12 1.46l-.78.78c-.39.39-1.01.44-1.46.12l-.9-.64c-.35-.25-.81-.28-1.2-.1-.17.08-.35.15-.53.22-.4.16-.71.5-.78.92l-.18 1.08c-.09.54-.56.94-1.11.94h-1.1c-.55 0-1.02-.4-1.11-.94l-.18-1.08c-.07-.42-.38-.76-.78-.92-.18-.07-.36-.14-.53-.22-.39-.18-.85-.15-1.2.1l-.9.64c-.45.32-1.07.27-1.46-.12l-.78-.78a1.12 1.12 0 0 1-.12-1.46l.64-.9c.25-.35.28-.81.1-1.2a8 8 0 0 1-.22-.53c-.16-.4-.5-.71-.92-.78l-1.08-.18A1.13 1.13 0 0 1 3 13.55v-1.1c0-.55.4-1.02.94-1.11l1.08-.18c.42-.07.76-.38.92-.78.07-.18.14-.36.22-.53.18-.39.15-.85-.1-1.2l-.64-.9a1.12 1.12 0 0 1 .12-1.46l.78-.78c.39-.39 1.01-.44 1.46-.12l.9.64c.35.25.81.28 1.2.1.17-.08.35-.15.53-.22.4-.16.71-.5.78-.92l.18-1.08Z" />
+              <circle cx="12" cy="12" r="3.25" />
             </svg>
           </button>
         </div>
@@ -505,10 +509,10 @@ export default function App() {
           </label>
           <div className="music-import">
             <div className="music-actions">
-              <button onClick={() => musicInputRef.current?.click()}>匯入外部背景音樂</button>
+              <button onClick={() => musicInputRef.current?.click()}>匯入背景音樂</button>
               <button onClick={restoreDefaultSettings}>恢復預設值</button>
             </div>
-            <small>{settings.backgroundMusicName ? `目前：${settings.backgroundMusicName}` : '尚未匯入外部背景音樂'}</small>
+            <small>{settings.backgroundMusicName ? `目前：${settings.backgroundMusicName}` : '尚未匯入背景音樂'}</small>
           </div>
         </section>
       ) : null}

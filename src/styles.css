@@ -270,6 +270,7 @@ button:disabled {
 
 .camera-button,
 .settings-button {
+  position: relative;
   width: 44px;
   height: 44px;
   display: grid;
@@ -306,35 +307,19 @@ button:disabled {
   stroke-linejoin: round;
 }
 
-.camera-icon {
-  position: relative;
-  width: 21px;
-  height: 15px;
-  border: 2px solid #f2dfad;
-  border-radius: 4px;
+.camera-button svg {
+  width: 24px;
+  height: 24px;
+  display: block;
 }
 
-.camera-icon::before {
-  position: absolute;
-  left: 4px;
-  top: -6px;
-  width: 8px;
-  height: 5px;
-  content: "";
-  border: 2px solid #f2dfad;
-  border-bottom: 0;
-  border-radius: 4px 4px 0 0;
-}
-
-.camera-icon::after {
-  position: absolute;
-  left: 5px;
-  top: 2px;
-  width: 6px;
-  height: 6px;
-  content: "";
-  border: 2px solid #f2dfad;
-  border-radius: 999px;
+.camera-button path,
+.camera-button circle {
+  fill: none;
+  stroke: #f2dfad;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .camera-status-dot {

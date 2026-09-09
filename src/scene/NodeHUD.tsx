@@ -13,10 +13,10 @@ type Props = {
 
 function DrawerArrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
   const paths = {
-    left: 'M14.5 6.5 9 12l5.5 5.5M9.75 12H19',
-    right: 'M9.5 6.5 15 12l-5.5 5.5M5 12h9.25',
-    up: 'M6.5 14.5 12 9l5.5 5.5M12 9.75V19',
-    down: 'M6.5 9.5 12 15l5.5-5.5M12 5v9.25',
+    left: 'M11 6 5 12l6 6M5.75 12H19',
+    right: 'M13 6l6 6-6 6M5 12h13.25',
+    up: 'M6 11l6-6 6 6M12 5.75V19',
+    down: 'M6 13l6 6 6-6M12 5v13.25',
   } satisfies Record<'left' | 'right' | 'up' | 'down', string>
 
   return (
