@@ -15,6 +15,9 @@ import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from '../types/knowl
 const NODES_COLLECTION = 'nodes'
 const CONNECTIONS_COLLECTION = 'connections'
 
+const removeUndefinedFields = <T extends Record<string, unknown>>(value: T): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined))
+
 const toKnowledgeNode = (snapshot: QueryDocumentSnapshot<DocumentData>): KnowledgeNode => {
   const data = snapshot.data() as Partial<KnowledgeNode>
   return {
@@ -56,10 +59,10 @@ export async function loadAll(): Promise<KnowledgeData> {
 }
 
 export async function saveNode(node: KnowledgeNode): Promise<void> {
-  await setDoc(doc(db, NODES_COLLECTION, node.id), {
+  await setDoc(doc(db, NODES_COLLECTION, node.id), removeUndefinedFields({
     ...node,
     syncedAt: serverTimestamp(),
-  })
+  }))
 }
 
 export async function deleteNode(nodeId: string): Promise<void> {
@@ -78,10 +81,10 @@ export async function deleteNode(nodeId: string): Promise<void> {
 }
 
 export async function saveConnection(connection: KnowledgeLink): Promise<void> {
-  await setDoc(doc(db, CONNECTIONS_COLLECTION, connection.id), {
+  await setDoc(doc(db, CONNECTIONS_COLLECTION, connection.id), removeUndefinedFields({
     ...connection,
     syncedAt: serverTimestamp(),
-  })
+  }))
 }
 
 export async function deleteConnection(connectionId: string): Promise<void> {

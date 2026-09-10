@@ -100,6 +100,14 @@ const createKnowledgeLink = (link: Omit<KnowledgeLink, 'id'>): KnowledgeLink => 
   id: crypto.randomUUID(),
 })
 
+const getFirebaseErrorText = (error: unknown, fallback: string) => {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+    return error.code
+  }
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
 function HandEnergyOverlay({
   hands,
   status,
@@ -249,33 +257,49 @@ export default function App() {
       console.debug('Local fallback cache failed.', error)
     }
   }, [])
-  const saveNodeToFirestore = useCallback((node: KnowledgeNode, fallbackData: KnowledgeData) => {
-    firestoreKnowledgeRepository.saveNode(node)
-      .then(() => cacheFallbackData(fallbackData))
-      .catch((error: unknown) => {
-        console.error('Firestore save node failed:', error)
-      })
+  const saveNodeToFirestore = useCallback(async (node: KnowledgeNode, fallbackData: KnowledgeData) => {
+    try {
+      await firestoreKnowledgeRepository.saveNode(node)
+      cacheFallbackData(fallbackData)
+      return true
+    } catch (error: unknown) {
+      console.error('Firestore save node failed:', error)
+      alert(`Firestore 儲存失敗：${getFirebaseErrorText(error, '節點儲存失敗')}`)
+      return false
+    }
   }, [cacheFallbackData])
-  const deleteNodeFromFirestore = useCallback((nodeId: string, fallbackData: KnowledgeData) => {
-    firestoreKnowledgeRepository.deleteNode(nodeId)
-      .then(() => cacheFallbackData(fallbackData))
-      .catch((error: unknown) => {
-        console.error('Firestore delete node failed:', error)
-      })
+  const deleteNodeFromFirestore = useCallback(async (nodeId: string, fallbackData: KnowledgeData) => {
+    try {
+      await firestoreKnowledgeRepository.deleteNode(nodeId)
+      cacheFallbackData(fallbackData)
+      return true
+    } catch (error: unknown) {
+      console.error('Firestore delete node failed:', error)
+      alert(`Firestore 儲存失敗：${getFirebaseErrorText(error, '節點刪除失敗')}`)
+      return false
+    }
   }, [cacheFallbackData])
-  const saveConnectionToFirestore = useCallback((connection: KnowledgeLink, fallbackData: KnowledgeData) => {
-    firestoreKnowledgeRepository.saveConnection(connection)
-      .then(() => cacheFallbackData(fallbackData))
-      .catch((error: unknown) => {
-        console.error('Firestore save connection failed:', error)
-      })
+  const saveConnectionToFirestore = useCallback(async (connection: KnowledgeLink, fallbackData: KnowledgeData) => {
+    try {
+      await firestoreKnowledgeRepository.saveConnection(connection)
+      cacheFallbackData(fallbackData)
+      return true
+    } catch (error: unknown) {
+      console.error('Firestore save connection failed:', error)
+      alert(`Firestore 儲存失敗：${getFirebaseErrorText(error, '關聯儲存失敗')}`)
+      return false
+    }
   }, [cacheFallbackData])
-  const deleteConnectionFromFirestore = useCallback((connectionId: string, fallbackData: KnowledgeData) => {
-    firestoreKnowledgeRepository.deleteConnection(connectionId)
-      .then(() => cacheFallbackData(fallbackData))
-      .catch((error: unknown) => {
-        console.error('Firestore delete connection failed:', error)
-      })
+  const deleteConnectionFromFirestore = useCallback(async (connectionId: string, fallbackData: KnowledgeData) => {
+    try {
+      await firestoreKnowledgeRepository.deleteConnection(connectionId)
+      cacheFallbackData(fallbackData)
+      return true
+    } catch (error: unknown) {
+      console.error('Firestore delete connection failed:', error)
+      alert(`Firestore 儲存失敗：${getFirebaseErrorText(error, '關聯刪除失敗')}`)
+      return false
+    }
   }, [cacheFallbackData])
   const clearSelection = useCallback(() => {
     setSelectedId(undefined)
@@ -759,22 +783,27 @@ export default function App() {
         data={data}
         isAdmin={isAdmin}
         onEdit={setEditing}
-        onDelete={(node) => {
+        onDelete={async (node) => {
           if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
             const next: KnowledgeData = {
               nodes: data.nodes.filter((item) => item.id !== node.id),
               links: data.links.filter((link) => link.source !== node.id && link.target !== node.id),
             }
             persist(next)
-            deleteNodeFromFirestore(node.id, next)
-            clearSelection()
+            const deleted = await deleteNodeFromFirestore(node.id, next)
+            if (deleted) {
+              clearSelection()
+            } else {
+              persist(data)
+            }
           }
         }}
         onAddRelation={() => setRelationOpen(true)}
-        onDeleteLink={(link: KnowledgeLink) => {
+        onDeleteLink={async (link: KnowledgeLink) => {
           const next = { ...data, links: data.links.filter((item) => item.id !== link.id) }
           persist(next)
-          deleteConnectionFromFirestore(link.id, next)
+          const deleted = await deleteConnectionFromFirestore(link.id, next)
+          if (!deleted) persist(data)
         }}
       />
       {isAdmin && advancedOpen ? (
@@ -836,14 +865,18 @@ export default function App() {
         <NodeForm
           node={editing === 'new' ? undefined : editing}
           onCancel={() => setEditing(undefined)}
-          onSubmit={(value) => {
+          onSubmit={async (value) => {
             const savedNode = editing === 'new' ? createKnowledgeNode(value) : updateKnowledgeNode(editing, value)
             const next = editing === 'new'
               ? { ...data, nodes: [...data.nodes, savedNode] }
               : { ...data, nodes: data.nodes.map((node) => node.id === editing.id ? savedNode : node) }
             persist(next)
-            saveNodeToFirestore(savedNode, next)
-            setEditing(undefined)
+            const saved = await saveNodeToFirestore(savedNode, next)
+            if (saved) {
+              setEditing(undefined)
+            } else {
+              persist(data)
+            }
           }}
         />
       ) : null}
@@ -852,7 +885,7 @@ export default function App() {
           node={selected}
           data={data}
           onCancel={() => setRelationOpen(false)}
-          onSubmit={(target, relation) => {
+          onSubmit={async (target, relation) => {
             if (selected.id === target) {
               setRelationOpen(false)
               return
@@ -868,8 +901,12 @@ export default function App() {
             const connection = createKnowledgeLink({ source: selected.id, target, relation })
             const next = { ...data, links: [...data.links, connection] }
             persist(next)
-            saveConnectionToFirestore(connection, next)
-            setRelationOpen(false)
+            const saved = await saveConnectionToFirestore(connection, next)
+            if (saved) {
+              setRelationOpen(false)
+            } else {
+              persist(data)
+            }
           }}
         />
       ) : null}
