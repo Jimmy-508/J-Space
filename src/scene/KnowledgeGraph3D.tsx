@@ -59,6 +59,20 @@ const DEFAULT_CAMERA_POSITION = new THREE.Vector3(0, 2, 34)
 const DEFAULT_CAMERA_TARGET = new THREE.Vector3(0, 0, 0)
 const DOUBLE_TAP_MS = 320
 const DOUBLE_TAP_DISTANCE = 28
+const VIEW_RESET_DURATION_MS = 520
+
+type ViewResetAnimation = {
+  startedAt: number
+  fromPosition: THREE.Vector3
+  toPosition: THREE.Vector3
+  fromTarget: THREE.Vector3
+  toTarget: THREE.Vector3
+  fromRotation: THREE.Euler
+}
+
+const getResetCameraDistance = (aspect: number) => (
+  THREE.MathUtils.clamp(30 / Math.min(1, Math.max(0.5, aspect)), 30, 46)
+)
 
 const getTouchMetrics = (touches: React.TouchList) => {
   const a = touches.item(0)
@@ -355,6 +369,7 @@ export default function KnowledgeGraph3D({
     y: 0,
     pointerType: '',
     blank: false,
+    nodeId: undefined as string | undefined,
   })
   const touchRef = useRef({
     mode: 'none' as 'none' | 'rotate' | 'gesturePending' | 'pinchZoom' | 'twoFingerPan',
@@ -367,6 +382,7 @@ export default function KnowledgeGraph3D({
   })
   const groupRef = useRef<THREE.Group | null>(null)
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
+  const viewResetRef = useRef<ViewResetAnimation | null>(null)
   const selectedIdRef = useRef<string | undefined>(selectedId)
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
   const immersiveRef = useRef(immersive)
@@ -510,23 +526,37 @@ export default function KnowledgeGraph3D({
     const animate = () => {
       frame = requestAnimationFrame(animate)
       const time = performance.now() * 0.001
-      group.rotation.y += 0.00085
       const activeGesture = gestureControlRef.current
-      if (activeGesture?.activeGesture === 'rotate') {
-        group.rotation.y += THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045)
-        group.rotation.x += THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035)
-      } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
-        const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
-        camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
-      } else if (activeGesture?.activeGesture === 'pan') {
-        const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
-        panCameraView(
-          camera,
-          cameraTargetRef.current,
-          THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * -760,
-          THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
-          targetDistance * 0.0017,
+      const viewReset = viewResetRef.current
+      if (viewReset) {
+        const progress = THREE.MathUtils.clamp((performance.now() - viewReset.startedAt) / VIEW_RESET_DURATION_MS, 0, 1)
+        const eased = 1 - (1 - progress) ** 3
+        camera.position.lerpVectors(viewReset.fromPosition, viewReset.toPosition, eased)
+        cameraTargetRef.current.lerpVectors(viewReset.fromTarget, viewReset.toTarget, eased)
+        group.rotation.set(
+          THREE.MathUtils.lerp(viewReset.fromRotation.x, 0, eased),
+          THREE.MathUtils.lerp(viewReset.fromRotation.y, 0, eased),
+          THREE.MathUtils.lerp(viewReset.fromRotation.z, 0, eased),
         )
+        if (progress >= 1) viewResetRef.current = null
+      } else {
+        group.rotation.y += 0.00085
+        if (activeGesture?.activeGesture === 'rotate') {
+          group.rotation.y += THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045)
+          group.rotation.x += THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035)
+        } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
+          const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
+          camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
+        } else if (activeGesture?.activeGesture === 'pan') {
+          const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
+          panCameraView(
+            camera,
+            cameraTargetRef.current,
+            THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * -760,
+            THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
+            targetDistance * 0.0017,
+          )
+        }
       }
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
@@ -563,7 +593,7 @@ export default function KnowledgeGraph3D({
         } else {
           if (dwellRef.current.nodeId) onHover(undefined)
     dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
-    lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false }
+    lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
     if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
         }
       } else {
@@ -1065,19 +1095,37 @@ export default function KnowledgeGraph3D({
 
   const resetView = () => {
     const camera = cameraRef.current
-    if (!camera) return
-    camera.position.copy(DEFAULT_CAMERA_POSITION)
-    cameraTargetRef.current.copy(DEFAULT_CAMERA_TARGET)
-    if (groupRef.current) groupRef.current.rotation.set(0, 0, 0)
+    const group = groupRef.current
+    const mount = mountRef.current
+    if (!camera || !group || !mount) return
+    const primaryCoreNode = data.nodes.find(isClusterNode)
+    const resetTarget = primaryCoreNode
+      ? layout.get(primaryCoreNode.id)?.clone() ?? DEFAULT_CAMERA_TARGET.clone()
+      : DEFAULT_CAMERA_TARGET.clone()
+    const aspect = mount.clientWidth / Math.max(1, mount.clientHeight)
+    const resetDistance = getResetCameraDistance(aspect)
+    viewResetRef.current = {
+      startedAt: performance.now(),
+      fromPosition: camera.position.clone(),
+      toPosition: resetTarget.clone().add(new THREE.Vector3(0, 0, resetDistance)),
+      fromTarget: cameraTargetRef.current.clone(),
+      toTarget: resetTarget,
+      fromRotation: group.rotation.clone(),
+    }
     touchRef.current.mode = 'none'
     touchRef.current.startDistance = 0
-    touchRef.current.startZoom = DEFAULT_CAMERA_POSITION.z
+    touchRef.current.startZoom = resetDistance
     touchRef.current.startMidpoint.set(0, 0)
     touchRef.current.lastMidpoint.set(0, 0)
-    touchRef.current.startTarget.copy(DEFAULT_CAMERA_TARGET)
-    touchRef.current.startCameraPosition.copy(DEFAULT_CAMERA_POSITION)
-    camera.lookAt(cameraTargetRef.current)
-    camera.updateMatrixWorld()
+    touchRef.current.startTarget.copy(resetTarget)
+    touchRef.current.startCameraPosition.copy(viewResetRef.current.toPosition)
+    dragRef.current.active = false
+    dragRef.current.dragging = false
+    dragRef.current.pendingTap = false
+  }
+
+  const cancelViewReset = () => {
+    viewResetRef.current = null
   }
 
   const hoverAtPointer = () => {
@@ -1116,6 +1164,7 @@ export default function KnowledgeGraph3D({
         } else hoverAtPointer()
       }}
       onPointerDown={(event) => {
+        cancelViewReset()
         event.currentTarget.setPointerCapture(event.pointerId)
         const activeTouches = Number(event.currentTarget.dataset.activeTouches ?? '0') + 1
         event.currentTarget.dataset.activeTouches = String(activeTouches)
@@ -1149,22 +1198,26 @@ export default function KnowledgeGraph3D({
           const hit = getPointerHitNode()
           const now = performance.now()
           const blankTap = !hit
+          const hitNode = hit?.object.userData.node as KnowledgeNode | undefined
           const previousTap = lastTapRef.current
           const doubleBlankTap = blankTap &&
             previousTap.blank &&
             previousTap.pointerType === dragRef.current.pointerType &&
             now - previousTap.time <= DOUBLE_TAP_MS &&
             Math.hypot(event.clientX - previousTap.x, event.clientY - previousTap.y) <= DOUBLE_TAP_DISTANCE
+          const repeatedNodeTap = !!hitNode &&
+            previousTap.nodeId === hitNode.id &&
+            previousTap.pointerType === dragRef.current.pointerType &&
+            now - previousTap.time <= DOUBLE_TAP_MS &&
+            Math.hypot(event.clientX - previousTap.x, event.clientY - previousTap.y) <= DOUBLE_TAP_DISTANCE
           if (doubleBlankTap) {
             resetView()
             onHover(undefined)
-            onClearSelection()
-            lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false }
+            lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
           } else {
-            if (hit) {
-              const node = hit.object.userData.node as KnowledgeNode
-              onSelect(node, dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
-              onHover(node.id)
+            if (hitNode) {
+              if (!repeatedNodeTap) onSelect(hitNode, dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
+              onHover(hitNode.id)
             } else {
               onHover(undefined)
               onClearSelection()
@@ -1175,6 +1228,7 @@ export default function KnowledgeGraph3D({
               y: event.clientY,
               pointerType: dragRef.current.pointerType,
               blank: blankTap,
+              nodeId: hitNode?.id,
             }
           }
         }
@@ -1191,8 +1245,10 @@ export default function KnowledgeGraph3D({
         dragRef.current.dragging = false
         dragRef.current.pendingTap = false
         touchRef.current.mode = 'none'
+        lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
       }}
       onTouchStart={(event) => {
+        cancelViewReset()
         if (event.touches.length === 2 && cameraRef.current) {
           const { distance, midpoint } = getTouchMetrics(event.touches)
           touchRef.current = {
@@ -1247,6 +1303,7 @@ export default function KnowledgeGraph3D({
       }}
       onWheel={(event) => {
         if (!cameraRef.current) return
+        cancelViewReset()
         cameraRef.current.position.z = Math.max(11, Math.min(70, cameraRef.current.position.z + event.deltaY * 0.025))
       }}
     />
