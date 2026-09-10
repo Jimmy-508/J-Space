@@ -302,6 +302,8 @@ button:disabled {
 
 .camera-button,
 .settings-button {
+  --header-control-icon-color: #f2dfad;
+  --header-control-icon-glow: rgba(242, 223, 173, 0.38);
   position: relative;
   width: 44px;
   height: 44px;
@@ -335,7 +337,7 @@ button:disabled {
 .settings-button path,
 .settings-button circle {
   fill: none;
-  stroke: #bcefff;
+  stroke: var(--header-control-icon-color);
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -343,7 +345,7 @@ button:disabled {
 }
 
 .settings-icon {
-  filter: drop-shadow(0 0 5px rgba(116, 222, 246, 0.46));
+  filter: drop-shadow(0 0 5px var(--header-control-icon-glow));
 }
 
 .camera-button svg {
@@ -355,7 +357,7 @@ button:disabled {
 .camera-button path,
 .camera-button circle {
   fill: none;
-  stroke: #f2dfad;
+  stroke: var(--header-control-icon-color);
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;

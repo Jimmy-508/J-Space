@@ -389,6 +389,13 @@ export default function KnowledgeGraph3D({
     rotX: 0,
     rotY: 0,
   })
+  const mousePanRef = useRef({
+    active: false,
+    consumed: false,
+    lastX: 0,
+    lastY: 0,
+  })
+  const suppressContextMenuRef = useRef(false)
   const lastTapRef = useRef({
     time: 0,
     x: 0,
@@ -450,6 +457,9 @@ export default function KnowledgeGraph3D({
     dragRef.current.dragging = false
     dragRef.current.pendingTap = false
     dragRef.current.pointerType = ''
+    mousePanRef.current.active = false
+    mousePanRef.current.consumed = false
+    suppressContextMenuRef.current = false
     touchRef.current.mode = 'none'
     touchRef.current.startDistance = 0
     touchRef.current.lastMidpoint.set(0, 0)
@@ -1310,12 +1320,58 @@ export default function KnowledgeGraph3D({
     onHover(hit ? (hit.object.userData.node as KnowledgeNode).id : undefined)
   }
 
+  const beginMousePan = (clientX: number, clientY: number) => {
+    cancelViewReset()
+    mousePanRef.current.active = true
+    mousePanRef.current.consumed = true
+    mousePanRef.current.lastX = clientX
+    mousePanRef.current.lastY = clientY
+    suppressContextMenuRef.current = true
+    dragRef.current.active = false
+    dragRef.current.dragging = false
+    dragRef.current.pendingTap = false
+    lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
+  }
+
+  const endMousePan = (buttons: number) => {
+    mousePanRef.current.active = false
+    mousePanRef.current.consumed = buttons !== 0
+    dragRef.current.active = false
+    dragRef.current.dragging = false
+    dragRef.current.pendingTap = false
+    if (buttons === 0) {
+      window.setTimeout(() => {
+        suppressContextMenuRef.current = false
+      }, 0)
+    }
+  }
+
   return (
     <div
       className="graph-canvas"
       ref={mountRef}
       onPointerMove={(event) => {
         updatePointer(event)
+        if (event.pointerType === 'mouse') {
+          const isMousePanChord = (event.buttons & 3) === 3
+          if (isMousePanChord) {
+            if (!mousePanRef.current.active) {
+              beginMousePan(event.clientX, event.clientY)
+            } else if (cameraRef.current) {
+              const dx = event.clientX - mousePanRef.current.lastX
+              const dy = event.clientY - mousePanRef.current.lastY
+              const targetDistance = cameraRef.current.position.distanceTo(cameraTargetRef.current)
+              panCameraView(cameraRef.current, cameraTargetRef.current, dx, dy, targetDistance * 0.00175)
+              mousePanRef.current.lastX = event.clientX
+              mousePanRef.current.lastY = event.clientY
+            }
+            return
+          }
+          if (mousePanRef.current.consumed) {
+            endMousePan(event.buttons)
+            return
+          }
+        }
         if (event.pointerType === 'touch' && event.currentTarget.hasPointerCapture(event.pointerId)) {
           const activeTouches = Number(event.currentTarget.dataset.activeTouches ?? '0')
           if (activeTouches > 1) {
@@ -1338,6 +1394,12 @@ export default function KnowledgeGraph3D({
         } else hoverAtPointer()
       }}
       onPointerDown={(event) => {
+        if (event.pointerType === 'mouse' && (event.buttons & 3) === 3) {
+          event.preventDefault()
+          beginMousePan(event.clientX, event.clientY)
+          return
+        }
+        if (event.pointerType === 'mouse' && mousePanRef.current.consumed) return
         cancelViewReset()
         event.currentTarget.setPointerCapture(event.pointerId)
         const activeTouches = Number(event.currentTarget.dataset.activeTouches ?? '0') + 1
@@ -1355,6 +1417,14 @@ export default function KnowledgeGraph3D({
         }
       }}
       onPointerUp={(event) => {
+        if (event.pointerType === 'mouse' && mousePanRef.current.consumed) {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId)
+          }
+          if (mountRef.current) mountRef.current.dataset.activeTouches = '0'
+          endMousePan(event.buttons)
+          return
+        }
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId)
         }
@@ -1418,8 +1488,28 @@ export default function KnowledgeGraph3D({
         dragRef.current.active = false
         dragRef.current.dragging = false
         dragRef.current.pendingTap = false
+        mousePanRef.current.active = false
+        mousePanRef.current.consumed = false
+        suppressContextMenuRef.current = false
         touchRef.current.mode = 'none'
         lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
+      }}
+      onMouseDown={(event) => {
+        if ((event.buttons & 3) === 3) {
+          event.preventDefault()
+          beginMousePan(event.clientX, event.clientY)
+        }
+      }}
+      onMouseUp={(event) => {
+        if (mousePanRef.current.consumed && (event.buttons & 3) !== 3) {
+          endMousePan(event.buttons)
+        }
+      }}
+      onContextMenu={(event) => {
+        if (mousePanRef.current.active || mousePanRef.current.consumed || suppressContextMenuRef.current) {
+          event.preventDefault()
+          suppressContextMenuRef.current = false
+        }
       }}
       onTouchStart={(event) => {
         cancelViewReset()
