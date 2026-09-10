@@ -11,6 +11,7 @@ const POINTER_HOLD_MS = 300
 const POINTER_LOST_GRACE_MS = 150
 const MIN_ZOOM_IN_DISTANCE = 0.22
 const MAX_ZOOM_OUT_DISTANCE = 0.74
+const PALMS_FACING_SIDE_TOLERANCE = 0.22
 
 type ZoomSession = 'none' | 'zoomIn' | 'zoomOut'
 type ZoomPose = 'none' | 'palmsForward' | 'palmsFacing'
@@ -289,7 +290,11 @@ export class GestureStateMachine {
   private getZoomPose(pair: TrackedHand[]): ZoomPose {
     const palmsForward = pair.every((hand) => hand.palmFacing)
     if (palmsForward) return 'palmsForward'
-    const palmsFacing = Math.sign(pair[0].palmSide) !== Math.sign(pair[1].palmSide)
+    const oppositePalmSides = Math.sign(pair[0].palmSide) !== Math.sign(pair[1].palmSide)
+    const bothWithinFacingTolerance = pair.every(
+      (hand) => Math.abs(hand.palmSide) <= PALMS_FACING_SIDE_TOLERANCE,
+    )
+    const palmsFacing = oppositePalmSides || bothWithinFacingTolerance
     return palmsFacing ? 'palmsFacing' : 'none'
   }
 

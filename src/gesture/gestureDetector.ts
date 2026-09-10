@@ -51,5 +51,7 @@ export const isPalmFacingCamera = (landmarks: Landmark[]) => {
 
 export const getPalmSide = (landmarks: Landmark[]) => {
   if (landmarks.length < 18) return 0
-  return Math.sign(landmarks[5].x - landmarks[17].x)
+  const dx = landmarks[5].x - landmarks[17].x
+  const dy = landmarks[5].y - landmarks[17].y
+  return dx / Math.max(0.0001, Math.hypot(dx, dy))
 }
