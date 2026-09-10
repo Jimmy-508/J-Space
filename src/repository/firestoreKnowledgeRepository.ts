@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -58,6 +59,43 @@ export async function loadAll(): Promise<KnowledgeData> {
   return { nodes, links }
 }
 
+export function subscribeAll(
+  onData: (data: KnowledgeData) => void,
+  onError: (error: unknown) => void,
+): () => void {
+  let nodes: KnowledgeNode[] = []
+  let links: KnowledgeLink[] = []
+  let nodesReady = false
+  let connectionsReady = false
+  const emitWhenReady = () => {
+    if (nodesReady && connectionsReady) onData({ nodes, links })
+  }
+
+  const unsubscribeNodes = onSnapshot(
+    collection(db, NODES_COLLECTION),
+    (snapshot) => {
+      nodes = snapshot.docs.map(toKnowledgeNode)
+      nodesReady = true
+      emitWhenReady()
+    },
+    onError,
+  )
+  const unsubscribeConnections = onSnapshot(
+    collection(db, CONNECTIONS_COLLECTION),
+    (snapshot) => {
+      links = snapshot.docs.map(toKnowledgeLink)
+      connectionsReady = true
+      emitWhenReady()
+    },
+    onError,
+  )
+
+  return () => {
+    unsubscribeNodes()
+    unsubscribeConnections()
+  }
+}
+
 export async function saveNode(node: KnowledgeNode): Promise<void> {
   await setDoc(doc(db, NODES_COLLECTION, node.id), removeUndefinedFields({
     ...node,
@@ -81,6 +119,9 @@ export async function deleteNode(nodeId: string): Promise<void> {
 }
 
 export async function saveConnection(connection: KnowledgeLink): Promise<void> {
+  if (!connection.id || !connection.source || !connection.target || connection.source === connection.target) {
+    throw new Error('Invalid Firestore connection data')
+  }
   await setDoc(doc(db, CONNECTIONS_COLLECTION, connection.id), removeUndefinedFields({
     ...connection,
     syncedAt: serverTimestamp(),
@@ -95,6 +136,7 @@ export const firestoreKnowledgeRepository = {
   loadNodes,
   loadConnections,
   loadAll,
+  subscribeAll,
   saveNode,
   deleteNode,
   saveConnection,

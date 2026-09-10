@@ -423,19 +423,16 @@ export default function App() {
   }, [selectedId])
 
   useEffect(() => {
-    let cancelled = false
-    firestoreKnowledgeRepository.loadAll()
-      .then((cloudData) => {
-        if (cancelled) return
+    const unsubscribe = firestoreKnowledgeRepository.subscribeAll(
+      (cloudData) => {
         setData(cloudData)
         cacheFallbackData(cloudData)
-      })
-      .catch((error: unknown) => {
-        console.error('Firestore load failed:', error)
-      })
-    return () => {
-      cancelled = true
-    }
+      },
+      (error: unknown) => {
+        console.error('Firestore realtime sync failed:', error)
+      },
+    )
+    return unsubscribe
   }, [cacheFallbackData])
 
   useEffect(() => {
@@ -793,9 +790,9 @@ export default function App() {
             aria-label={settingsOpen ? '關閉設定' : '開啟設定'}
             onClick={() => setSettingsOpen((value) => !value)}
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M10.34 3.94c.09-.54.56-.94 1.11-.94h1.1c.55 0 1.02.4 1.11.94l.18 1.08c.07.42.38.76.78.92.18.07.36.15.53.22.39.18.85.15 1.2-.1l.9-.64c.45-.32 1.07-.27 1.46.12l.78.78c.39.39.44 1.01.12 1.46l-.64.9c-.25.35-.28.81-.1 1.2.08.17.15.35.22.53.16.4.5.71.92.78l1.08.18c.54.09.94.56.94 1.11v1.1c0 .55-.4 1.02-.94 1.11l-1.08.18c-.42.07-.76.38-.92.78-.07.18-.14.36-.22.53-.18.39-.15.85.1 1.2l.64.9c.32.45.27 1.07-.12 1.46l-.78.78c-.39.39-1.01.44-1.46.12l-.9-.64c-.35-.25-.81-.28-1.2-.1-.17.08-.35.15-.53.22-.4.16-.71.5-.78.92l-.18 1.08c-.09.54-.56.94-1.11.94h-1.1c-.55 0-1.02-.4-1.11-.94l-.18-1.08c-.07-.42-.38-.76-.78-.92-.18-.07-.36-.14-.53-.22-.39-.18-.85-.15-1.2.1l-.9.64c-.45.32-1.07.27-1.46-.12l-.78-.78a1.12 1.12 0 0 1-.12-1.46l.64-.9c.25-.35.28-.81.1-1.2a8 8 0 0 1-.22-.53c-.16-.4-.5-.71-.92-.78l-1.08-.18A1.13 1.13 0 0 1 3 13.55v-1.1c0-.55.4-1.02.94-1.11l1.08-.18c.42-.07.76-.38.92-.78.07-.18.14-.36.22-.53.18-.39.15-.85-.1-1.2l-.64-.9a1.12 1.12 0 0 1 .12-1.46l.78-.78c.39-.39 1.01-.44 1.46-.12l.9.64c.35.25.81.28 1.2.1.17-.08.35-.15.53-.22.4-.16.71-.5.78-.92l.18-1.08Z" />
-              <circle cx="12" cy="12" r="3.25" />
+            <svg className="settings-icon" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+              <path d="M9.6 3.35h4.8l.55 2.18c.5.2.98.47 1.42.8l2.16-.63 2.4 4.15-1.61 1.55c.04.54.04 1.07 0 1.61l1.61 1.55-2.4 4.15-2.16-.63c-.44.33-.92.6-1.42.8l-.55 2.18H9.6l-.55-2.18a8.8 8.8 0 0 1-1.42-.8l-2.16.63-2.4-4.15 1.61-1.55a8.68 8.68 0 0 1 0-1.61L3.07 9.85l2.4-4.15 2.16.63c.44-.33.92-.6 1.42-.8L9.6 3.35Z" />
+              <circle cx="12" cy="12.2" r="3.05" />
             </svg>
           </button>
         </div>
@@ -968,17 +965,17 @@ export default function App() {
               (item.source === target && item.target === selected.id),
             )
             if (exists) {
-              setRelationOpen(false)
+              alert('這兩個節點之間已存在關聯')
               return
             }
-            const connection = createKnowledgeLink({ source: selected.id, target, relation })
+            const connection = createKnowledgeLink({ source: selected.id, target, relation: relation?.trim() || undefined })
             const next = { ...data, links: [...data.links, connection] }
             persist(next)
             const saved = await saveConnectionToFirestore(connection, next)
             if (saved) {
               setRelationOpen(false)
             } else {
-              persist(data)
+              setData((current) => ({ ...current, links: current.links.filter((item) => item.id !== connection.id) }))
             }
           }}
         />

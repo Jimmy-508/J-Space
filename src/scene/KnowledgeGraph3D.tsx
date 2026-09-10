@@ -82,6 +82,14 @@ type InitialView = {
   rotation: THREE.Euler
 }
 
+type BackgroundResetAnimation = {
+  starfieldRotationY: number[]
+  nebulaPositions: THREE.Vector3[]
+  nebulaMaterialRotations: number[]
+  flareMaterialRotations: number[]
+  flareScales: THREE.Vector3[]
+}
+
 const getTouchMetrics = (touches: React.TouchList) => {
   const a = touches.item(0)
   const b = touches.item(1)
@@ -403,6 +411,8 @@ export default function KnowledgeGraph3D({
   const viewResetRef = useRef<CameraTransition | null>(null)
   const focusTransitionRef = useRef<CameraTransition | null>(null)
   const initialViewRef = useRef<InitialView | null>(null)
+  const backgroundResetRef = useRef<BackgroundResetAnimation | null>(null)
+  const backgroundTimeOriginRef = useRef(0)
   const focusBlurTimerRef = useRef<number | undefined>(undefined)
   const gesturePointerBlockedRef = useRef(gesturePointerBlocked)
   const selectedIdRef = useRef<string | undefined>(selectedId)
@@ -475,7 +485,10 @@ export default function KnowledgeGraph3D({
     const brightStars = createBrightStarfield({ count: 560, radiusMin: 50, radiusMax: 168, size: 4.2 * pointScale, opacity: 0.95, drift: -0.000055, bright: true })
     const nearDust = createStarfield({ count: 520, radiusMin: 24, radiusMax: 68, size: 1.24 * pointScale, opacity: 0.32, drift: 0.0002, twinkle: 0.18, occasional: 0.035, glow: true, screenSized: true })
     starfieldsRef.current = [deepDust, galaxyBand, farStars, visibleStars, midStars, brightStars, nearDust]
-    starfieldsRef.current.forEach((field) => scene.add(field))
+    starfieldsRef.current.forEach((field) => {
+      field.userData.initialRotationY = field.rotation.y
+      scene.add(field)
+    })
     const nebulaLayer = [
       { color: 0x27456f, opacity: 0.16, position: [-30, 12, -72], scale: [60, 32, 1] },
       { color: 0x3b527d, opacity: 0.12, position: [34, -8, -84], scale: [54, 28, 1] },
@@ -497,7 +510,13 @@ export default function KnowledgeGraph3D({
       }))
       sprite.position.set(item.position[0], item.position[1], item.position[2])
       sprite.scale.set(item.scale[0], item.scale[1], item.scale[2])
-      sprite.userData = { baseOpacity: item.opacity, drift: index % 2 === 0 ? 0.00018 : -0.00014, phase: index * 1.8 }
+      sprite.userData = {
+        baseOpacity: item.opacity,
+        drift: index % 2 === 0 ? 0.00018 : -0.00014,
+        phase: index * 1.8,
+        initialPosition: sprite.position.clone(),
+        initialMaterialRotation: sprite.material.rotation,
+      }
       scene.add(sprite)
       return sprite
     })
@@ -528,6 +547,8 @@ export default function KnowledgeGraph3D({
         opacityRange: 0.08 + Math.random() * 0.12,
         speed: 0.24 + Math.random() * 0.72,
         phase: Math.random() * Math.PI * 2,
+        initialMaterialRotation: sprite.material.rotation,
+        initialScale: sprite.scale.clone(),
       }
       scene.add(sprite)
       return sprite
@@ -552,16 +573,19 @@ export default function KnowledgeGraph3D({
       target: cameraTargetRef.current.clone(),
       rotation: group.rotation.clone(),
     }
+    backgroundTimeOriginRef.current = performance.now() * 0.001
 
     let frame = 0
     const animate = () => {
       frame = requestAnimationFrame(animate)
       const time = performance.now() * 0.001
+      const backgroundTime = time - backgroundTimeOriginRef.current
       const activeGesture = gestureControlRef.current
       if (focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
         focusTransitionRef.current = null
       }
       const viewReset = viewResetRef.current
+      const resettingBackground = !!viewReset && !!backgroundResetRef.current
       if (viewReset) {
         const progress = THREE.MathUtils.clamp((performance.now() - viewReset.startedAt) / viewReset.duration, 0, 1)
         const eased = 1 - (1 - progress) ** 3
@@ -575,7 +599,42 @@ export default function KnowledgeGraph3D({
             THREE.MathUtils.lerp(viewReset.fromRotation.z, initialRotation.z, eased),
           )
         }
-        if (progress >= 1) viewResetRef.current = null
+        const backgroundReset = backgroundResetRef.current
+        if (backgroundReset) {
+          starfieldsRef.current.forEach((field, index) => {
+            field.rotation.y = THREE.MathUtils.lerp(
+              backgroundReset.starfieldRotationY[index] ?? field.rotation.y,
+              field.userData.initialRotationY ?? 0,
+              eased,
+            )
+          })
+          nebulaRef.current.forEach((sprite, index) => {
+            const initialPosition = sprite.userData.initialPosition as THREE.Vector3
+            sprite.position.lerpVectors(backgroundReset.nebulaPositions[index] ?? sprite.position, initialPosition, eased)
+            sprite.material.rotation = THREE.MathUtils.lerp(
+              backgroundReset.nebulaMaterialRotations[index] ?? sprite.material.rotation,
+              sprite.userData.initialMaterialRotation ?? 0,
+              eased,
+            )
+          })
+          backgroundFlaresRef.current.forEach((sprite, index) => {
+            sprite.material.rotation = THREE.MathUtils.lerp(
+              backgroundReset.flareMaterialRotations[index] ?? sprite.material.rotation,
+              sprite.userData.initialMaterialRotation ?? 0,
+              eased,
+            )
+            sprite.scale.lerpVectors(
+              backgroundReset.flareScales[index] ?? sprite.scale,
+              sprite.userData.initialScale as THREE.Vector3,
+              eased,
+            )
+          })
+        }
+        if (progress >= 1) {
+          viewResetRef.current = null
+          backgroundResetRef.current = null
+          backgroundTimeOriginRef.current = time
+        }
       } else if (focusTransitionRef.current) {
         const transition = focusTransitionRef.current
         const progress = THREE.MathUtils.clamp((performance.now() - transition.startedAt) / transition.duration, 0, 1)
@@ -658,7 +717,7 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       starfieldsRef.current.forEach((field) => {
-        field.rotation.y += field.userData.drift
+        if (!resettingBackground) field.rotation.y += field.userData.drift
         const colorAttribute = field.geometry.getAttribute('color') as THREE.BufferAttribute
         const colors = colorAttribute.array as Float32Array
         const baseColors = field.geometry.userData.baseColors as Float32Array
@@ -666,7 +725,7 @@ export default function KnowledgeGraph3D({
         const speeds = field.geometry.userData.speeds as Float32Array
         const twinkleAmounts = field.geometry.userData.twinkleAmounts as Float32Array
         for (let i = 0; i < phases.length; i += 1) {
-          const pulse = 1 + Math.sin(time * speeds[i] + phases[i]) * twinkleAmounts[i]
+          const pulse = 1 + Math.sin(backgroundTime * speeds[i] + phases[i]) * twinkleAmounts[i]
           colors[i * 3] = baseColors[i * 3] * pulse
           colors[i * 3 + 1] = baseColors[i * 3 + 1] * pulse
           colors[i * 3 + 2] = baseColors[i * 3 + 2] * pulse
@@ -674,17 +733,21 @@ export default function KnowledgeGraph3D({
         colorAttribute.needsUpdate = true
       })
       nebulaRef.current.forEach((sprite, index) => {
-        sprite.material.opacity = sprite.userData.baseOpacity + Math.sin(time * 0.18 + sprite.userData.phase) * 0.018
-        sprite.material.rotation += sprite.userData.drift
-        sprite.position.x += Math.sin(time * 0.08 + index) * 0.0012
+        sprite.material.opacity = sprite.userData.baseOpacity + Math.sin(backgroundTime * 0.18 + sprite.userData.phase) * 0.018
+        if (!resettingBackground) {
+          sprite.material.rotation += sprite.userData.drift
+          sprite.position.x += Math.sin(backgroundTime * 0.08 + index) * 0.0012
+        }
       })
       backgroundFlaresRef.current.forEach((sprite, index) => {
         const material = sprite.material as THREE.SpriteMaterial
-        const shimmer = Math.sin(time * sprite.userData.speed + sprite.userData.phase) * 0.5 + 0.5
-        const rarePulse = Math.max(0, Math.sin(time * 0.34 + index * 2.1)) ** 7
+        const shimmer = Math.sin(backgroundTime * sprite.userData.speed + sprite.userData.phase) * 0.5 + 0.5
+        const rarePulse = Math.max(0, Math.sin(backgroundTime * 0.34 + index * 2.1)) ** 7
         material.opacity = sprite.userData.baseOpacity + shimmer * sprite.userData.opacityRange + rarePulse * 0.18
-        material.rotation += index % 2 === 0 ? 0.00045 : -0.00032
-        sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))
+        if (!resettingBackground) {
+          material.rotation += index % 2 === 0 ? 0.00045 : -0.00032
+          sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))
+        }
       })
       if (immersiveRef.current) {
         if (time >= nextCometAtRef.current && cometsRef.current.length < 1) {
@@ -1199,6 +1262,23 @@ export default function KnowledgeGraph3D({
       fromRotation: group.rotation.clone(),
       resetRotation: true,
     }
+    backgroundResetRef.current = {
+      starfieldRotationY: starfieldsRef.current.map((field) => field.rotation.y),
+      nebulaPositions: nebulaRef.current.map((sprite) => sprite.position.clone()),
+      nebulaMaterialRotations: nebulaRef.current.map((sprite) => sprite.material.rotation),
+      flareMaterialRotations: backgroundFlaresRef.current.map((sprite) => sprite.material.rotation),
+      flareScales: backgroundFlaresRef.current.map((sprite) => sprite.scale.clone()),
+    }
+    cometsRef.current.forEach((comet) => {
+      sceneRef.current?.remove(comet)
+      disposeComet(comet)
+    })
+    cometsRef.current = []
+    nextCometAtRef.current = immersiveRef.current ? performance.now() * 0.001 + randomCometDelay() : 0
+    selectBurstRef.current.forEach((burst) => sceneRef.current?.remove(burst))
+    selectBurstRef.current = []
+    dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt, armed: true }
+    if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
     touchRef.current.mode = 'none'
     touchRef.current.startDistance = 0
     touchRef.current.startZoom = initialView.position.z
@@ -1213,6 +1293,7 @@ export default function KnowledgeGraph3D({
 
   const cancelViewReset = () => {
     viewResetRef.current = null
+    backgroundResetRef.current = null
     focusTransitionRef.current = null
     if (focusBlurTimerRef.current !== undefined) {
       window.clearTimeout(focusBlurTimerRef.current)

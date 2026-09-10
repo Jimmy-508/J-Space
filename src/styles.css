@@ -328,15 +328,22 @@ button:disabled {
   width: 24px;
   height: 24px;
   display: block;
+  flex: none;
+  overflow: visible;
 }
 
 .settings-button path,
 .settings-button circle {
   fill: none;
-  stroke: #f2dfad;
-  stroke-width: 1.55;
+  stroke: #bcefff;
+  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.settings-icon {
+  filter: drop-shadow(0 0 5px rgba(116, 222, 246, 0.46));
 }
 
 .camera-button svg {
@@ -392,7 +399,7 @@ button:disabled {
   top: 0;
   width: 100vw;
   height: 100dvh;
-  z-index: 2;
+  z-index: 100;
   display: block;
   pointer-events: none;
   overflow: hidden;
