@@ -697,6 +697,10 @@ small,
   transition: opacity 360ms ease, transform 320ms ease, filter 360ms ease, width 320ms ease, max-height 320ms ease;
 }
 
+.node-drawer.without-action-bar {
+  bottom: max(0px, env(safe-area-inset-bottom));
+}
+
 .node-drawer.side-drawer {
   top: calc(max(14px, env(safe-area-inset-top)) + 70px);
   right: 0;
@@ -809,8 +813,15 @@ small,
   overflow: auto;
   padding: 0 0.9rem 0.92rem;
   opacity: 1;
+  filter: blur(0);
   transform: translateY(0);
-  transition: max-height 300ms ease, opacity 260ms ease, transform 300ms ease, padding 300ms ease;
+  transition: max-height 300ms ease, opacity 260ms ease, transform 300ms ease, padding 300ms ease, filter 260ms ease;
+}
+
+.drawer-content.is-switching {
+  opacity: 0.38;
+  filter: blur(6px);
+  transform: translateY(5px);
 }
 
 .node-drawer.collapsed .drawer-content {
@@ -824,7 +835,15 @@ small,
 
 .node-drawer.side-drawer .drawer-content {
   max-height: none;
+  opacity: 1;
+  filter: blur(0);
   transform: translateX(0);
+}
+
+.node-drawer.side-drawer .drawer-content.is-switching {
+  opacity: 0.38;
+  filter: blur(6px);
+  transform: translateX(8px);
 }
 
 .node-drawer.side-drawer.collapsed .drawer-content {
@@ -878,13 +897,42 @@ small,
   padding: 0.55rem 0;
 }
 
-.relation-item span {
+.relation-item span,
+.relation-link span {
   display: grid;
   gap: 0.05rem;
 }
 
 .relation-item button {
   padding: 0.35rem 0.55rem;
+}
+
+.relation-link {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  border-color: rgba(184, 211, 255, 0.12);
+  background: rgba(126, 166, 232, 0.07);
+  color: #e8f1ff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.relation-link:hover,
+.relation-link:focus-visible {
+  border-color: rgba(244, 210, 134, 0.36);
+  background: rgba(244, 210, 134, 0.1);
+  box-shadow: 0 0 16px rgba(236, 188, 92, 0.12);
+}
+
+.relation-link:active {
+  transform: scale(0.985);
+}
+
+.relation-link:disabled {
+  cursor: default;
+  opacity: 0.58;
 }
 
 input,
@@ -1011,6 +1059,10 @@ textarea {
     right: max(16px, env(safe-area-inset-right));
     bottom: calc(max(16px, env(safe-area-inset-bottom)) + 78px);
     width: min(380px, calc(100vw - 32px));
+  }
+
+  .node-drawer.without-action-bar {
+    bottom: max(16px, env(safe-area-inset-bottom));
   }
 
   .node-drawer.side-drawer {

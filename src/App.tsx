@@ -45,7 +45,7 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
     return `${center.x + Math.cos(angle) * radius},${center.y + Math.sin(angle) * radius}`
   }).join(' ')
 
-type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | undefined
+type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | 'relation' | undefined
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SETTINGS_KEY = 'j-space-settings'
 const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
@@ -782,6 +782,7 @@ export default function App() {
         node={selected}
         data={data}
         isAdmin={isAdmin}
+        hasActionBar={isAdmin}
         onEdit={setEditing}
         onDelete={async (node) => {
           if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
@@ -799,6 +800,7 @@ export default function App() {
           }
         }}
         onAddRelation={() => setRelationOpen(true)}
+        onSelectRelatedNode={(node) => selectNode(node, 'relation')}
         onDeleteLink={async (link: KnowledgeLink) => {
           const next = { ...data, links: data.links.filter((item) => item.id !== link.id) }
           persist(next)
