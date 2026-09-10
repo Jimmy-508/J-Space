@@ -42,8 +42,6 @@ export default function NodeHUD({
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [layoutMode, setLayoutMode] = useState<'side' | 'bottom'>('bottom')
-  const [displayNode, setDisplayNode] = useState<KnowledgeNode | undefined>(node)
-  const [transitioning, setTransitioning] = useState(false)
 
   useEffect(() => {
     const updateLayoutMode = () => {
@@ -63,80 +61,53 @@ export default function NodeHUD({
     setExpanded(false)
   }, [node?.id, layoutMode])
 
-  useEffect(() => {
-    if (!node) {
-      setDisplayNode(undefined)
-      setTransitioning(false)
-      return
-    }
+  if (!node) return null
 
-    if (!displayNode) {
-      setDisplayNode(node)
-      setTransitioning(true)
-      const timer = window.setTimeout(() => setTransitioning(false), 180)
-      return () => window.clearTimeout(timer)
-    }
-
-    if (displayNode.id === node.id) {
-      setDisplayNode(node)
-      return
-    }
-
-    setTransitioning(true)
-    const swapTimer = window.setTimeout(() => setDisplayNode(node), 130)
-    const settleTimer = window.setTimeout(() => setTransitioning(false), 310)
-    return () => {
-      window.clearTimeout(swapTimer)
-      window.clearTimeout(settleTimer)
-    }
-  }, [node, displayNode])
-
-  if (!displayNode) return null
-
-  const relations = data.links.filter((link) => link.source === displayNode.id || link.target === displayNode.id)
+  const relations = data.links.filter((link) => link.source === node.id || link.target === node.id)
   const getNode = (id: string) => data.nodes.find((item) => item.id === id)
   const getTitle = (id: string) => getNode(id)?.title ?? id
 
   return (
     <aside className={`node-drawer ${expanded ? 'expanded' : 'collapsed'} ${layoutMode === 'side' ? 'side-drawer' : 'bottom-drawer'} ${hasActionBar ? 'with-action-bar' : 'without-action-bar'}`}>
-      <button className="drawer-summary" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+      <button data-gesture-clickable="true" className="drawer-summary" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
         <span>
-          <small>{NODE_TYPE_LABELS[displayNode.type]} / {displayNode.category || '未分類'}</small>
-          <strong>{displayNode.title}</strong>
+          <small>{NODE_TYPE_LABELS[node.type]} / {node.category || '未分類'}</small>
+          <strong>{node.title}</strong>
         </span>
         <span className="drawer-toggle" aria-hidden="true">
           <DrawerArrow direction={layoutMode === 'side' ? (expanded ? 'right' : 'left') : (expanded ? 'down' : 'up')} />
         </span>
       </button>
-      <div className={`drawer-content ${transitioning ? 'is-switching' : ''}`} aria-hidden={!expanded}>
-        {displayNode.tags?.length ? <div className="tag-row">{displayNode.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
-        <p>{displayNode.description || '尚未加入簡介。'}</p>
+      <div className="drawer-content" aria-hidden={!expanded}>
+        {node.tags?.length ? <div className="tag-row">{node.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
+        <p>{node.description || '尚未加入簡介。'}</p>
         <div className="hud-actions">
-          {displayNode.url ? <button onClick={() => window.open(displayNode.url, '_blank', 'noopener,noreferrer')}>開啟連結</button> : null}
+          {node.url ? <button data-gesture-clickable="true" onClick={() => window.open(node.url, '_blank', 'noopener,noreferrer')}>開啟連結</button> : null}
           {isAdmin ? (
             <>
-              <button onClick={() => onEdit(displayNode)}>編輯</button>
-              <button onClick={onAddRelation}>新增關聯</button>
-              <button className="danger" onClick={() => onDelete(displayNode)}>刪除</button>
+              <button data-gesture-clickable="true" onClick={() => onEdit(node)}>編輯</button>
+              <button data-gesture-clickable="true" onClick={onAddRelation}>新增關聯</button>
+              <button data-gesture-clickable="true" className="danger" onClick={() => onDelete(node)}>刪除</button>
             </>
           ) : null}
         </div>
         <div className="relation-list">
           <h3>關聯節點</h3>
           {relations.length === 0 ? <p className="muted">尚無關聯。</p> : relations.map((link) => {
-            const other = link.source === displayNode.id ? link.target : link.source
+            const other = link.source === node.id ? link.target : link.source
             const relatedNode = getNode(other)
             return (
               <div className="relation-item" key={link.id}>
                 <button
                   className="relation-link"
                   type="button"
+                  data-gesture-clickable="true"
                   disabled={!relatedNode}
                   onClick={() => relatedNode && onSelectRelatedNode(relatedNode)}
                 >
                   <span>{getTitle(other)} <small>{link.relation || '相關'}</small></span>
                 </button>
-                {isAdmin ? <button aria-label="刪除關聯" onClick={() => onDeleteLink(link)}>刪除</button> : null}
+                {isAdmin ? <button data-gesture-clickable="true" aria-label="刪除關聯" onClick={() => onDeleteLink(link)}>刪除</button> : null}
               </div>
             )
           })}

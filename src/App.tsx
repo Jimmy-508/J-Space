@@ -49,6 +49,8 @@ type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | 'relati
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SETTINGS_KEY = 'j-space-settings'
 const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
+const GESTURE_UI_DWELL_MS = 720
+const GESTURE_UI_COOLDOWN_MS = 1000
 
 type AppSettings = {
   musicVolume: number
@@ -113,11 +115,15 @@ function HandEnergyOverlay({
   status,
   videoSize,
   viewportSize,
+  uiDwellActive,
+  uiDwellProgress,
 }: {
   hands: TrackedHand[]
   status: GestureStatus
   videoSize: { width: number; height: number }
   viewportSize: { width: number; height: number }
+  uiDwellActive: boolean
+  uiDwellProgress: number
 }) {
   const cursorTrailsRef = useRef(new Map<string, ScreenPoint[]>())
   if (!status.enabled || status.cameraStatus !== 'ready') {
@@ -191,6 +197,16 @@ function HandEnergyOverlay({
           <polygon className="star-cursor-flare" points={createStarPoints(cursor.point, 24, 2.7)} />
           <polygon className="star-cursor-core" points={createStarPoints(cursor.point, 16.5, 5.6)} />
           <circle className="star-cursor-center" cx={cursor.point.x} cy={cursor.point.y} r="4.6" />
+          {uiDwellActive ? (
+            <circle
+              className="star-cursor-dwell"
+              cx={cursor.point.x}
+              cy={cursor.point.y}
+              r="34"
+              pathLength="1"
+              strokeDasharray={`${uiDwellProgress} 1`}
+            />
+          ) : null}
           <circle className="star-cursor-sparkle sparkle-a" cx={cursor.point.x + 16} cy={cursor.point.y - 13} r="2" />
           <circle className="star-cursor-sparkle sparkle-b" cx={cursor.point.x - 14} cy={cursor.point.y + 11} r="1.7" />
           <circle className="star-cursor-sparkle sparkle-c" cx={cursor.point.x + 6} cy={cursor.point.y + 18} r="1.35" />
@@ -204,7 +220,7 @@ export default function App() {
   const [data, setData] = useState<KnowledgeData>(() => knowledgeRepository.load())
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings())
   const [selectedId, setSelectedId] = useState<string>()
-  const [selectionSource, setSelectionSource] = useState<SelectionSource>()
+  const [, setSelectionSource] = useState<SelectionSource>()
   const [hoveredId, setHoveredId] = useState<string>()
   const [focusId, setFocusId] = useState<string>()
   const [query, setQuery] = useState('')
@@ -230,6 +246,7 @@ export default function App() {
     width: typeof window === 'undefined' ? 390 : window.visualViewport?.width ?? window.innerWidth,
     height: typeof window === 'undefined' ? 844 : window.visualViewport?.height ?? window.innerHeight,
   }))
+  const [gestureUiDwell, setGestureUiDwell] = useState({ active: false, progress: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const musicInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -237,10 +254,14 @@ export default function App() {
   const trackingRef = useRef<HandTrackingSession | undefined>(undefined)
   const gestureMachineRef = useRef(new GestureStateMachine())
   const idleTimerRef = useRef<number | undefined>(undefined)
-  const selectionSourceRef = useRef<SelectionSource>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
   const audioManagerRef = useRef<AudioManager | undefined>(undefined)
-  const pointerWasActiveRef = useRef(false)
+  const gestureUiDwellRef = useRef<{
+    element?: HTMLElement
+    since: number
+    triggered: boolean
+    cooldownUntil: number
+  }>({ since: 0, triggered: false, cooldownUntil: 0 })
   const selected = data.nodes.find((node) => node.id === selectedId)
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
@@ -315,10 +336,13 @@ export default function App() {
     setFocusId(node.id)
     setSelectionSource(source)
   }, [])
-  const clearPointerSelection = useCallback(() => {
-    if (selectionSourceRef.current !== 'pointerGesture') return
-    clearSelection()
-  }, [clearSelection])
+  const clearGestureUiDwell = useCallback(() => {
+    gestureUiDwellRef.current.element?.classList.remove('gesture-dwell-hover')
+    gestureUiDwellRef.current = { since: 0, triggered: false, cooldownUntil: 0 }
+    setGestureUiDwell((current) => current.active || current.progress
+      ? { active: false, progress: 0 }
+      : current)
+  }, [])
   const resetIdle = useCallback(() => {
     setImmersive(false)
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current)
@@ -393,10 +417,6 @@ export default function App() {
     setAdminPassword('')
     setAdminLoginError('')
   }, [])
-
-  useEffect(() => {
-    selectionSourceRef.current = selectionSource
-  }, [selectionSource])
 
   useEffect(() => {
     selectedIdRef.current = selectedId
@@ -475,12 +495,56 @@ export default function App() {
   }, [settings])
 
   useEffect(() => {
-    const pointerActive = gestureStatus.activeGesture === 'pointer'
-    if (pointerWasActiveRef.current && !pointerActive) {
-      clearPointerSelection()
+    if (!gesturePointerScreen || gestureStatus.activeGesture !== 'pointer') {
+      clearGestureUiDwell()
+      return
     }
-    pointerWasActiveRef.current = pointerActive
-  }, [gestureStatus.activeGesture, clearPointerSelection])
+    let frame = 0
+    const updateDwell = () => {
+      const hit = document.elementFromPoint(gesturePointerScreen.x, gesturePointerScreen.y)
+      const target = hit?.closest<HTMLElement>('[data-gesture-clickable="true"]')
+      const isDisabled = target instanceof HTMLButtonElement && target.disabled
+      const isHidden = !target || target.closest('[aria-hidden="true"]') !== null
+      if (!target || isDisabled || isHidden) {
+        clearGestureUiDwell()
+        frame = window.requestAnimationFrame(updateDwell)
+        return
+      }
+
+      const now = performance.now()
+      const state = gestureUiDwellRef.current
+      if (state.element !== target) {
+        state.element?.classList.remove('gesture-dwell-hover')
+        target.classList.add('gesture-dwell-hover')
+        gestureUiDwellRef.current = {
+          element: target,
+          since: now,
+          triggered: false,
+          cooldownUntil: state.cooldownUntil,
+        }
+        setGestureUiDwell({ active: true, progress: 0 })
+        frame = window.requestAnimationFrame(updateDwell)
+        return
+      }
+
+      if (state.triggered) {
+        setGestureUiDwell({ active: true, progress: 1 })
+      } else {
+        const progress = Math.min(1, (now - state.since) / GESTURE_UI_DWELL_MS)
+        setGestureUiDwell({ active: true, progress })
+        if (progress >= 1 && now >= state.cooldownUntil) {
+          state.triggered = true
+          state.cooldownUntil = now + GESTURE_UI_COOLDOWN_MS
+          target.click()
+        }
+      }
+      frame = window.requestAnimationFrame(updateDwell)
+    }
+    frame = window.requestAnimationFrame(updateDwell)
+    return () => window.cancelAnimationFrame(frame)
+  }, [gesturePointerScreen?.x, gesturePointerScreen?.y, gestureStatus.activeGesture, clearGestureUiDwell])
+
+  useEffect(() => () => clearGestureUiDwell(), [clearGestureUiDwell])
 
   useEffect(() => {
     const updateViewport = () => setViewportSize({
@@ -516,12 +580,11 @@ export default function App() {
       trackingRef.current?.stop()
       trackingRef.current = undefined
       gestureMachineRef.current.reset()
-      pointerWasActiveRef.current = false
       setHands([])
       setGestureStatus(emptyGestureStatus(false))
       setHoveredId(undefined)
       setControlResetKey((value) => value + 1)
-      clearPointerSelection()
+      clearGestureUiDwell()
       return
     }
     const video = videoRef.current
@@ -559,7 +622,7 @@ export default function App() {
       cancelled = true
       session.stop()
     }
-  }, [gestureEnabled, resetIdle])
+  }, [gestureEnabled, resetIdle, clearGestureUiDwell])
 
   const handleAdminPressStart = () => {
     if (isAdmin) return
@@ -648,6 +711,7 @@ export default function App() {
           pointerScreen: gesturePointerScreen,
           rotateDelta: gestureStatus.rotateDelta,
         }}
+        gesturePointerBlocked={gestureUiDwell.active}
         onHover={setHoveredId}
         onSelect={selectNode}
         onClearSelection={clearSelection}
@@ -656,7 +720,14 @@ export default function App() {
       {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
         <video ref={videoRef} className="camera-sensor" muted playsInline aria-hidden="true" />
       ) : null}
-      <HandEnergyOverlay hands={hands} status={gestureStatus} videoSize={videoSize} viewportSize={viewportSize} />
+      <HandEnergyOverlay
+        hands={hands}
+        status={gestureStatus}
+        videoSize={videoSize}
+        viewportSize={viewportSize}
+        uiDwellActive={gestureUiDwell.active}
+        uiDwellProgress={gestureUiDwell.progress}
+      />
       <header className="top-bar">
         <div className="title-panel">
           <strong

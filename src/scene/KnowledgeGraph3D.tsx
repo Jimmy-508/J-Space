@@ -18,6 +18,7 @@ type Props = {
     pointerScreen?: { x: number; y: number }
     rotateDelta: { x: number; y: number }
   }
+  gesturePointerBlocked?: boolean
   onSelect: (node: KnowledgeNode, source: SelectionSource) => void
   onHover: (id?: string) => void
   onClearSelection: () => void
@@ -55,24 +56,31 @@ const isContentNode = (node: KnowledgeNode) => (
 ) && !isClusterNode(node)
 
 const DWELL_SELECT_MS = 600
+const DWELL_DESELECT_MS = 780
+const DWELL_COOLDOWN_MS = 950
 const DEFAULT_CAMERA_POSITION = new THREE.Vector3(0, 2, 34)
 const DEFAULT_CAMERA_TARGET = new THREE.Vector3(0, 0, 0)
 const DOUBLE_TAP_MS = 320
 const DOUBLE_TAP_DISTANCE = 28
 const VIEW_RESET_DURATION_MS = 520
+const FOCUS_TRANSITION_DURATION_MS = 360
 
-type ViewResetAnimation = {
+type CameraTransition = {
   startedAt: number
+  duration: number
   fromPosition: THREE.Vector3
   toPosition: THREE.Vector3
   fromTarget: THREE.Vector3
   toTarget: THREE.Vector3
   fromRotation: THREE.Euler
+  resetRotation: boolean
 }
 
-const getResetCameraDistance = (aspect: number) => (
-  THREE.MathUtils.clamp(30 / Math.min(1, Math.max(0.5, aspect)), 30, 46)
-)
+type InitialView = {
+  position: THREE.Vector3
+  target: THREE.Vector3
+  rotation: THREE.Euler
+}
 
 const getTouchMetrics = (touches: React.TouchList) => {
   const a = touches.item(0)
@@ -219,6 +227,15 @@ const createSelectBurst = (position: THREE.Vector3, color: number, texture: THRE
   return group
 }
 
+const createDeselectBurst = (position: THREE.Vector3, color: number, texture: THREE.Texture) => {
+  const group = createSelectBurst(position, color, texture)
+  group.userData.reverse = true
+  group.children.forEach((child, index) => {
+    child.userData.baseScale = child instanceof THREE.Sprite ? 2.5 : 1.75 + index * 0.22
+  })
+  return group
+}
+
 const randomCometDelay = () => 8 + Math.random() * 17
 
 const createComet = (texture: THREE.Texture) => {
@@ -328,6 +345,7 @@ export default function KnowledgeGraph3D({
   focusId,
   controlResetKey = 0,
   gestureControl,
+  gesturePointerBlocked = false,
   onSelect,
   onHover,
   onClearSelection,
@@ -349,7 +367,7 @@ export default function KnowledgeGraph3D({
   const relatedHalosRef = useRef<THREE.Object3D[]>([])
   const dwellFeedbackRef = useRef<THREE.Mesh | null>(null)
   const selectBurstRef = useRef<THREE.Object3D[]>([])
-  const dwellRef = useRef<{ nodeId?: string; since: number; triggeredAt: number }>({ since: 0, triggeredAt: 0 })
+  const dwellRef = useRef<{ nodeId?: string; since: number; triggeredAt: number; armed: boolean }>({ since: 0, triggeredAt: 0, armed: true })
   const raycasterRef = useRef(new THREE.Raycaster())
   const pointerRef = useRef(new THREE.Vector2(10, 10))
   const dragRef = useRef({
@@ -382,7 +400,11 @@ export default function KnowledgeGraph3D({
   })
   const groupRef = useRef<THREE.Group | null>(null)
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
-  const viewResetRef = useRef<ViewResetAnimation | null>(null)
+  const viewResetRef = useRef<CameraTransition | null>(null)
+  const focusTransitionRef = useRef<CameraTransition | null>(null)
+  const initialViewRef = useRef<InitialView | null>(null)
+  const focusBlurTimerRef = useRef<number | undefined>(undefined)
+  const gesturePointerBlockedRef = useRef(gesturePointerBlocked)
   const selectedIdRef = useRef<string | undefined>(selectedId)
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
   const immersiveRef = useRef(immersive)
@@ -399,6 +421,10 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     gestureControlRef.current = gestureControl
   }, [gestureControl])
+
+  useEffect(() => {
+    gesturePointerBlockedRef.current = gesturePointerBlocked
+  }, [gesturePointerBlocked])
 
   useEffect(() => {
     immersiveRef.current = immersive
@@ -418,7 +444,7 @@ export default function KnowledgeGraph3D({
     touchRef.current.startDistance = 0
     touchRef.current.lastMidpoint.set(0, 0)
     touchRef.current.startMidpoint.set(0, 0)
-    dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
+    dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt, armed: true }
     if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
     if (mountRef.current) mountRef.current.dataset.activeTouches = '0'
     onHover(undefined)
@@ -521,24 +547,44 @@ export default function KnowledgeGraph3D({
     cameraRef.current = camera
     rendererRef.current = renderer
     groupRef.current = group
+    initialViewRef.current = {
+      position: camera.position.clone(),
+      target: cameraTargetRef.current.clone(),
+      rotation: group.rotation.clone(),
+    }
 
     let frame = 0
     const animate = () => {
       frame = requestAnimationFrame(animate)
       const time = performance.now() * 0.001
       const activeGesture = gestureControlRef.current
+      if (focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
+        focusTransitionRef.current = null
+      }
       const viewReset = viewResetRef.current
       if (viewReset) {
-        const progress = THREE.MathUtils.clamp((performance.now() - viewReset.startedAt) / VIEW_RESET_DURATION_MS, 0, 1)
+        const progress = THREE.MathUtils.clamp((performance.now() - viewReset.startedAt) / viewReset.duration, 0, 1)
         const eased = 1 - (1 - progress) ** 3
         camera.position.lerpVectors(viewReset.fromPosition, viewReset.toPosition, eased)
         cameraTargetRef.current.lerpVectors(viewReset.fromTarget, viewReset.toTarget, eased)
-        group.rotation.set(
-          THREE.MathUtils.lerp(viewReset.fromRotation.x, 0, eased),
-          THREE.MathUtils.lerp(viewReset.fromRotation.y, 0, eased),
-          THREE.MathUtils.lerp(viewReset.fromRotation.z, 0, eased),
-        )
+        if (viewReset.resetRotation) {
+          const initialRotation = initialViewRef.current?.rotation ?? new THREE.Euler()
+          group.rotation.set(
+            THREE.MathUtils.lerp(viewReset.fromRotation.x, initialRotation.x, eased),
+            THREE.MathUtils.lerp(viewReset.fromRotation.y, initialRotation.y, eased),
+            THREE.MathUtils.lerp(viewReset.fromRotation.z, initialRotation.z, eased),
+          )
+        }
         if (progress >= 1) viewResetRef.current = null
+      } else if (focusTransitionRef.current) {
+        const transition = focusTransitionRef.current
+        const progress = THREE.MathUtils.clamp((performance.now() - transition.startedAt) / transition.duration, 0, 1)
+        const eased = progress < 0.5
+          ? 4 * progress ** 3
+          : 1 - (-2 * progress + 2) ** 3 / 2
+        camera.position.lerpVectors(transition.fromPosition, transition.toPosition, eased)
+        cameraTargetRef.current.lerpVectors(transition.fromTarget, transition.toTarget, eased)
+        if (progress >= 1) focusTransitionRef.current = null
       } else {
         group.rotation.y += 0.00085
         if (activeGesture?.activeGesture === 'rotate') {
@@ -560,20 +606,22 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
-      if (activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen) {
+      if (activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current) {
         const hit = getScreenHit(activeGesture.pointerScreen, nodeMeshesRef.current, camera, renderer)
         if (hit?.id) {
           if (dwellRef.current.nodeId !== hit.id) {
-            dwellRef.current = { nodeId: hit.id, since: performance.now(), triggeredAt: dwellRef.current.triggeredAt }
+            dwellRef.current = { nodeId: hit.id, since: performance.now(), triggeredAt: dwellRef.current.triggeredAt, armed: true }
             onHover(hit.id)
           }
           const dwellMs = performance.now() - dwellRef.current.since
-          const progress = THREE.MathUtils.clamp(dwellMs / DWELL_SELECT_MS, 0, 1)
+          const isSelected = hit.id === selectedIdRef.current
+          const dwellDuration = isSelected ? DWELL_DESELECT_MS : DWELL_SELECT_MS
+          const progress = dwellRef.current.armed ? THREE.MathUtils.clamp(dwellMs / dwellDuration, 0, 1) : 0
           const nodeColor = typeColors[hit.node?.type ?? 'topic']
           const feedback = dwellFeedbackRef.current
           if (feedback) {
             const material = feedback.material as THREE.MeshBasicMaterial
-            feedback.visible = true
+            feedback.visible = dwellRef.current.armed
             feedback.position.copy(hit.world)
             feedback.quaternion.copy(camera.quaternion)
             feedback.scale.setScalar(0.86 + progress * 0.52)
@@ -581,24 +629,31 @@ export default function KnowledgeGraph3D({
             material.opacity = 0.16 + progress * 0.38
           }
           const nowMs = performance.now()
-          if (progress >= 1 && hit.node && hit.id !== selectedIdRef.current && nowMs - dwellRef.current.triggeredAt > 950) {
+          if (progress >= 1 && hit.node && dwellRef.current.armed && nowMs - dwellRef.current.triggeredAt > DWELL_COOLDOWN_MS) {
             dwellRef.current.triggeredAt = nowMs
-            dwellRef.current.since = nowMs
-            const burst = createSelectBurst(hit.world, nodeColor, starFlareTexture)
+            dwellRef.current.armed = false
+            const burst = isSelected
+              ? createDeselectBurst(hit.world, nodeColor, starFlareTexture)
+              : createSelectBurst(hit.world, nodeColor, starFlareTexture)
             scene.add(burst)
             selectBurstRef.current.push(burst)
-            onSelect(hit.node, 'pointerGesture')
-            onHover(hit.id)
+            if (isSelected) {
+              onClearSelection()
+              onHover(undefined)
+            } else {
+              onSelect(hit.node, 'pointerGesture')
+              onHover(hit.id)
+            }
           }
         } else {
           if (dwellRef.current.nodeId) onHover(undefined)
-    dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
-    lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
-    if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
+          dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt, armed: true }
+          lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
+          if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
         }
       } else {
         if (dwellRef.current.nodeId) onHover(undefined)
-        dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt }
+        dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt, armed: true }
         if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
       }
       camera.lookAt(cameraTargetRef.current)
@@ -701,14 +756,19 @@ export default function KnowledgeGraph3D({
       selectBurstRef.current = selectBurstRef.current.filter((burst) => {
         const age = time - (burst.userData.createdAt ?? time)
         burst.children.forEach((child, index) => {
+          const reverse = burst.userData.reverse === true
           if (child instanceof THREE.Mesh) {
             child.quaternion.copy(camera.quaternion)
-            child.scale.setScalar((child.userData.baseScale ?? 1) + age * (1.4 + index * 0.4))
+            child.scale.setScalar(reverse
+              ? Math.max(0.12, (child.userData.baseScale ?? 1.7) - age * (1.8 + index * 0.35))
+              : (child.userData.baseScale ?? 1) + age * (1.4 + index * 0.4))
             const material = child.material as THREE.MeshBasicMaterial
             material.opacity = Math.max(0, 0.42 * (1 - age / 0.82))
           } else if (child instanceof THREE.Sprite) {
             child.quaternion.copy(camera.quaternion)
-            child.scale.setScalar(2.35 + age * 1.45)
+            child.scale.setScalar(reverse
+              ? Math.max(0.18, (child.userData.baseScale ?? 2.5) - age * 3.1)
+              : 2.35 + age * 1.45)
             const material = child.material as THREE.SpriteMaterial
             material.opacity = Math.max(0, 0.46 * (1 - age / 0.55))
           }
@@ -785,6 +845,7 @@ export default function KnowledgeGraph3D({
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', resize)
+      if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
       renderer.dispose()
       cometsRef.current.forEach(disposeComet)
       mount.removeChild(renderer.domElement)
@@ -1074,11 +1135,35 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     const mesh = focusId ? nodeMeshesRef.current.get(focusId) : undefined
     const camera = cameraRef.current
-    if (!mesh || !camera) return
+    const mount = mountRef.current
+    if (!mesh || !camera || !mount) return
     const world = new THREE.Vector3()
     mesh.getWorldPosition(world)
-    cameraTargetRef.current.lerp(world, 0.55)
-    camera.position.lerp(new THREE.Vector3(world.x, world.y + 2, world.z + 18), 0.35)
+    const travelDistance = cameraTargetRef.current.distanceTo(world)
+    viewResetRef.current = null
+    focusTransitionRef.current = {
+      startedAt: performance.now(),
+      duration: FOCUS_TRANSITION_DURATION_MS,
+      fromPosition: camera.position.clone(),
+      toPosition: new THREE.Vector3(world.x, world.y + 2, world.z + 18),
+      fromTarget: cameraTargetRef.current.clone(),
+      toTarget: world,
+      fromRotation: groupRef.current?.rotation.clone() ?? new THREE.Euler(),
+      resetRotation: false,
+    }
+
+    const blur = THREE.MathUtils.clamp(1.2 + travelDistance * 0.16, 1.6, 4.6)
+    const scale = THREE.MathUtils.clamp(1.004 + travelDistance * 0.00045, 1.004, 1.014)
+    mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
+    mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
+    mount.classList.remove('is-focus-transitioning')
+    void mount.offsetWidth
+    mount.classList.add('is-focus-transitioning')
+    if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
+    focusBlurTimerRef.current = window.setTimeout(() => {
+      mount.classList.remove('is-focus-transitioning')
+      focusBlurTimerRef.current = undefined
+    }, FOCUS_TRANSITION_DURATION_MS + 40)
   }, [focusId])
 
   const updatePointer = (event: React.PointerEvent) => {
@@ -1096,29 +1181,31 @@ export default function KnowledgeGraph3D({
   const resetView = () => {
     const camera = cameraRef.current
     const group = groupRef.current
-    const mount = mountRef.current
-    if (!camera || !group || !mount) return
-    const primaryCoreNode = data.nodes.find(isClusterNode)
-    const resetTarget = primaryCoreNode
-      ? layout.get(primaryCoreNode.id)?.clone() ?? DEFAULT_CAMERA_TARGET.clone()
-      : DEFAULT_CAMERA_TARGET.clone()
-    const aspect = mount.clientWidth / Math.max(1, mount.clientHeight)
-    const resetDistance = getResetCameraDistance(aspect)
+    const initialView = initialViewRef.current
+    if (!camera || !group || !initialView) return
+    focusTransitionRef.current = null
+    if (focusBlurTimerRef.current !== undefined) {
+      window.clearTimeout(focusBlurTimerRef.current)
+      focusBlurTimerRef.current = undefined
+    }
+    mountRef.current?.classList.remove('is-focus-transitioning')
     viewResetRef.current = {
       startedAt: performance.now(),
+      duration: VIEW_RESET_DURATION_MS,
       fromPosition: camera.position.clone(),
-      toPosition: resetTarget.clone().add(new THREE.Vector3(0, 0, resetDistance)),
+      toPosition: initialView.position.clone(),
       fromTarget: cameraTargetRef.current.clone(),
-      toTarget: resetTarget,
+      toTarget: initialView.target.clone(),
       fromRotation: group.rotation.clone(),
+      resetRotation: true,
     }
     touchRef.current.mode = 'none'
     touchRef.current.startDistance = 0
-    touchRef.current.startZoom = resetDistance
+    touchRef.current.startZoom = initialView.position.z
     touchRef.current.startMidpoint.set(0, 0)
     touchRef.current.lastMidpoint.set(0, 0)
-    touchRef.current.startTarget.copy(resetTarget)
-    touchRef.current.startCameraPosition.copy(viewResetRef.current.toPosition)
+    touchRef.current.startTarget.copy(initialView.target)
+    touchRef.current.startCameraPosition.copy(initialView.position)
     dragRef.current.active = false
     dragRef.current.dragging = false
     dragRef.current.pendingTap = false
@@ -1126,6 +1213,12 @@ export default function KnowledgeGraph3D({
 
   const cancelViewReset = () => {
     viewResetRef.current = null
+    focusTransitionRef.current = null
+    if (focusBlurTimerRef.current !== undefined) {
+      window.clearTimeout(focusBlurTimerRef.current)
+      focusBlurTimerRef.current = undefined
+    }
+    mountRef.current?.classList.remove('is-focus-transitioning')
   }
 
   const hoverAtPointer = () => {
