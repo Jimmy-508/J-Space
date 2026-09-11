@@ -7,7 +7,7 @@ import { normalizedToCoverViewport } from './gesture/coordinateTransform'
 import { GestureStateMachine } from './gesture/gestureStateMachine'
 import { HandTrackingSession } from './gesture/handTracking'
 import { firestoreKnowledgeRepository } from './repository/firestoreKnowledgeRepository'
-import { knowledgeRepository, validateKnowledgeData } from './repository/knowledgeRepository'
+import { knowledgeRepository } from './repository/knowledgeRepository'
 import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
 import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
@@ -226,7 +226,6 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<KnowledgeNode | 'new'>()
   const [relationOpen, setRelationOpen] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [adminLoginOpen, setAdminLoginOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
@@ -247,7 +246,6 @@ export default function App() {
     height: typeof window === 'undefined' ? 844 : window.visualViewport?.height ?? window.innerHeight,
   }))
   const [gestureUiDwell, setGestureUiDwell] = useState({ active: false, progress: 0 })
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const musicInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const adminPressTimerRef = useRef<number | undefined>(undefined)
@@ -409,7 +407,6 @@ export default function App() {
       console.debug('Admin sign out failed.', error)
     })
     setIsAdmin(false)
-    setAdvancedOpen(false)
     setEditing(undefined)
     setRelationOpen(false)
     setAdminLoginOpen(false)
@@ -437,7 +434,6 @@ export default function App() {
 
   useEffect(() => {
     if (isAdmin) return
-    setAdvancedOpen(false)
     setEditing(undefined)
     setRelationOpen(false)
   }, [isAdmin])
@@ -642,22 +638,6 @@ export default function App() {
     }
   }
 
-  const exportJson = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'knowledge-universe.json'
-    anchor.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const importJson = async (file: File) => {
-    const parsed = JSON.parse(await file.text()) as unknown
-    if (!validateKnowledgeData(parsed)) throw new Error('JSON 格式錯誤，未覆蓋現有資料。')
-    persist(knowledgeRepository.save(parsed))
-  }
-
   const uploadLocalDataToFirestore = async () => {
     if (!isAdmin || firestoreUploading) return
     const confirmed = confirm('這會把目前本機的節點與關聯寫入 Firestore。確定要繼續嗎？')
@@ -686,7 +666,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${advancedOpen ? 'advanced-open' : ''} ${immersive ? 'immersive' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}
@@ -837,14 +817,20 @@ export default function App() {
         </section>
       ) : null}
       {isAdmin ? (
-        <nav className="action-bar" aria-label="主要功能">
-          <button onClick={() => setEditing('new')}>新增節點</button>
-          <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯目前節點</button>
-          <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
-          <button className="danger" onClick={() => alert('雲端同步模式暫不支援重設')}>重設資料</button>
-          <button onClick={() => setAdvancedOpen((value) => !value)}>{advancedOpen ? '收合進階' : '進階功能'}</button>
-          <button onClick={handleAdminLogout}>登出</button>
-        </nav>
+        <div className="action-bar-shell">
+          <nav className="action-bar" aria-label="主要功能">
+            <div className="action-bar-track">
+              <button onClick={() => setEditing('new')}>新增節點</button>
+              <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯節點</button>
+              <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
+              <button onClick={uploadLocalDataToFirestore} disabled={firestoreUploading}>
+                {firestoreUploading ? '同步中' : '同步資料'}
+              </button>
+              <button className="action-logout" onClick={handleAdminLogout}>登出</button>
+            </div>
+          </nav>
+          {firestoreUploadMessage ? <span className="action-bar-status" aria-live="polite">{firestoreUploadMessage}</span> : null}
+        </div>
       ) : null}
       <NodeHUD
         node={selected}
@@ -874,31 +860,6 @@ export default function App() {
           persist(next)
           const deleted = await deleteConnectionFromFirestore(link.id, next)
           if (!deleted) persist(data)
-        }}
-      />
-      {isAdmin && advancedOpen ? (
-        <section className="advanced-panel">
-          <div>
-            <strong>資料搬移</strong>
-            <span>匯入前會先驗證格式，錯誤時不覆蓋現有資料。</span>
-          </div>
-          <button onClick={exportJson}>匯出 JSON</button>
-          <button onClick={() => fileInputRef.current?.click()}>匯入 JSON</button>
-          <button onClick={uploadLocalDataToFirestore} disabled={firestoreUploading}>
-            {firestoreUploading ? '上傳中' : '備援／重新上傳到 Firestore'}
-          </button>
-          {firestoreUploadMessage ? <span className="firestore-upload-status">{firestoreUploadMessage}</span> : null}
-        </section>
-      ) : null}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/json"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (file) importJson(file).catch((error) => alert(error instanceof Error ? error.message : '匯入失敗'))
-          event.currentTarget.value = ''
         }}
       />
       <input
