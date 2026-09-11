@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NODE_TYPE_LABELS, NODE_TYPES } from '../constants/nodeTypes'
-import type { KnowledgeNode, NodeType } from '../types/knowledge'
+import type { ContentType, KnowledgeNode, NodeType } from '../types/knowledge'
 
 type FormValue = Omit<KnowledgeNode, 'id' | 'createdAt' | 'updatedAt'>
 
@@ -18,10 +18,23 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
     description: '',
     tags: [],
     url: '',
+    contentType: undefined,
+    imageUrl: '',
+    thumbnailUrl: '',
   })
 
   useEffect(() => {
-    if (node) setValue({ title: node.title, type: node.type, category: node.category, description: node.description, tags: node.tags ?? [], url: node.url ?? '' })
+    if (node) setValue({
+      title: node.title,
+      type: node.type,
+      category: node.category,
+      description: node.description,
+      tags: node.tags ?? [],
+      url: node.url ?? '',
+      contentType: node.contentType,
+      imageUrl: node.imageUrl ?? '',
+      thumbnailUrl: node.thumbnailUrl ?? '',
+    })
   }, [node])
 
   return (
@@ -38,6 +51,9 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
             description: value.description?.trim(),
             tags: value.tags?.filter(Boolean),
             url: value.url?.trim() || undefined,
+            contentType: value.contentType,
+            imageUrl: value.contentType === 'image' ? value.imageUrl?.trim() || undefined : undefined,
+            thumbnailUrl: value.contentType === 'image' ? value.thumbnailUrl?.trim() || undefined : undefined,
           })
         }}
       >
@@ -48,6 +64,22 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
         <label>簡介<textarea value={value.description ?? ''} onChange={(event) => setValue({ ...value, description: event.target.value })} /></label>
         <label>Tags<input value={(value.tags ?? []).join(', ')} onChange={(event) => setValue({ ...value, tags: event.target.value.split(',').map((tag) => tag.trim()) })} /></label>
         <label>URL<input type="url" value={value.url ?? ''} onChange={(event) => setValue({ ...value, url: event.target.value })} /></label>
+        <label>
+          內容類型
+          <select
+            value={value.contentType ?? ''}
+            onChange={(event) => setValue({ ...value, contentType: (event.target.value || undefined) as ContentType | undefined })}
+          >
+            <option value="">一般節點</option>
+            <option value="image">圖片</option>
+          </select>
+        </label>
+        {value.contentType === 'image' ? (
+          <>
+            <label>圖片 URL<input required type="url" value={value.imageUrl ?? ''} onChange={(event) => setValue({ ...value, imageUrl: event.target.value })} /></label>
+            <label>縮圖 URL<input type="url" value={value.thumbnailUrl ?? ''} onChange={(event) => setValue({ ...value, thumbnailUrl: event.target.value })} /></label>
+          </>
+        ) : null}
         <div className="modal-actions"><button type="button" onClick={onCancel}>取消</button><button type="submit">儲存</button></div>
       </form>
     </div>

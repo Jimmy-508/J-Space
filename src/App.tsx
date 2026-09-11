@@ -9,6 +9,7 @@ import { HandTrackingSession } from './gesture/handTracking'
 import { firestoreKnowledgeRepository } from './repository/firestoreKnowledgeRepository'
 import { knowledgeRepository } from './repository/knowledgeRepository'
 import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
+import type { ImageViewerLoadState } from './scene/ImageContentViewer'
 import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
 import type { GestureStatus, TrackedHand } from './gesture/gestureTypes'
@@ -223,6 +224,9 @@ export default function App() {
   const [, setSelectionSource] = useState<SelectionSource>()
   const [hoveredId, setHoveredId] = useState<string>()
   const [focusId, setFocusId] = useState<string>()
+  const [viewerNodeId, setViewerNodeId] = useState<string>()
+  const [viewerResetKey, setViewerResetKey] = useState(0)
+  const [viewerLoadState, setViewerLoadState] = useState<ImageViewerLoadState>('idle')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<KnowledgeNode | 'new'>()
   const [relationOpen, setRelationOpen] = useState(false)
@@ -261,6 +265,10 @@ export default function App() {
     cooldownUntil: number
   }>({ since: 0, triggered: false, cooldownUntil: 0 })
   const selected = data.nodes.find((node) => node.id === selectedId)
+  const viewerNodeCandidate = data.nodes.find((node) => node.id === viewerNodeId)
+  const viewerNode = viewerNodeCandidate?.contentType === 'image' && viewerNodeCandidate.imageUrl
+    ? viewerNodeCandidate
+    : undefined
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
   ).slice(0, 8) : [], [data.nodes, query])
@@ -325,6 +333,8 @@ export default function App() {
     setFocusId(undefined)
     setHoveredId(undefined)
     setSelectionSource(undefined)
+    setViewerNodeId(undefined)
+    setViewerLoadState('idle')
   }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
     if (selectedIdRef.current !== node.id) {
@@ -333,6 +343,7 @@ export default function App() {
     setSelectedId(node.id)
     setFocusId(node.id)
     setSelectionSource(source)
+    setViewerNodeId(node.contentType === 'image' && !!node.imageUrl ? node.id : undefined)
   }, [])
   const clearGestureUiDwell = useCallback(() => {
     gestureUiDwellRef.current.element?.classList.remove('gesture-dwell-hover')
@@ -689,11 +700,39 @@ export default function App() {
           rotateDelta: gestureStatus.rotateDelta,
         }}
         gesturePointerBlocked={gestureUiDwell.active}
+        viewerNode={viewerNode}
+        viewerResetKey={viewerResetKey}
+        onViewerLoadStateChange={setViewerLoadState}
         onHover={setHoveredId}
         onSelect={selectNode}
         onClearSelection={clearSelection}
         immersive={immersive}
       />
+      {viewerNode ? (
+        <div className="viewer-toolbar" aria-label="圖片檢視工具列">
+          <strong>{viewerNode.title}</strong>
+          <div>
+            <button data-gesture-clickable="true" onClick={() => setViewerResetKey((value) => value + 1)}>重置</button>
+            {viewerNode.url ? (
+              <button data-gesture-clickable="true" onClick={() => window.open(viewerNode.url, '_blank', 'noopener,noreferrer')}>開啟原始連結</button>
+            ) : null}
+            <button
+              data-gesture-clickable="true"
+              onClick={() => {
+                setViewerNodeId(undefined)
+                setViewerLoadState('idle')
+              }}
+            >
+              關閉
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {viewerNode && viewerLoadState !== 'ready' ? (
+        <div className={`viewer-status ${viewerLoadState === 'error' ? 'error' : ''}`} role="status">
+          {viewerLoadState === 'error' ? '圖片無法載入' : '圖片載入中...'}
+        </div>
+      ) : null}
       {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
         <video ref={videoRef} className="camera-sensor" muted playsInline aria-hidden="true" />
       ) : null}

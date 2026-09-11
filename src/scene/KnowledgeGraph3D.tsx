@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { KnowledgeData, KnowledgeNode } from '../types/knowledge'
+import { ImageContentViewer3D, type ImageViewerLoadState } from './ImageContentViewer'
 import { createBrightStarfield, createGalaxyBand, createStarfield } from './Starfield'
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search'
@@ -19,6 +20,9 @@ type Props = {
     rotateDelta: { x: number; y: number }
   }
   gesturePointerBlocked?: boolean
+  viewerNode?: KnowledgeNode
+  viewerResetKey?: number
+  onViewerLoadStateChange?: (state: ImageViewerLoadState) => void
   onSelect: (node: KnowledgeNode, source: SelectionSource) => void
   onHover: (id?: string) => void
   onClearSelection: () => void
@@ -52,7 +56,7 @@ const makeHaloMaterial = (color: number, opacity: number) => new THREE.MeshBasic
 const isClusterNode = (node: KnowledgeNode) => node.tags?.includes('cluster') ?? false
 
 const isContentNode = (node: KnowledgeNode) => (
-  !!node.url || ['resource', 'website', 'project', 'file'].includes(node.type)
+  !!node.url || (node.contentType === 'image' && !!node.imageUrl) || ['resource', 'website', 'project', 'file'].includes(node.type)
 ) && !isClusterNode(node)
 
 const DWELL_SELECT_MS = 600
@@ -354,6 +358,9 @@ export default function KnowledgeGraph3D({
   controlResetKey = 0,
   gestureControl,
   gesturePointerBlocked = false,
+  viewerNode,
+  viewerResetKey = 0,
+  onViewerLoadStateChange,
   onSelect,
   onHover,
   onClearSelection,
@@ -363,6 +370,7 @@ export default function KnowledgeGraph3D({
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const imageViewerRef = useRef<ImageContentViewer3D | null>(null)
   const nodeMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
@@ -386,6 +394,8 @@ export default function KnowledgeGraph3D({
     pointerDownTime: 0,
     startX: 0,
     startY: 0,
+    lastX: 0,
+    lastY: 0,
     rotX: 0,
     rotY: 0,
   })
@@ -412,6 +422,7 @@ export default function KnowledgeGraph3D({
     lastMidpoint: new THREE.Vector2(),
     startTarget: new THREE.Vector3(),
     startCameraPosition: new THREE.Vector3(),
+    startViewerScale: 1,
   })
   const groupRef = useRef<THREE.Group | null>(null)
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
@@ -424,6 +435,7 @@ export default function KnowledgeGraph3D({
   const gesturePointerBlockedRef = useRef(gesturePointerBlocked)
   const selectedIdRef = useRef<string | undefined>(selectedId)
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
+  const onViewerLoadStateChangeRef = useRef(onViewerLoadStateChange)
   const immersiveRef = useRef(immersive)
   const cometsRef = useRef<THREE.Object3D[]>([])
   const nextCometAtRef = useRef(0)
@@ -438,6 +450,10 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     gestureControlRef.current = gestureControl
   }, [gestureControl])
+
+  useEffect(() => {
+    onViewerLoadStateChangeRef.current = onViewerLoadStateChange
+  }, [onViewerLoadStateChange])
 
   useEffect(() => {
     gesturePointerBlockedRef.current = gesturePointerBlocked
@@ -477,6 +493,7 @@ export default function KnowledgeGraph3D({
     scene.fog = new THREE.FogExp2(0x030713, 0.018)
     const camera = new THREE.PerspectiveCamera(55, mount.clientWidth / mount.clientHeight, 0.1, 500)
     camera.position.copy(DEFAULT_CAMERA_POSITION)
+    scene.add(camera)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.setClearColor(0x030713)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
@@ -591,12 +608,32 @@ export default function KnowledgeGraph3D({
       const time = performance.now() * 0.001
       const backgroundTime = time - backgroundTimeOriginRef.current
       const activeGesture = gestureControlRef.current
-      if (focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
+      const viewer = imageViewerRef.current
+      const viewerActive = !!viewer?.ready
+      viewer?.update(performance.now())
+      if (!viewerActive && focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
         focusTransitionRef.current = null
       }
       const viewReset = viewResetRef.current
       const resettingBackground = !!viewReset && !!backgroundResetRef.current
-      if (viewReset) {
+      if (viewerActive) {
+        group.rotation.y += 0.00014
+        if (activeGesture?.activeGesture === 'rotate') {
+          viewer.rotateBy(
+            THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045) * 16,
+            THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035) * 16,
+          )
+        } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
+          viewer.zoomBy(Math.exp(THREE.MathUtils.clamp(activeGesture.zoomDelta * 2.2, -0.045, 0.045)))
+        } else if (activeGesture?.activeGesture === 'pan') {
+          viewer.panByPixels(
+            THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * -760,
+            THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
+            mount.clientWidth,
+            mount.clientHeight,
+          )
+        }
+      } else if (viewReset) {
         const progress = THREE.MathUtils.clamp((performance.now() - viewReset.startedAt) / viewReset.duration, 0, 1)
         const eased = 1 - (1 - progress) ** 3
         camera.position.lerpVectors(viewReset.fromPosition, viewReset.toPosition, eased)
@@ -675,7 +712,7 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
-      if (activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current) {
+      if (!viewerActive && activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current) {
         const hit = getScreenHit(activeGesture.pointerScreen, nodeMeshesRef.current, camera, renderer)
         if (hit?.id) {
           if (dwellRef.current.nodeId !== hit.id) {
@@ -727,7 +764,7 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       starfieldsRef.current.forEach((field) => {
-        if (!resettingBackground) field.rotation.y += field.userData.drift
+        if (!resettingBackground) field.rotation.y += field.userData.drift * (viewerActive ? 0.18 : 1)
         const colorAttribute = field.geometry.getAttribute('color') as THREE.BufferAttribute
         const colors = colorAttribute.array as Float32Array
         const baseColors = field.geometry.userData.baseColors as Float32Array
@@ -759,7 +796,7 @@ export default function KnowledgeGraph3D({
           sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))
         }
       })
-      if (immersiveRef.current) {
+      if (immersiveRef.current && !viewerActive) {
         if (time >= nextCometAtRef.current && cometsRef.current.length < 1) {
           const comet = createComet(starFlareTexture)
           scene.add(comet)
@@ -913,17 +950,58 @@ export default function KnowledgeGraph3D({
       camera.updateProjectionMatrix()
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
       renderer.setSize(mount.clientWidth, mount.clientHeight)
+      imageViewerRef.current?.resize()
     }
     window.addEventListener('resize', resize)
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', resize)
       if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
+      imageViewerRef.current?.dispose()
+      imageViewerRef.current = null
       renderer.dispose()
       cometsRef.current.forEach(disposeComet)
       mount.removeChild(renderer.domElement)
     }
   }, [])
+
+  useEffect(() => {
+    const camera = cameraRef.current
+    imageViewerRef.current?.dispose()
+    imageViewerRef.current = null
+    if (!viewerNode || viewerNode.contentType !== 'image' || !viewerNode.imageUrl || !camera) {
+      onViewerLoadStateChangeRef.current?.('idle')
+      return
+    }
+
+    const viewer = new ImageContentViewer3D(camera)
+    imageViewerRef.current = viewer
+    focusTransitionRef.current = null
+    viewResetRef.current = null
+    onViewerLoadStateChangeRef.current?.('loading')
+    let current = true
+    viewer.load(viewerNode.imageUrl)
+      .then(() => {
+        if (current) onViewerLoadStateChangeRef.current?.('ready')
+      })
+      .catch((error: unknown) => {
+        console.error('Image viewer texture load failed:', error)
+        if (!current) return
+        viewer.dispose()
+        if (imageViewerRef.current === viewer) imageViewerRef.current = null
+        onViewerLoadStateChangeRef.current?.('error')
+      })
+
+    return () => {
+      current = false
+      viewer.dispose()
+      if (imageViewerRef.current === viewer) imageViewerRef.current = null
+    }
+  }, [viewerNode?.id, viewerNode?.imageUrl])
+
+  useEffect(() => {
+    if (viewerResetKey > 0) imageViewerRef.current?.reset()
+  }, [viewerResetKey])
 
   useEffect(() => {
     const group = groupRef.current
@@ -1206,6 +1284,7 @@ export default function KnowledgeGraph3D({
   }, [selectedId, hoveredId, focusId, data.links])
 
   useEffect(() => {
+    if (viewerNode) return
     const mesh = focusId ? nodeMeshesRef.current.get(focusId) : undefined
     const camera = cameraRef.current
     const mount = mountRef.current
@@ -1237,7 +1316,7 @@ export default function KnowledgeGraph3D({
       mount.classList.remove('is-focus-transitioning')
       focusBlurTimerRef.current = undefined
     }, FOCUS_TRANSITION_DURATION_MS + 40)
-  }, [focusId])
+  }, [focusId, viewerNode])
 
   const updatePointer = (event: React.PointerEvent) => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -1252,6 +1331,10 @@ export default function KnowledgeGraph3D({
   }
 
   const resetView = () => {
+    if (imageViewerRef.current?.ready) {
+      imageViewerRef.current.reset()
+      return
+    }
     const camera = cameraRef.current
     const group = groupRef.current
     const initialView = initialViewRef.current
@@ -1302,6 +1385,7 @@ export default function KnowledgeGraph3D({
   }
 
   const cancelViewReset = () => {
+    imageViewerRef.current?.cancelReset()
     viewResetRef.current = null
     backgroundResetRef.current = null
     focusTransitionRef.current = null
@@ -1313,6 +1397,10 @@ export default function KnowledgeGraph3D({
   }
 
   const hoverAtPointer = () => {
+    if (imageViewerRef.current?.ready) {
+      onHover(undefined)
+      return
+    }
     const camera = cameraRef.current
     if (!camera) return
     raycasterRef.current.setFromCamera(pointerRef.current, camera)
@@ -1360,8 +1448,13 @@ export default function KnowledgeGraph3D({
             } else if (cameraRef.current) {
               const dx = event.clientX - mousePanRef.current.lastX
               const dy = event.clientY - mousePanRef.current.lastY
-              const targetDistance = cameraRef.current.position.distanceTo(cameraTargetRef.current)
-              panCameraView(cameraRef.current, cameraTargetRef.current, dx, dy, targetDistance * 0.00175)
+              const viewer = imageViewerRef.current
+              if (viewer?.ready) {
+                viewer.panByPixels(dx, dy, event.currentTarget.clientWidth, event.currentTarget.clientHeight)
+              } else {
+                const targetDistance = cameraRef.current.position.distanceTo(cameraTargetRef.current)
+                panCameraView(cameraRef.current, cameraTargetRef.current, dx, dy, targetDistance * 0.00175)
+              }
               mousePanRef.current.lastX = event.clientX
               mousePanRef.current.lastY = event.clientY
             }
@@ -1388,8 +1481,15 @@ export default function KnowledgeGraph3D({
             dragRef.current.pendingTap = false
           }
           if (dragRef.current.dragging && groupRef.current) {
-            groupRef.current.rotation.y = dragRef.current.rotY + dx * 0.006
-            groupRef.current.rotation.x = dragRef.current.rotX + dy * 0.004
+            const viewer = imageViewerRef.current
+            if (viewer?.ready) {
+              viewer.rotateBy(event.clientX - dragRef.current.lastX, event.clientY - dragRef.current.lastY)
+              dragRef.current.lastX = event.clientX
+              dragRef.current.lastY = event.clientY
+            } else {
+              groupRef.current.rotation.y = dragRef.current.rotY + dx * 0.006
+              groupRef.current.rotation.x = dragRef.current.rotX + dy * 0.004
+            }
           }
         } else hoverAtPointer()
       }}
@@ -1412,6 +1512,8 @@ export default function KnowledgeGraph3D({
           pointerDownTime: performance.now(),
           startX: event.clientX,
           startY: event.clientY,
+          lastX: event.clientX,
+          lastY: event.clientY,
           rotX: groupRef.current?.rotation.x ?? 0,
           rotY: groupRef.current?.rotation.y ?? 0,
         }
@@ -1439,7 +1541,8 @@ export default function KnowledgeGraph3D({
         const pointerTap = dragRef.current.pointerType !== 'touch'
         if (dragRef.current.pendingTap && !dragRef.current.dragging && beforeRelease <= 1 && distance < 14 && (touchTap || pointerTap)) {
           updatePointer(event)
-          const hit = getPointerHitNode()
+          const viewerActive = !!imageViewerRef.current?.ready
+          const hit = viewerActive ? undefined : getPointerHitNode()
           const now = performance.now()
           const blankTap = !hit
           const hitNode = hit?.object.userData.node as KnowledgeNode | undefined
@@ -1459,7 +1562,9 @@ export default function KnowledgeGraph3D({
             onHover(undefined)
             lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
           } else {
-            if (hitNode) {
+            if (viewerActive) {
+              onHover(undefined)
+            } else if (hitNode) {
               if (!repeatedNodeTap) onSelect(hitNode, dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
               onHover(hitNode.id)
             } else {
@@ -1523,6 +1628,7 @@ export default function KnowledgeGraph3D({
             lastMidpoint: midpoint.clone(),
             startTarget: cameraTargetRef.current.clone(),
             startCameraPosition: cameraRef.current.position.clone(),
+            startViewerScale: imageViewerRef.current?.scale ?? 1,
           }
           dragRef.current.pendingTap = false
           dragRef.current.dragging = false
@@ -1542,20 +1648,35 @@ export default function KnowledgeGraph3D({
             else if (midpointDelta > 7) touchRef.current.mode = 'twoFingerPan'
           }
           if (touchRef.current.mode === 'pinchZoom') {
-            const scale = touchRef.current.startDistance / Math.max(1, distance)
-            camera.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
+            const viewer = imageViewerRef.current
+            if (viewer?.ready) {
+              viewer.setScale(touchRef.current.startViewerScale * (distance / Math.max(1, touchRef.current.startDistance)))
+            } else {
+              const scale = touchRef.current.startDistance / Math.max(1, distance)
+              camera.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
+            }
           } else if (touchRef.current.mode === 'twoFingerPan') {
-            const dx = midpoint.x - touchRef.current.startMidpoint.x
-            const dy = midpoint.y - touchRef.current.startMidpoint.y
-            const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
-            const panScale = targetDistance * 0.00175
-            const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
-            const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
-            const offset = new THREE.Vector3()
-              .addScaledVector(right, -dx * panScale)
-              .addScaledVector(up, dy * panScale)
-            cameraTargetRef.current.copy(touchRef.current.startTarget).add(offset)
-            camera.position.copy(touchRef.current.startCameraPosition).add(offset)
+            const viewer = imageViewerRef.current
+            if (viewer?.ready) {
+              viewer.panByPixels(
+                midpoint.x - touchRef.current.lastMidpoint.x,
+                midpoint.y - touchRef.current.lastMidpoint.y,
+                event.currentTarget.clientWidth,
+                event.currentTarget.clientHeight,
+              )
+            } else {
+              const dx = midpoint.x - touchRef.current.startMidpoint.x
+              const dy = midpoint.y - touchRef.current.startMidpoint.y
+              const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
+              const panScale = targetDistance * 0.00175
+              const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
+              const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
+              const offset = new THREE.Vector3()
+                .addScaledVector(right, -dx * panScale)
+                .addScaledVector(up, dy * panScale)
+              cameraTargetRef.current.copy(touchRef.current.startTarget).add(offset)
+              camera.position.copy(touchRef.current.startCameraPosition).add(offset)
+            }
           }
           touchRef.current.lastMidpoint.copy(midpoint)
           dragRef.current.pendingTap = false
@@ -1568,7 +1689,12 @@ export default function KnowledgeGraph3D({
       onWheel={(event) => {
         if (!cameraRef.current) return
         cancelViewReset()
-        cameraRef.current.position.z = Math.max(11, Math.min(70, cameraRef.current.position.z + event.deltaY * 0.025))
+        const viewer = imageViewerRef.current
+        if (viewer?.ready) {
+          viewer.zoomBy(Math.exp(-event.deltaY * 0.0015))
+        } else {
+          cameraRef.current.position.z = Math.max(11, Math.min(70, cameraRef.current.position.z + event.deltaY * 0.025))
+        }
       }}
     />
   )

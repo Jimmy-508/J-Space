@@ -1,5 +1,7 @@
 export type NodeType = 'topic' | 'resource' | 'website' | 'project' | 'file'
 
+export type ContentType = 'image' | 'website' | 'project' | 'file' | 'video' | 'pdf'
+
 export type KnowledgeNode = {
   id: string
   title: string
@@ -8,6 +10,9 @@ export type KnowledgeNode = {
   description?: string
   tags?: string[]
   url?: string
+  contentType?: ContentType
+  imageUrl?: string
+  thumbnailUrl?: string
   createdAt: string
   updatedAt: string
 }
