@@ -128,26 +128,41 @@ exit /b 0
 echo.
 echo 正在執行 production build...
 
-where pnpm.cmd >nul 2>&1
-if not errorlevel 1 (
-  echo 使用 pnpm.cmd run build
-  call pnpm.cmd run build
-  exit /b !errorlevel!
-)
-
 set "BUNDLED_PNPM=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback\pnpm.cmd"
 if exist "!BUNDLED_PNPM!" (
-  echo 使用 bundled pnpm run build
-  call "!BUNDLED_PNPM!" run build
-  exit /b !errorlevel!
+  call "!BUNDLED_PNPM!" --version >nul 2>&1
+  if not errorlevel 1 (
+    echo 使用 bundled pnpm：
+    call "!BUNDLED_PNPM!" --version
+    call "!BUNDLED_PNPM!" run build
+    exit /b !errorlevel!
+  )
+  echo bundled pnpm 無法正常執行，嘗試下一個候選...
+)
+
+where pnpm.cmd >nul 2>&1
+if not errorlevel 1 (
+  call pnpm.cmd --version >nul 2>&1
+  if not errorlevel 1 (
+    echo 使用 pnpm.cmd：
+    call pnpm.cmd --version
+    call pnpm.cmd run build
+    exit /b !errorlevel!
+  )
+  echo pnpm.cmd 無法正常執行，嘗試下一個候選...
 )
 
 where corepack.cmd >nul 2>&1
 if not errorlevel 1 (
-  echo 使用 corepack pnpm run build
-  call corepack.cmd pnpm run build
-  exit /b !errorlevel!
+  call corepack.cmd pnpm --version >nul 2>&1
+  if not errorlevel 1 (
+    echo 使用 corepack pnpm：
+    call corepack.cmd pnpm --version
+    call corepack.cmd pnpm run build
+    exit /b !errorlevel!
+  )
+  echo corepack pnpm 無法正常執行。
 )
 
-echo 找不到可用的 pnpm 或 corepack，無法執行 build。
+echo 找不到可用的 pnpm，production build 無法執行。
 exit /b 1
