@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import type { KnowledgeData, KnowledgeNode } from '../types/knowledge'
 import { ImageContentViewer3D, type ImageViewerLoadState } from './ImageContentViewer'
 import { createBrightStarfield, createGalaxyBand, createStarfield } from './Starfield'
+import type { NebulaTheme } from './nebulaThemes'
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search'
 
@@ -28,6 +29,7 @@ type Props = {
   onHover: (id?: string) => void
   onClearSelection: () => void
   immersive?: boolean
+  nebulaTheme: NebulaTheme
 }
 
 const typeColors: Record<string, number> = {
@@ -367,6 +369,7 @@ export default function KnowledgeGraph3D({
   onHover,
   onClearSelection,
   immersive = false,
+  nebulaTheme,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -440,6 +443,7 @@ export default function KnowledgeGraph3D({
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
   const onViewerLoadStateChangeRef = useRef(onViewerLoadStateChange)
   const immersiveRef = useRef(immersive)
+  const nebulaThemeRef = useRef(nebulaTheme)
   const cometsRef = useRef<THREE.Object3D[]>([])
   const nextCometAtRef = useRef(0)
   const layout = useMemo(() => makeLayout(data), [data])
@@ -457,6 +461,20 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     onViewerLoadStateChangeRef.current = onViewerLoadStateChange
   }, [onViewerLoadStateChange])
+
+  useEffect(() => {
+    nebulaThemeRef.current = nebulaTheme
+    nebulaRef.current.forEach((sprite, index) => {
+      const color = nebulaTheme.nebulaColors[index % nebulaTheme.nebulaColors.length]
+      sprite.material.color.setHex(color).multiplyScalar(nebulaTheme.brightness)
+      sprite.userData.themeOpacity = nebulaTheme.opacity
+    })
+    backgroundFlaresRef.current.forEach((sprite, index) => {
+      const color = index % 5 === 0 ? nebulaTheme.flareColors[0] : nebulaTheme.flareColors[1]
+      sprite.material.color.setHex(color).multiplyScalar(nebulaTheme.brightness)
+      sprite.userData.themeOpacity = nebulaTheme.opacity
+    })
+  }, [nebulaTheme])
 
   useEffect(() => {
     gesturePointerBlockedRef.current = gesturePointerBlocked
@@ -533,9 +551,11 @@ export default function KnowledgeGraph3D({
       { color: 0x5a4f86, opacity: 0.068, position: [-44, -18, -156], scale: [64, 32, 1] },
       { color: 0x2d6d8d, opacity: 0.06, position: [48, 24, -172], scale: [76, 34, 1] },
     ].map((item, index) => {
+      const theme = nebulaThemeRef.current
+      const themeColor = theme.nebulaColors[index % theme.nebulaColors.length]
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
-        color: item.color,
+        color: new THREE.Color(themeColor).multiplyScalar(theme.brightness),
         opacity: item.opacity,
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -546,6 +566,7 @@ export default function KnowledgeGraph3D({
       sprite.scale.set(item.scale[0], item.scale[1], item.scale[2])
       sprite.userData = {
         baseOpacity: item.opacity,
+        themeOpacity: theme.opacity,
         drift: index % 2 === 0 ? 0.00018 : -0.00014,
         phase: index * 1.8,
         initialPosition: sprite.position.clone(),
@@ -556,9 +577,11 @@ export default function KnowledgeGraph3D({
     })
     nebulaRef.current = nebulaLayer
     const distantFlares = Array.from({ length: mount.clientWidth < 760 ? 18 : 24 }, (_, index) => {
+      const theme = nebulaThemeRef.current
+      const flareColor = index % 5 === 0 ? theme.flareColors[0] : theme.flareColors[1]
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: starFlareTexture,
-        color: index % 5 === 0 ? 0xf1f7ff : 0xbfd8ff,
+        color: new THREE.Color(flareColor).multiplyScalar(theme.brightness),
         opacity: 0.16 + Math.random() * 0.16,
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -579,6 +602,7 @@ export default function KnowledgeGraph3D({
         baseScale: scale,
         baseOpacity: 0.12 + Math.random() * 0.16,
         opacityRange: 0.08 + Math.random() * 0.12,
+        themeOpacity: theme.opacity,
         speed: 0.24 + Math.random() * 0.72,
         phase: Math.random() * Math.PI * 2,
         initialMaterialRotation: sprite.material.rotation,
@@ -793,7 +817,7 @@ export default function KnowledgeGraph3D({
         colorAttribute.needsUpdate = true
       })
       nebulaRef.current.forEach((sprite, index) => {
-        sprite.material.opacity = (sprite.userData.baseOpacity + Math.sin(backgroundTime * 0.18 + sprite.userData.phase) * 0.018) * backgroundDim
+        sprite.material.opacity = (sprite.userData.baseOpacity + Math.sin(backgroundTime * 0.18 + sprite.userData.phase) * 0.018) * backgroundDim * (sprite.userData.themeOpacity ?? 1)
         if (!resettingBackground) {
           sprite.material.rotation += sprite.userData.drift
           sprite.position.x += Math.sin(backgroundTime * 0.08 + index) * 0.0012
@@ -803,7 +827,7 @@ export default function KnowledgeGraph3D({
         const material = sprite.material as THREE.SpriteMaterial
         const shimmer = Math.sin(backgroundTime * sprite.userData.speed + sprite.userData.phase) * 0.5 + 0.5
         const rarePulse = Math.max(0, Math.sin(backgroundTime * 0.34 + index * 2.1)) ** 7
-        material.opacity = (sprite.userData.baseOpacity + shimmer * sprite.userData.opacityRange + rarePulse * 0.18) * backgroundDim
+        material.opacity = (sprite.userData.baseOpacity + shimmer * sprite.userData.opacityRange + rarePulse * 0.18) * backgroundDim * (sprite.userData.themeOpacity ?? 1)
         if (!resettingBackground) {
           material.rotation += index % 2 === 0 ? 0.00045 : -0.00032
           sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))

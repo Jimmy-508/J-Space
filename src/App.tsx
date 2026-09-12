@@ -10,6 +10,14 @@ import { firestoreKnowledgeRepository } from './repository/firestoreKnowledgeRep
 import { knowledgeRepository } from './repository/knowledgeRepository'
 import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
 import type { ImageViewerLoadState } from './scene/ImageContentViewer'
+import {
+  DEFAULT_CUSTOM_NEBULA,
+  DEFAULT_NEBULA_PRESET,
+  NEBULA_THEMES,
+  getActiveNebulaTheme,
+  type CustomNebulaTheme,
+  type NebulaPresetId,
+} from './scene/nebulaThemes'
 import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
 import { openExternalLink } from './utils/navigation'
@@ -60,23 +68,59 @@ type AppSettings = {
   backgroundMusicName?: string
   hasBackgroundMusic?: boolean
   musicVolumeTouched?: boolean
+  selectedNebulaPreset: NebulaPresetId | 'custom'
+  customNebulaColors: Pick<CustomNebulaTheme, 'primary' | 'secondary' | 'accent'>
+  customNebulaBrightness: number
+  customNebulaOpacity: number
 }
 
+const defaultSettings = (): AppSettings => ({
+  musicVolume: 0,
+  sfxVolume: 80,
+  selectedNebulaPreset: DEFAULT_NEBULA_PRESET,
+  customNebulaColors: {
+    primary: DEFAULT_CUSTOM_NEBULA.primary,
+    secondary: DEFAULT_CUSTOM_NEBULA.secondary,
+    accent: DEFAULT_CUSTOM_NEBULA.accent,
+  },
+  customNebulaBrightness: DEFAULT_CUSTOM_NEBULA.brightness,
+  customNebulaOpacity: DEFAULT_CUSTOM_NEBULA.opacity,
+})
+
+const isNebulaPreset = (value: unknown): value is NebulaPresetId | 'custom' =>
+  value === 'custom' || NEBULA_THEMES.some((theme) => theme.id === value)
+
+const getRangePercent = (value: number, min: number, max: number) =>
+  `${((value - min) / (max - min)) * 100}%`
+
 const loadSettings = (): AppSettings => {
-  if (typeof localStorage === 'undefined') return { musicVolume: 0, sfxVolume: 80 }
+  const defaults = defaultSettings()
+  if (typeof localStorage === 'undefined') return defaults
   try {
     const saved = localStorage.getItem(SETTINGS_KEY)
-    if (!saved) return { musicVolume: 0, sfxVolume: 80 }
+    if (!saved) return defaults
     const parsed = JSON.parse(saved) as Partial<AppSettings>
+    const customColors = parsed.customNebulaColors ?? defaults.customNebulaColors
+    const selectedNebulaPreset = isNebulaPreset(parsed.selectedNebulaPreset)
+      ? parsed.selectedNebulaPreset
+      : DEFAULT_NEBULA_PRESET
     return {
       musicVolume: parsed.musicVolume ?? 0,
       sfxVolume: parsed.sfxVolume ?? 80,
       backgroundMusicName: parsed.backgroundMusicName,
       hasBackgroundMusic: parsed.hasBackgroundMusic ?? !!parsed.backgroundMusicName,
       musicVolumeTouched: parsed.musicVolumeTouched ?? false,
+      selectedNebulaPreset,
+      customNebulaColors: {
+        primary: customColors.primary ?? DEFAULT_CUSTOM_NEBULA.primary,
+        secondary: customColors.secondary ?? DEFAULT_CUSTOM_NEBULA.secondary,
+        accent: customColors.accent ?? DEFAULT_CUSTOM_NEBULA.accent,
+      },
+      customNebulaBrightness: parsed.customNebulaBrightness ?? DEFAULT_CUSTOM_NEBULA.brightness,
+      customNebulaOpacity: parsed.customNebulaOpacity ?? DEFAULT_CUSTOM_NEBULA.opacity,
     }
   } catch {
-    return { musicVolume: 0, sfxVolume: 80 }
+    return defaults
   }
 }
 
@@ -239,6 +283,7 @@ export default function App() {
   const [firestoreUploadMessage, setFirestoreUploadMessage] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [blockedExternalUrl, setBlockedExternalUrl] = useState<string>()
+  const [customNebulaOpen, setCustomNebulaOpen] = useState(false)
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
@@ -270,6 +315,23 @@ export default function App() {
   const viewerNode = viewerNodeCandidate?.contentType === 'image' && viewerNodeCandidate.imageUrl
     ? viewerNodeCandidate
     : undefined
+  const activeNebulaTheme = useMemo(() => getActiveNebulaTheme({
+    selectedPreset: settings.selectedNebulaPreset,
+    custom: {
+      primary: settings.customNebulaColors.primary,
+      secondary: settings.customNebulaColors.secondary,
+      accent: settings.customNebulaColors.accent,
+      brightness: settings.customNebulaBrightness,
+      opacity: settings.customNebulaOpacity,
+    },
+  }), [
+    settings.selectedNebulaPreset,
+    settings.customNebulaColors.primary,
+    settings.customNebulaColors.secondary,
+    settings.customNebulaColors.accent,
+    settings.customNebulaBrightness,
+    settings.customNebulaOpacity,
+  ])
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
   ).slice(0, 8) : [], [data.nodes, query])
@@ -390,8 +452,7 @@ export default function App() {
     })
     audioManagerRef.current?.setBackgroundMusic(undefined)
     setSettings({
-      musicVolume: 0,
-      sfxVolume: 80,
+      ...defaultSettings(),
       hasBackgroundMusic: false,
       musicVolumeTouched: false,
     })
@@ -738,6 +799,7 @@ export default function App() {
         onSelect={selectNode}
         onClearSelection={clearSelection}
         immersive={immersive}
+        nebulaTheme={activeNebulaTheme}
       />
       {viewerNode && viewerLoadState !== 'ready' ? (
         <div className={`viewer-status ${viewerLoadState === 'error' ? 'error' : ''}`} role="status">
@@ -858,6 +920,96 @@ export default function App() {
             </div>
             <button className="icon-button" aria-label="關閉設定" onClick={() => setSettingsOpen(false)}>×</button>
           </div>
+          <section className="nebula-settings" aria-label="星雲色彩">
+            <div className="nebula-settings-heading">
+              <strong>星雲色彩</strong>
+            </div>
+            <div className="nebula-preset-grid">
+              {NEBULA_THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  className={`nebula-preset ${settings.selectedNebulaPreset === theme.id ? 'active' : ''}`}
+                  type="button"
+                  style={{
+                    '--nebula-a': theme.preview[0],
+                    '--nebula-b': theme.preview[1],
+                    '--nebula-c': theme.preview[2],
+                  } as CSSProperties}
+                  onClick={() => setSettings((current) => ({ ...current, selectedNebulaPreset: theme.id }))}
+                >
+                  <span aria-hidden="true" />
+                  {theme.name}
+                </button>
+              ))}
+            </div>
+            <button
+              className="custom-nebula-toggle"
+              type="button"
+              aria-expanded={customNebulaOpen}
+              onClick={() => setCustomNebulaOpen((value) => !value)}
+            >
+              自訂 {customNebulaOpen ? '▴' : '▾'}
+            </button>
+            {customNebulaOpen ? (
+              <div className="custom-nebula-panel">
+                {([
+                  ['primary', '主色'],
+                  ['secondary', '副色'],
+                  ['accent', '點綴色'],
+                ] as const).map(([key, label]) => (
+                  <label className="color-control" key={key}>
+                    <span>{label}</span>
+                    <input
+                      type="color"
+                      value={settings.customNebulaColors[key]}
+                      onChange={(event) => setSettings((current) => ({
+                        ...current,
+                        selectedNebulaPreset: 'custom',
+                        customNebulaColors: {
+                          ...current.customNebulaColors,
+                          [key]: event.target.value,
+                        },
+                      }))}
+                    />
+                  </label>
+                ))}
+                <label className="range-control compact">
+                  <span><strong>亮度</strong><small>{Math.round(settings.customNebulaBrightness * 100)}%</small></span>
+                  <input
+                    type="range"
+                    min="55"
+                    max="115"
+                    value={Math.round(settings.customNebulaBrightness * 100)}
+                    style={{
+                      '--value': getRangePercent(Math.round(settings.customNebulaBrightness * 100), 55, 115),
+                    } as CSSProperties}
+                    onChange={(event) => setSettings((current) => ({
+                      ...current,
+                      selectedNebulaPreset: 'custom',
+                      customNebulaBrightness: Number(event.target.value) / 100,
+                    }))}
+                  />
+                </label>
+                <label className="range-control compact">
+                  <span><strong>透明度</strong><small>{Math.round(settings.customNebulaOpacity * 100)}%</small></span>
+                  <input
+                    type="range"
+                    min="35"
+                    max="110"
+                    value={Math.round(settings.customNebulaOpacity * 100)}
+                    style={{
+                      '--value': getRangePercent(Math.round(settings.customNebulaOpacity * 100), 35, 110),
+                    } as CSSProperties}
+                    onChange={(event) => setSettings((current) => ({
+                      ...current,
+                      selectedNebulaPreset: 'custom',
+                      customNebulaOpacity: Number(event.target.value) / 100,
+                    }))}
+                  />
+                </label>
+              </div>
+            ) : null}
+          </section>
           <label className="range-control">
             <span><strong>音樂音量</strong><small>{settings.musicVolume}%</small></span>
             <input
