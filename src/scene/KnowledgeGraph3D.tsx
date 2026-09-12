@@ -93,6 +93,8 @@ type BackgroundResetAnimation = {
   starfieldRotationY: number[]
   nebulaPositions: THREE.Vector3[]
   nebulaMaterialRotations: number[]
+  atmospherePositions: THREE.Vector3[]
+  atmosphereMaterialRotations: number[]
   flareMaterialRotations: number[]
   flareScales: THREE.Vector3[]
 }
@@ -380,6 +382,7 @@ export default function KnowledgeGraph3D({
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
   const nebulaRef = useRef<THREE.Sprite[]>([])
+  const atmosphereNebulaRef = useRef<THREE.Sprite[]>([])
   const backgroundFlaresRef = useRef<THREE.Sprite[]>([])
   const selectedEffectsRef = useRef<THREE.Object3D[]>([])
   const contentMarkersRef = useRef<THREE.Object3D[]>([])
@@ -473,6 +476,11 @@ export default function KnowledgeGraph3D({
       const color = index % 5 === 0 ? nebulaTheme.flareColors[0] : nebulaTheme.flareColors[1]
       sprite.material.color.setHex(color).multiplyScalar(nebulaTheme.brightness)
       sprite.userData.themeOpacity = nebulaTheme.opacity
+    })
+    atmosphereNebulaRef.current.forEach((sprite, index) => {
+      const color = nebulaTheme.atmosphereColors[index % nebulaTheme.atmosphereColors.length]
+      sprite.material.color.setHex(color).multiplyScalar(nebulaTheme.brightness)
+      sprite.userData.themeOpacity = nebulaTheme.opacity * nebulaTheme.atmosphereOpacity
     })
   }, [nebulaTheme])
 
@@ -576,6 +584,36 @@ export default function KnowledgeGraph3D({
       return sprite
     })
     nebulaRef.current = nebulaLayer
+    const atmosphereLayer = [
+      { opacity: 0.07, position: [-12, 6, -104], scale: [178, 86, 1], drift: 0.00006, phase: 0.4 },
+      { opacity: 0.056, position: [30, -14, -138], scale: [148, 72, 1], drift: -0.00005, phase: 2.2 },
+      { opacity: 0.046, position: [-46, 18, -166], scale: [132, 64, 1], drift: 0.00004, phase: 4.1 },
+    ].map((item, index) => {
+      const theme = nebulaThemeRef.current
+      const themeColor = theme.atmosphereColors[index % theme.atmosphereColors.length]
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softDiscTexture,
+        color: new THREE.Color(themeColor).multiplyScalar(theme.brightness),
+        opacity: item.opacity,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+      }))
+      sprite.position.set(item.position[0], item.position[1], item.position[2])
+      sprite.scale.set(item.scale[0], item.scale[1], item.scale[2])
+      sprite.userData = {
+        baseOpacity: item.opacity,
+        themeOpacity: theme.opacity * theme.atmosphereOpacity,
+        drift: item.drift,
+        phase: item.phase,
+        initialPosition: sprite.position.clone(),
+        initialMaterialRotation: sprite.material.rotation,
+      }
+      scene.add(sprite)
+      return sprite
+    })
+    atmosphereNebulaRef.current = atmosphereLayer
     const distantFlares = Array.from({ length: mount.clientWidth < 760 ? 18 : 24 }, (_, index) => {
       const theme = nebulaThemeRef.current
       const flareColor = index % 5 === 0 ? theme.flareColors[0] : theme.flareColors[1]
@@ -695,6 +733,15 @@ export default function KnowledgeGraph3D({
             sprite.position.lerpVectors(backgroundReset.nebulaPositions[index] ?? sprite.position, initialPosition, eased)
             sprite.material.rotation = THREE.MathUtils.lerp(
               backgroundReset.nebulaMaterialRotations[index] ?? sprite.material.rotation,
+              sprite.userData.initialMaterialRotation ?? 0,
+              eased,
+            )
+          })
+          atmosphereNebulaRef.current.forEach((sprite, index) => {
+            const initialPosition = sprite.userData.initialPosition as THREE.Vector3
+            sprite.position.lerpVectors(backgroundReset.atmospherePositions[index] ?? sprite.position, initialPosition, eased)
+            sprite.material.rotation = THREE.MathUtils.lerp(
+              backgroundReset.atmosphereMaterialRotations[index] ?? sprite.material.rotation,
               sprite.userData.initialMaterialRotation ?? 0,
               eased,
             )
@@ -821,6 +868,13 @@ export default function KnowledgeGraph3D({
         if (!resettingBackground) {
           sprite.material.rotation += sprite.userData.drift
           sprite.position.x += Math.sin(backgroundTime * 0.08 + index) * 0.0012
+        }
+      })
+      atmosphereNebulaRef.current.forEach((sprite, index) => {
+        sprite.material.opacity = (sprite.userData.baseOpacity + Math.sin(backgroundTime * 0.11 + sprite.userData.phase) * 0.009) * backgroundDim * (sprite.userData.themeOpacity ?? 1)
+        if (!resettingBackground) {
+          sprite.material.rotation += sprite.userData.drift
+          sprite.position.y += Math.sin(backgroundTime * 0.045 + index * 1.7) * 0.0007
         }
       })
       backgroundFlaresRef.current.forEach((sprite, index) => {
@@ -1396,6 +1450,8 @@ export default function KnowledgeGraph3D({
       starfieldRotationY: starfieldsRef.current.map((field) => field.rotation.y),
       nebulaPositions: nebulaRef.current.map((sprite) => sprite.position.clone()),
       nebulaMaterialRotations: nebulaRef.current.map((sprite) => sprite.material.rotation),
+      atmospherePositions: atmosphereNebulaRef.current.map((sprite) => sprite.position.clone()),
+      atmosphereMaterialRotations: atmosphereNebulaRef.current.map((sprite) => sprite.material.rotation),
       flareMaterialRotations: backgroundFlaresRef.current.map((sprite) => sprite.material.rotation),
       flareScales: backgroundFlaresRef.current.map((sprite) => sprite.scale.clone()),
     }
