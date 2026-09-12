@@ -90,6 +90,8 @@ const defaultSettings = (): AppSettings => ({
 const isNebulaPreset = (value: unknown): value is NebulaPresetId | 'custom' =>
   value === 'custom' || NEBULA_THEMES.some((theme) => theme.id === value)
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
 const getRangePercent = (value: number, min: number, max: number) =>
   `${((value - min) / (max - min)) * 100}%`
 
@@ -116,8 +118,8 @@ const loadSettings = (): AppSettings => {
         secondary: customColors.secondary ?? DEFAULT_CUSTOM_NEBULA.secondary,
         accent: customColors.accent ?? DEFAULT_CUSTOM_NEBULA.accent,
       },
-      customNebulaBrightness: parsed.customNebulaBrightness ?? DEFAULT_CUSTOM_NEBULA.brightness,
-      customNebulaOpacity: parsed.customNebulaOpacity ?? DEFAULT_CUSTOM_NEBULA.opacity,
+      customNebulaBrightness: clamp(parsed.customNebulaBrightness ?? DEFAULT_CUSTOM_NEBULA.brightness, 0, 1),
+      customNebulaOpacity: clamp(parsed.customNebulaOpacity ?? DEFAULT_CUSTOM_NEBULA.opacity, 0, 1),
     }
   } catch {
     return defaults
@@ -977,11 +979,11 @@ export default function App() {
                   <span><strong>亮度</strong><small>{Math.round(settings.customNebulaBrightness * 100)}%</small></span>
                   <input
                     type="range"
-                    min="55"
-                    max="115"
+                    min="0"
+                    max="100"
                     value={Math.round(settings.customNebulaBrightness * 100)}
                     style={{
-                      '--value': getRangePercent(Math.round(settings.customNebulaBrightness * 100), 55, 115),
+                      '--value': getRangePercent(Math.round(settings.customNebulaBrightness * 100), 0, 100),
                     } as CSSProperties}
                     onChange={(event) => setSettings((current) => ({
                       ...current,
@@ -994,11 +996,11 @@ export default function App() {
                   <span><strong>透明度</strong><small>{Math.round(settings.customNebulaOpacity * 100)}%</small></span>
                   <input
                     type="range"
-                    min="35"
-                    max="110"
+                    min="0"
+                    max="100"
                     value={Math.round(settings.customNebulaOpacity * 100)}
                     style={{
-                      '--value': getRangePercent(Math.round(settings.customNebulaOpacity * 100), 35, 110),
+                      '--value': getRangePercent(Math.round(settings.customNebulaOpacity * 100), 0, 100),
                     } as CSSProperties}
                     onChange={(event) => setSettings((current) => ({
                       ...current,

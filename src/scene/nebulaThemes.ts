@@ -29,8 +29,18 @@ export const DEFAULT_CUSTOM_NEBULA: CustomNebulaTheme = {
   primary: '#2f5f87',
   secondary: '#526f96',
   accent: '#dcecff',
-  brightness: 1,
-  opacity: 1,
+  brightness: 0.5,
+  opacity: 0.5,
+}
+
+export const CUSTOM_BRIGHTNESS_RANGE = {
+  min: 0.24,
+  max: 1.42,
+}
+
+export const CUSTOM_OPACITY_RANGE = {
+  min: 0.08,
+  max: 1.55,
 }
 
 export const NEBULA_THEMES: NebulaTheme[] = [
@@ -46,47 +56,47 @@ export const NEBULA_THEMES: NebulaTheme[] = [
   {
     id: 'galactic-true',
     name: '銀河原色',
-    preview: ['#1d2b45', '#8a6a42', '#e5dcc7'],
-    nebulaColors: [0x1d2b45, 0x2f3950, 0x51422e, 0x6f5636, 0x7d6644, 0x425070, 0x8b7c63, 0x2f4962],
-    flareColors: [0xe5dcc7, 0xb99b6b],
-    brightness: 0.92,
-    opacity: 0.86,
+    preview: ['#121e34', '#9a6531', '#ead9b2'],
+    nebulaColors: [0x121e34, 0x8f5c2f, 0x1c304d, 0xa16f3c, 0xd6b06c, 0x30405f, 0xe5d2a8, 0x6e4d2d],
+    flareColors: [0xead9b2, 0xd1974d],
+    brightness: 1.1,
+    opacity: 1.34,
   },
   {
     id: 'aurora-teal',
     name: '極光青綠',
-    preview: ['#17365d', '#2f8c86', '#bcebe6'],
-    nebulaColors: [0x17365d, 0x1f4f68, 0x23676f, 0x2f8c86, 0x3f9d99, 0x2a6f8a, 0x3f6f94, 0x4ca99d],
-    flareColors: [0xbcebe6, 0x86d6d0],
-    brightness: 0.96,
-    opacity: 0.9,
+    preview: ['#10294a', '#2e9e91', '#b9f0e4'],
+    nebulaColors: [0x10294a, 0x267b78, 0x173d62, 0x2e9e91, 0x5fc2b4, 0x1f6683, 0xb9f0e4, 0x348f8b],
+    flareColors: [0xb9f0e4, 0x6ecfc3],
+    brightness: 1.16,
+    opacity: 1.28,
   },
   {
     id: 'stardust-violet',
     name: '星塵粉紫',
-    preview: ['#2c234f', '#7a5c92', '#edd8ef'],
-    nebulaColors: [0x2c234f, 0x42345f, 0x513b68, 0x6e5481, 0x7a5c92, 0x58476f, 0x8a658c, 0x684f82],
-    flareColors: [0xedd8ef, 0xcba7d6],
-    brightness: 0.9,
-    opacity: 0.84,
+    preview: ['#281b4f', '#a0669f', '#f0cde9'],
+    nebulaColors: [0x281b4f, 0x7d4c8f, 0x3a2567, 0xa0669f, 0xc083b9, 0x5b3a7d, 0xf0cde9, 0x8a5a96],
+    flareColors: [0xf0cde9, 0xd69acb],
+    brightness: 1.08,
+    opacity: 1.3,
   },
   {
     id: 'corona-amber',
     name: '日冕金橘',
-    preview: ['#142743', '#9a6830', '#f2d38b'],
-    nebulaColors: [0x142743, 0x293853, 0x5f4526, 0x8a572b, 0x9a6830, 0x5f5b45, 0x7e5438, 0x38516a],
-    flareColors: [0xf2d38b, 0xd49a58],
-    brightness: 0.94,
-    opacity: 0.82,
+    preview: ['#101f38', '#b76b2e', '#f4cf78'],
+    nebulaColors: [0x101f38, 0x894a25, 0x1c2f4c, 0xb76b2e, 0xe0a044, 0x51455a, 0xf4cf78, 0x7a4c2d],
+    flareColors: [0xf4cf78, 0xe08a3c],
+    brightness: 1.14,
+    opacity: 1.25,
   },
   {
     id: 'ice-mist',
     name: '冰霧藍白',
-    preview: ['#18304f', '#75a9c8', '#e9f7ff'],
-    nebulaColors: [0x18304f, 0x284865, 0x315d78, 0x588ca7, 0x75a9c8, 0x40708c, 0x8faec2, 0x5c93ad],
-    flareColors: [0xe9f7ff, 0xb8d8ea],
-    brightness: 0.9,
-    opacity: 0.78,
+    preview: ['#142b4a', '#77b9d8', '#f0fbff'],
+    nebulaColors: [0x142b4a, 0x4b8aac, 0x1e4262, 0x77b9d8, 0xa9d8ea, 0x376f96, 0xf0fbff, 0x6fa8c4],
+    flareColors: [0xf0fbff, 0xb5e1f2],
+    brightness: 1.12,
+    opacity: 1.22,
   },
 ]
 
@@ -95,25 +105,33 @@ export const getNebulaTheme = (id: NebulaPresetId) =>
 
 export const hexToNumber = (hex: string) => Number.parseInt(hex.replace('#', ''), 16)
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+const mapCustomControl = (value: number, range: { min: number; max: number }) =>
+  range.min + clamp(value, 0, 1) * (range.max - range.min)
+
 export const getActiveNebulaTheme = (settings: NebulaSettings): NebulaTheme => {
   if (settings.selectedPreset !== 'custom') return getNebulaTheme(settings.selectedPreset)
   const custom = settings.custom
+  const primary = hexToNumber(custom.primary)
+  const secondary = hexToNumber(custom.secondary)
+  const accent = hexToNumber(custom.accent)
   return {
     id: DEFAULT_NEBULA_PRESET,
     name: '自訂',
     preview: [custom.primary, custom.secondary, custom.accent],
     nebulaColors: [
-      hexToNumber(custom.primary),
-      hexToNumber(custom.secondary),
-      hexToNumber(custom.primary),
-      hexToNumber(custom.secondary),
-      hexToNumber(custom.secondary),
-      hexToNumber(custom.primary),
-      hexToNumber(custom.accent),
-      hexToNumber(custom.secondary),
+      primary,
+      secondary,
+      primary,
+      secondary,
+      secondary,
+      primary,
+      accent,
+      secondary,
     ],
-    flareColors: [hexToNumber(custom.accent), hexToNumber(custom.secondary)],
-    brightness: custom.brightness,
-    opacity: custom.opacity,
+    flareColors: [accent, secondary],
+    brightness: mapCustomControl(custom.brightness, CUSTOM_BRIGHTNESS_RANGE),
+    opacity: mapCustomControl(custom.opacity, CUSTOM_OPACITY_RANGE),
   }
 }
