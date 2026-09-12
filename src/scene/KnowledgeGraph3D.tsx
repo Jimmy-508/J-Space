@@ -617,16 +617,15 @@ export default function KnowledgeGraph3D({
       const viewReset = viewResetRef.current
       const resettingBackground = !!viewReset && !!backgroundResetRef.current
       if (viewerActive) {
-        group.rotation.y += 0.00014
         if (activeGesture?.activeGesture === 'rotate') {
-          viewer.rotateBy(
-            THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045) * 16,
-            THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035) * 16,
+          viewer.rotateByRadians(
+            THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045),
+            THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035),
           )
         } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
           viewer.zoomBy(Math.exp(THREE.MathUtils.clamp(activeGesture.zoomDelta * 2.2, -0.045, 0.045)))
         } else if (activeGesture?.activeGesture === 'pan') {
-          viewer.panByPixels(
+          viewer.panByGesturePixels(
             THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * -760,
             THREE.MathUtils.clamp(activeGesture.panDelta.y, -0.036, 0.036) * 760,
             mount.clientWidth,
@@ -763,6 +762,7 @@ export default function KnowledgeGraph3D({
         if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
       }
       camera.lookAt(cameraTargetRef.current)
+      const backgroundDim = viewerActive ? 0.32 : 1
       starfieldsRef.current.forEach((field) => {
         if (!resettingBackground) field.rotation.y += field.userData.drift * (viewerActive ? 0.18 : 1)
         const colorAttribute = field.geometry.getAttribute('color') as THREE.BufferAttribute
@@ -773,14 +773,14 @@ export default function KnowledgeGraph3D({
         const twinkleAmounts = field.geometry.userData.twinkleAmounts as Float32Array
         for (let i = 0; i < phases.length; i += 1) {
           const pulse = 1 + Math.sin(backgroundTime * speeds[i] + phases[i]) * twinkleAmounts[i]
-          colors[i * 3] = baseColors[i * 3] * pulse
-          colors[i * 3 + 1] = baseColors[i * 3 + 1] * pulse
-          colors[i * 3 + 2] = baseColors[i * 3 + 2] * pulse
+          colors[i * 3] = baseColors[i * 3] * pulse * backgroundDim
+          colors[i * 3 + 1] = baseColors[i * 3 + 1] * pulse * backgroundDim
+          colors[i * 3 + 2] = baseColors[i * 3 + 2] * pulse * backgroundDim
         }
         colorAttribute.needsUpdate = true
       })
       nebulaRef.current.forEach((sprite, index) => {
-        sprite.material.opacity = sprite.userData.baseOpacity + Math.sin(backgroundTime * 0.18 + sprite.userData.phase) * 0.018
+        sprite.material.opacity = (sprite.userData.baseOpacity + Math.sin(backgroundTime * 0.18 + sprite.userData.phase) * 0.018) * backgroundDim
         if (!resettingBackground) {
           sprite.material.rotation += sprite.userData.drift
           sprite.position.x += Math.sin(backgroundTime * 0.08 + index) * 0.0012
@@ -790,7 +790,7 @@ export default function KnowledgeGraph3D({
         const material = sprite.material as THREE.SpriteMaterial
         const shimmer = Math.sin(backgroundTime * sprite.userData.speed + sprite.userData.phase) * 0.5 + 0.5
         const rarePulse = Math.max(0, Math.sin(backgroundTime * 0.34 + index * 2.1)) ** 7
-        material.opacity = sprite.userData.baseOpacity + shimmer * sprite.userData.opacityRange + rarePulse * 0.18
+        material.opacity = (sprite.userData.baseOpacity + shimmer * sprite.userData.opacityRange + rarePulse * 0.18) * backgroundDim
         if (!resettingBackground) {
           material.rotation += index % 2 === 0 ? 0.00045 : -0.00032
           sprite.scale.setScalar((sprite.userData.baseScale ?? sprite.scale.x) * (1 + rarePulse * 0.18))

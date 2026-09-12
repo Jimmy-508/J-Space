@@ -171,6 +171,14 @@ button:disabled {
   width: clamp(148px, 42vw, 430px);
   transform: translate(-50%, -50%);
   pointer-events: auto;
+  transition: opacity 220ms ease, transform 240ms ease, filter 240ms ease;
+}
+
+.viewer-active .search-panel {
+  opacity: 0;
+  filter: blur(6px);
+  pointer-events: none;
+  transform: translate(-50%, calc(-50% - 10px));
 }
 
 .search-box {
@@ -452,9 +460,9 @@ button:disabled {
 
 .viewer-toolbar {
   position: fixed;
-  top: calc(max(14px, env(safe-area-inset-top)) + 66px);
+  top: 0;
   left: 50%;
-  z-index: 5;
+  z-index: 20;
   width: max-content;
   max-width: calc(100vw - 28px - env(safe-area-inset-left) - env(safe-area-inset-right));
   display: flex;
@@ -462,12 +470,14 @@ button:disabled {
   gap: 0.7rem;
   transform: translateX(-50%);
   border: 1px solid var(--space-glass-border);
-  border-radius: 999px;
-  padding: 0.38rem 0.42rem 0.38rem 0.82rem;
+  border-top: 0;
+  border-radius: 0 0 18px 18px;
+  padding: calc(env(safe-area-inset-top) + 0.38rem) 0.42rem 0.42rem 0.82rem;
   background: var(--space-glass-bg);
   box-shadow: var(--space-glass-shadow);
   -webkit-backdrop-filter: blur(20px) saturate(145%);
   backdrop-filter: blur(20px) saturate(145%);
+  transition: opacity 220ms ease, transform 240ms ease;
 }
 
 .viewer-toolbar strong {
@@ -1238,7 +1248,6 @@ textarea {
   }
 
   .viewer-toolbar {
-    top: calc(max(14px, env(safe-area-inset-top)) + 56px);
     gap: 0.45rem;
     padding-left: 0.65rem;
   }

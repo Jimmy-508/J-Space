@@ -18,7 +18,6 @@ export class ImageContentViewer3D {
   readonly content = new THREE.Group()
 
   private readonly camera: THREE.PerspectiveCamera
-  private readonly backdrop: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
   private texture?: THREE.Texture
   private panelObjects: THREE.Object3D[] = []
   private resetTransition?: ResetTransition
@@ -43,20 +42,6 @@ export class ImageContentViewer3D {
     this.content.scale.setScalar(0.08)
     this.root.add(this.content)
 
-    this.backdrop = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        color: 0x01040b,
-        transparent: true,
-        opacity: 0.58,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    )
-    this.backdrop.position.z = -VIEWER_DISTANCE - 1.4
-    this.backdrop.renderOrder = 80
-    this.root.add(this.backdrop)
     this.camera.add(this.root)
     this.resize()
   }
@@ -155,15 +140,17 @@ export class ImageContentViewer3D {
         1,
       )
     })
-    const backdropHeight = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * (VIEWER_DISTANCE + 1.4)
-    this.backdrop.scale.set(backdropHeight * this.camera.aspect * 1.04, backdropHeight * 1.04, 1)
   }
 
   rotateBy(dx: number, dy: number) {
+    this.rotateByRadians(dx * 0.006, dy * 0.004)
+  }
+
+  rotateByRadians(yaw: number, pitch: number) {
     this.cancelReset()
     this.entranceComplete = true
-    this.content.rotation.y += dx * 0.006
-    this.content.rotation.x += dy * 0.004
+    this.content.rotation.y += yaw
+    this.content.rotation.x += pitch
   }
 
   panByPixels(dx: number, dy: number, viewportWidth: number, viewportHeight: number) {
@@ -173,6 +160,10 @@ export class ImageContentViewer3D {
     const visibleWidth = visibleHeight * this.camera.aspect
     this.content.position.x += dx * (visibleWidth / Math.max(1, viewportWidth))
     this.content.position.y -= dy * (visibleHeight / Math.max(1, viewportHeight))
+  }
+
+  panByGesturePixels(dx: number, dy: number, viewportWidth: number, viewportHeight: number) {
+    this.panByPixels(dx * 2.6, dy * 2.6, viewportWidth, viewportHeight)
   }
 
   zoomBy(factor: number) {
@@ -235,8 +226,6 @@ export class ImageContentViewer3D {
     this.disposePanel()
     this.texture?.dispose()
     this.texture = undefined
-    this.backdrop.geometry.dispose()
-    this.backdrop.material.dispose()
     this.root.clear()
   }
 

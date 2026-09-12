@@ -5,8 +5,10 @@ const LOST_GRACE_MS = 420
 const DEAD_ZONE = 0.0032
 const HAND_MOTION_THRESHOLD = 0.0014
 const PAN_DEAD_ZONE = 0.0015
+const VIEWER_PAN_DEAD_ZONE = 0.0009
 const PAN_CLAMP = 0.036
 const SMOOTHING = 0.34
+const VIEWER_PAN_SMOOTHING = 0.42
 const POINTER_HOLD_MS = 300
 const POINTER_LOST_GRACE_MS = 150
 const MIN_ZOOM_IN_DISTANCE = 0.22
@@ -57,7 +59,7 @@ export class GestureStateMachine {
   private lastRotationPoint?: NormalizedPoint
   private smoothedRotation: NormalizedPoint = { x: 0, y: 0 }
 
-  update(hands: TrackedHand[], now: number, enabled: boolean, cameraStatus: GestureStatus['cameraStatus']): GestureStatus {
+  update(hands: TrackedHand[], now: number, enabled: boolean, cameraStatus: GestureStatus['cameraStatus'], viewerMode = false): GestureStatus {
     if (!enabled || cameraStatus !== 'ready') {
       this.reset()
       return emptyStatus(enabled, cameraStatus, hands.length)
@@ -120,12 +122,12 @@ export class GestureStateMachine {
     const stableFists = hands
       .filter((hand) => {
         const since = this.fistSince.get(hand.id)
-        return since !== undefined && now - since >= HOLD_MS
+        return since !== undefined && now - since >= (viewerMode ? 120 : HOLD_MS)
       })
       .sort((a, b) => a.palmCenter.x - b.palmCenter.x)
 
     if (stableFists.length >= 2) {
-      const panStatus = this.updatePan(stableFists, now, enabled, cameraStatus, hands.length)
+      const panStatus = this.updatePan(stableFists, now, enabled, cameraStatus, hands.length, viewerMode)
       if (panStatus.activeGesture === 'pan') {
         this.clearZoom()
         this.clearRotation()
@@ -361,6 +363,7 @@ export class GestureStateMachine {
     enabled: boolean,
     cameraStatus: GestureStatus['cameraStatus'],
     handsDetected: number,
+    viewerMode: boolean,
   ): GestureStatus {
     const pair = [stableFists[0], stableFists[stableFists.length - 1]]
     const pairIds = pair.map((hand) => hand.id).sort()
@@ -378,21 +381,24 @@ export class GestureStateMachine {
       y: midpoint.y - previous.y,
     }
     this.lastPanMidpoint = midpoint
-    if (now - this.panSince < HOLD_MS) {
+    const panHoldMs = viewerMode ? 90 : HOLD_MS
+    const panDeadZone = viewerMode ? VIEWER_PAN_DEAD_ZONE : PAN_DEAD_ZONE
+    const panSmoothing = viewerMode ? VIEWER_PAN_SMOOTHING : SMOOTHING
+    if (now - this.panSince < panHoldMs) {
       this.smoothedPan = { x: 0, y: 0 }
       return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)
     }
-    if (distance(raw, { x: 0, y: 0 }) < PAN_DEAD_ZONE) {
+    if (distance(raw, { x: 0, y: 0 }) < panDeadZone) {
       this.smoothedPan = { x: 0, y: 0 }
       return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)
     }
     this.smoothedPan = {
-      x: this.smoothedPan.x + (raw.x - this.smoothedPan.x) * SMOOTHING,
-      y: this.smoothedPan.y + (raw.y - this.smoothedPan.y) * SMOOTHING,
+      x: this.smoothedPan.x + (raw.x - this.smoothedPan.x) * panSmoothing,
+      y: this.smoothedPan.y + (raw.y - this.smoothedPan.y) * panSmoothing,
     }
     const panDelta = {
-      x: Math.abs(this.smoothedPan.x) < PAN_DEAD_ZONE ? 0 : Math.max(-PAN_CLAMP, Math.min(PAN_CLAMP, this.smoothedPan.x)),
-      y: Math.abs(this.smoothedPan.y) < PAN_DEAD_ZONE ? 0 : Math.max(-PAN_CLAMP, Math.min(PAN_CLAMP, this.smoothedPan.y)),
+      x: Math.abs(this.smoothedPan.x) < panDeadZone ? 0 : Math.max(-PAN_CLAMP, Math.min(PAN_CLAMP, this.smoothedPan.x)),
+      y: Math.abs(this.smoothedPan.y) < panDeadZone ? 0 : Math.max(-PAN_CLAMP, Math.min(PAN_CLAMP, this.smoothedPan.y)),
     }
     if (panDelta.x === 0 && panDelta.y === 0) {
       return this.panIdleStatus(enabled, cameraStatus, handsDetected, pair)

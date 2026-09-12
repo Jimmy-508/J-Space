@@ -257,6 +257,7 @@ export default function App() {
   const gestureMachineRef = useRef(new GestureStateMachine())
   const idleTimerRef = useRef<number | undefined>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
+  const viewerNodeIdRef = useRef<string | undefined>(undefined)
   const audioManagerRef = useRef<AudioManager | undefined>(undefined)
   const gestureUiDwellRef = useRef<{
     element?: HTMLElement
@@ -429,6 +430,10 @@ export default function App() {
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
+
+  useEffect(() => {
+    viewerNodeIdRef.current = viewerNodeId
+  }, [viewerNodeId])
 
   useEffect(() => {
     const unsubscribe = firestoreKnowledgeRepository.subscribeAll(
@@ -607,7 +612,7 @@ export default function App() {
         ))
       }
       setHands(nextHands)
-      const nextStatus = gestureMachineRef.current.update(nextHands, performance.now(), true, 'ready')
+      const nextStatus = gestureMachineRef.current.update(nextHands, performance.now(), true, 'ready', !!viewerNodeIdRef.current)
       if (nextHands.length || nextStatus.activeGesture !== 'none') resetIdle()
       setGestureStatus(nextStatus)
     }).then(() => {
@@ -677,7 +682,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${immersive ? 'immersive' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}
@@ -758,7 +763,7 @@ export default function App() {
             J-Space
           </strong>
         </div>
-        <section className="search-panel">
+        <section className="search-panel" aria-hidden={viewerNode ? 'true' : undefined}>
           <div className="search-box">
             <span className="search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false">
@@ -871,36 +876,38 @@ export default function App() {
           {firestoreUploadMessage ? <span className="action-bar-status" aria-live="polite">{firestoreUploadMessage}</span> : null}
         </div>
       ) : null}
-      <NodeHUD
-        node={selected}
-        data={data}
-        isAdmin={isAdmin}
-        hasActionBar={isAdmin}
-        onEdit={setEditing}
-        onDelete={async (node) => {
-          if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
-            const next: KnowledgeData = {
-              nodes: data.nodes.filter((item) => item.id !== node.id),
-              links: data.links.filter((link) => link.source !== node.id && link.target !== node.id),
+      {viewerNode ? null : (
+        <NodeHUD
+          node={selected}
+          data={data}
+          isAdmin={isAdmin}
+          hasActionBar={isAdmin}
+          onEdit={setEditing}
+          onDelete={async (node) => {
+            if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
+              const next: KnowledgeData = {
+                nodes: data.nodes.filter((item) => item.id !== node.id),
+                links: data.links.filter((link) => link.source !== node.id && link.target !== node.id),
+              }
+              persist(next)
+              const deleted = await deleteNodeFromFirestore(node.id, next)
+              if (deleted) {
+                clearSelection()
+              } else {
+                persist(data)
+              }
             }
+          }}
+          onAddRelation={() => setRelationOpen(true)}
+          onSelectRelatedNode={(node) => selectNode(node, 'relation')}
+          onDeleteLink={async (link: KnowledgeLink) => {
+            const next = { ...data, links: data.links.filter((item) => item.id !== link.id) }
             persist(next)
-            const deleted = await deleteNodeFromFirestore(node.id, next)
-            if (deleted) {
-              clearSelection()
-            } else {
-              persist(data)
-            }
-          }
-        }}
-        onAddRelation={() => setRelationOpen(true)}
-        onSelectRelatedNode={(node) => selectNode(node, 'relation')}
-        onDeleteLink={async (link: KnowledgeLink) => {
-          const next = { ...data, links: data.links.filter((item) => item.id !== link.id) }
-          persist(next)
-          const deleted = await deleteConnectionFromFirestore(link.id, next)
-          if (!deleted) persist(data)
-        }}
-      />
+            const deleted = await deleteConnectionFromFirestore(link.id, next)
+            if (!deleted) persist(data)
+          }}
+        />
+      )}
       <input
         ref={musicInputRef}
         type="file"
