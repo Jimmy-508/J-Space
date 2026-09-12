@@ -12,6 +12,7 @@ import KnowledgeGraph3D from './scene/KnowledgeGraph3D'
 import type { ImageViewerLoadState } from './scene/ImageContentViewer'
 import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
+import { openExternalLink } from './utils/navigation'
 import type { GestureStatus, TrackedHand } from './gesture/gestureTypes'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { auth } from './firebase'
@@ -364,6 +365,14 @@ export default function App() {
     if (target.dataset.gestureClickSound === 'handled') return
     audioManagerRef.current?.playSelect()
   }, [])
+  const getGestureUiTarget = useCallback((point: ScreenPoint) => {
+    const hit = document.elementFromPoint(point.x, point.y)
+    const target = hit?.closest<HTMLElement>('[data-gesture-clickable="true"]')
+    if (!target) return undefined
+    if (target instanceof HTMLButtonElement && target.disabled) return undefined
+    if (target.closest('[aria-hidden="true"]')) return undefined
+    return target
+  }, [])
   const restoreDefaultSettings = useCallback(() => {
     clearBackgroundMusic().catch((error: unknown) => {
       console.debug('Background music reset failed.', error)
@@ -512,11 +521,8 @@ export default function App() {
     }
     let frame = 0
     const updateDwell = () => {
-      const hit = document.elementFromPoint(gesturePointerScreen.x, gesturePointerScreen.y)
-      const target = hit?.closest<HTMLElement>('[data-gesture-clickable="true"]')
-      const isDisabled = target instanceof HTMLButtonElement && target.disabled
-      const isHidden = !target || target.closest('[aria-hidden="true"]') !== null
-      if (!target || isDisabled || isHidden) {
+      const target = getGestureUiTarget(gesturePointerScreen)
+      if (!target) {
         clearGestureUiDwell()
         frame = window.requestAnimationFrame(updateDwell)
         return
@@ -547,6 +553,10 @@ export default function App() {
           state.triggered = true
           state.cooldownUntil = now + GESTURE_UI_COOLDOWN_MS
           playGestureUiClick(target)
+          const gestureHref = target.dataset.gestureHref
+          if (gestureHref && openExternalLink(gestureHref, 'same-tab')) {
+            return
+          }
           target.click()
         }
       }
@@ -554,7 +564,7 @@ export default function App() {
     }
     frame = window.requestAnimationFrame(updateDwell)
     return () => window.cancelAnimationFrame(frame)
-  }, [gesturePointerScreen?.x, gesturePointerScreen?.y, gestureStatus.activeGesture, clearGestureUiDwell, playGestureUiClick])
+  }, [gesturePointerScreen?.x, gesturePointerScreen?.y, gestureStatus.activeGesture, clearGestureUiDwell, getGestureUiTarget, playGestureUiClick])
 
   useEffect(() => () => clearGestureUiDwell(), [clearGestureUiDwell])
 
@@ -708,6 +718,7 @@ export default function App() {
           rotateDelta: gestureStatus.rotateDelta,
         }}
         gesturePointerBlocked={gestureUiDwell.active}
+        isGesturePointerOverUi={getGestureUiTarget}
         viewerNode={viewerNode}
         viewerResetKey={viewerResetKey}
         onViewerLoadStateChange={setViewerLoadState}
@@ -753,7 +764,7 @@ export default function App() {
               <div>
                 <button data-gesture-clickable="true" onClick={() => setViewerResetKey((value) => value + 1)}>重置</button>
                 {viewerNode.url ? (
-                  <button data-gesture-clickable="true" onClick={() => window.open(viewerNode.url, '_blank', 'noopener,noreferrer')}>原始連結</button>
+                  <button data-gesture-clickable="true" data-gesture-href={viewerNode.url} onClick={() => openExternalLink(viewerNode.url ?? '')}>原始連結</button>
                 ) : null}
                 <button
                   data-gesture-clickable="true"

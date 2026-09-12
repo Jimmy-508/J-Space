@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NODE_TYPE_LABELS } from '../constants/nodeTypes'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from '../types/knowledge'
+import { openExternalLink } from '../utils/navigation'
 
 type Props = {
   node?: KnowledgeNode
@@ -82,7 +83,7 @@ export default function NodeHUD({
         {node.tags?.length ? <div className="tag-row">{node.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
         <p>{node.description || '尚未加入簡介。'}</p>
         <div className="hud-actions">
-          {node.url ? <button data-gesture-clickable="true" onClick={() => window.open(node.url, '_blank', 'noopener,noreferrer')}>開啟連結</button> : null}
+          {node.url ? <button data-gesture-clickable="true" data-gesture-href={node.url} onClick={() => openExternalLink(node.url ?? '')}>開啟連結</button> : null}
           {isAdmin ? (
             <>
               <button data-gesture-clickable="true" onClick={() => onEdit(node)}>編輯</button>

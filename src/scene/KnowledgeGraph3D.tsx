@@ -20,6 +20,7 @@ type Props = {
     rotateDelta: { x: number; y: number }
   }
   gesturePointerBlocked?: boolean
+  isGesturePointerOverUi?: (screenPoint: { x: number; y: number }) => HTMLElement | undefined
   viewerNode?: KnowledgeNode
   viewerResetKey?: number
   onViewerLoadStateChange?: (state: ImageViewerLoadState) => void
@@ -358,6 +359,7 @@ export default function KnowledgeGraph3D({
   controlResetKey = 0,
   gestureControl,
   gesturePointerBlocked = false,
+  isGesturePointerOverUi,
   viewerNode,
   viewerResetKey = 0,
   onViewerLoadStateChange,
@@ -433,6 +435,7 @@ export default function KnowledgeGraph3D({
   const backgroundTimeOriginRef = useRef(0)
   const focusBlurTimerRef = useRef<number | undefined>(undefined)
   const gesturePointerBlockedRef = useRef(gesturePointerBlocked)
+  const isGesturePointerOverUiRef = useRef<Props['isGesturePointerOverUi']>(undefined)
   const selectedIdRef = useRef<string | undefined>(selectedId)
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
   const onViewerLoadStateChangeRef = useRef(onViewerLoadStateChange)
@@ -458,6 +461,10 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     gesturePointerBlockedRef.current = gesturePointerBlocked
   }, [gesturePointerBlocked])
+
+  useEffect(() => {
+    isGesturePointerOverUiRef.current = isGesturePointerOverUi
+  }, [isGesturePointerOverUi])
 
   useEffect(() => {
     immersiveRef.current = immersive
@@ -716,7 +723,8 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
-      if (!viewerActive && activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current) {
+      const pointerOverUi = !!activeGesture?.pointerScreen && !!isGesturePointerOverUiRef.current?.(activeGesture.pointerScreen)
+      if (!viewerActive && activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current && !pointerOverUi) {
         const hit = getScreenHit(activeGesture.pointerScreen, nodeMeshesRef.current, camera, renderer)
         if (hit?.id) {
           if (dwellRef.current.nodeId !== hit.id) {
