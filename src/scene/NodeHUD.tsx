@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NODE_TYPE_LABELS } from '../constants/nodeTypes'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from '../types/knowledge'
-import { openExternalLink } from '../utils/navigation'
 
 type Props = {
   node?: KnowledgeNode
@@ -13,6 +12,7 @@ type Props = {
   onAddRelation: () => void
   onDeleteLink: (link: KnowledgeLink) => void
   onSelectRelatedNode: (node: KnowledgeNode) => void
+  onOpenExternalLink: (url: string) => void
 }
 
 function DrawerArrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
@@ -40,6 +40,7 @@ export default function NodeHUD({
   onAddRelation,
   onDeleteLink,
   onSelectRelatedNode,
+  onOpenExternalLink,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [layoutMode, setLayoutMode] = useState<'side' | 'bottom'>('bottom')
@@ -69,7 +70,7 @@ export default function NodeHUD({
   const getTitle = (id: string) => getNode(id)?.title ?? id
 
   return (
-    <aside className={`node-drawer ${expanded ? 'expanded' : 'collapsed'} ${layoutMode === 'side' ? 'side-drawer' : 'bottom-drawer'} ${hasActionBar ? 'with-action-bar' : 'without-action-bar'}`}>
+    <aside data-gesture-block-3d="true" className={`node-drawer ${expanded ? 'expanded' : 'collapsed'} ${layoutMode === 'side' ? 'side-drawer' : 'bottom-drawer'} ${hasActionBar ? 'with-action-bar' : 'without-action-bar'}`}>
       <button data-gesture-clickable="true" className="drawer-summary" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
         <span>
           <small>{NODE_TYPE_LABELS[node.type]} / {node.category || '未分類'}</small>
@@ -83,7 +84,7 @@ export default function NodeHUD({
         {node.tags?.length ? <div className="tag-row">{node.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
         <p>{node.description || '尚未加入簡介。'}</p>
         <div className="hud-actions">
-          {node.url ? <button data-gesture-clickable="true" data-gesture-href={node.url} onClick={() => openExternalLink(node.url ?? '')}>開啟連結</button> : null}
+          {node.url ? <button data-gesture-clickable="true" data-gesture-href={node.url} onClick={() => onOpenExternalLink(node.url ?? '')}>開啟連結</button> : null}
           {isAdmin ? (
             <>
               <button data-gesture-clickable="true" onClick={() => onEdit(node)}>編輯</button>

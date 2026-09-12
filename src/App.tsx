@@ -238,6 +238,7 @@ export default function App() {
   const [firestoreUploading, setFirestoreUploading] = useState(false)
   const [firestoreUploadMessage, setFirestoreUploadMessage] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [blockedExternalUrl, setBlockedExternalUrl] = useState<string>()
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
@@ -365,6 +366,9 @@ export default function App() {
     if (target.dataset.gestureClickSound === 'handled') return
     audioManagerRef.current?.playSelect()
   }, [])
+  const openLink = useCallback((url: string) => {
+    openExternalLink(url, setBlockedExternalUrl)
+  }, [])
   const getGestureUiTarget = useCallback((point: ScreenPoint) => {
     const hit = document.elementFromPoint(point.x, point.y)
     const target = hit?.closest<HTMLElement>('[data-gesture-clickable="true"]')
@@ -372,6 +376,13 @@ export default function App() {
     if (target instanceof HTMLButtonElement && target.disabled) return undefined
     if (target.closest('[aria-hidden="true"]')) return undefined
     return target
+  }, [])
+  const getGestureBlockingRegion = useCallback((point: ScreenPoint) => {
+    const hit = document.elementFromPoint(point.x, point.y)
+    const region = hit?.closest<HTMLElement>('[data-gesture-block-3d="true"]')
+    if (!region) return undefined
+    if (region.closest('[aria-hidden="true"]')) return undefined
+    return region
   }, [])
   const restoreDefaultSettings = useCallback(() => {
     clearBackgroundMusic().catch((error: unknown) => {
@@ -554,7 +565,8 @@ export default function App() {
           state.cooldownUntil = now + GESTURE_UI_COOLDOWN_MS
           playGestureUiClick(target)
           const gestureHref = target.dataset.gestureHref
-          if (gestureHref && openExternalLink(gestureHref, 'same-tab')) {
+          if (gestureHref) {
+            openExternalLink(gestureHref, setBlockedExternalUrl)
             return
           }
           target.click()
@@ -718,7 +730,7 @@ export default function App() {
           rotateDelta: gestureStatus.rotateDelta,
         }}
         gesturePointerBlocked={gestureUiDwell.active}
-        isGesturePointerOverUi={getGestureUiTarget}
+        isGesturePointerOverUi={getGestureBlockingRegion}
         viewerNode={viewerNode}
         viewerResetKey={viewerResetKey}
         onViewerLoadStateChange={setViewerLoadState}
@@ -759,12 +771,12 @@ export default function App() {
         </div>
         <section className="search-panel">
           {viewerNode ? (
-            <div className="viewer-toolbar" aria-label="圖片檢視工具列">
+            <div className="viewer-toolbar" data-gesture-block-3d="true" aria-label="圖片檢視工具列">
               <strong>{viewerNode.title}</strong>
               <div>
                 <button data-gesture-clickable="true" onClick={() => setViewerResetKey((value) => value + 1)}>重置</button>
                 {viewerNode.url ? (
-                  <button data-gesture-clickable="true" data-gesture-href={viewerNode.url} onClick={() => openExternalLink(viewerNode.url ?? '')}>原始連結</button>
+                  <button data-gesture-clickable="true" data-gesture-href={viewerNode.url} onClick={() => openLink(viewerNode.url ?? '')}>原始連結</button>
                 ) : null}
                 <button
                   data-gesture-clickable="true"
@@ -893,6 +905,20 @@ export default function App() {
           {firestoreUploadMessage ? <span className="action-bar-status" aria-live="polite">{firestoreUploadMessage}</span> : null}
         </div>
       ) : null}
+      {blockedExternalUrl ? (
+        <div className="popup-blocked-pill" data-gesture-block-3d="true" role="status">
+          <span>新視窗被阻擋</span>
+          <a
+            href={blockedExternalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setBlockedExternalUrl(undefined)}
+          >
+            開啟
+          </a>
+          <button type="button" aria-label="關閉提示" onClick={() => setBlockedExternalUrl(undefined)}>×</button>
+        </div>
+      ) : null}
       {viewerNode ? null : (
         <NodeHUD
           node={selected}
@@ -917,6 +943,7 @@ export default function App() {
           }}
           onAddRelation={() => setRelationOpen(true)}
           onSelectRelatedNode={(node) => selectNode(node, 'relation')}
+          onOpenExternalLink={openLink}
           onDeleteLink={async (link: KnowledgeLink) => {
             const next = { ...data, links: data.links.filter((item) => item.id !== link.id) }
             persist(next)

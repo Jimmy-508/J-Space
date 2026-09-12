@@ -1,6 +1,6 @@
 export const getSafeExternalUrl = (url: string) => {
   try {
-    const parsed = new URL(url, window.location.href)
+    const parsed = new URL(url, document.baseURI)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
     return parsed.href
   } catch {
@@ -8,13 +8,11 @@ export const getSafeExternalUrl = (url: string) => {
   }
 }
 
-export const openExternalLink = (url: string, mode: 'new-tab' | 'same-tab' = 'new-tab') => {
+export const openExternalLink = (url: string, onBlocked?: (url: string) => void) => {
   const safeUrl = getSafeExternalUrl(url)
   if (!safeUrl) return false
-  if (mode === 'same-tab') {
-    window.location.assign(safeUrl)
-    return true
-  }
-  window.open(safeUrl, '_blank', 'noopener,noreferrer')
-  return true
+  const opened = window.open(safeUrl, '_blank', 'noopener,noreferrer')
+  if (opened) return true
+  onBlocked?.(safeUrl)
+  return false
 }
