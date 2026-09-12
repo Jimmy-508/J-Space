@@ -1059,16 +1059,19 @@ export default function App() {
       ) : null}
       {blockedExternalUrl ? (
         <div className="popup-blocked-pill" data-gesture-block-3d="true" role="status">
-          <span>新視窗被阻擋</span>
-          <a
-            href={blockedExternalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setBlockedExternalUrl(undefined)}
+          <span>新視窗阻擋</span>
+          <button
+            type="button"
+            data-gesture-clickable="true"
+            onClick={() => {
+              if (openExternalLink(blockedExternalUrl, setBlockedExternalUrl)) {
+                setBlockedExternalUrl(undefined)
+              }
+            }}
           >
             開啟
-          </a>
-          <button type="button" aria-label="關閉提示" onClick={() => setBlockedExternalUrl(undefined)}>×</button>
+          </button>
+          <button type="button" data-gesture-clickable="true" onClick={() => setBlockedExternalUrl(undefined)}>關閉</button>
         </div>
       ) : null}
       {viewerNode ? null : (

@@ -516,14 +516,15 @@ button:disabled {
 
 .popup-blocked-pill {
   position: fixed;
-  top: calc(max(14px, env(safe-area-inset-top)) + 62px);
+  top: 50%;
   left: 50%;
   z-index: 22;
   max-width: calc(100vw - 28px - env(safe-area-inset-left) - env(safe-area-inset-right));
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.42rem;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   border: 1px solid var(--space-glass-border);
   border-radius: 999px;
   padding: 0.34rem 0.38rem 0.34rem 0.72rem;
@@ -539,10 +540,13 @@ button:disabled {
   overflow: hidden;
   font-size: 0.8rem;
   text-overflow: ellipsis;
+  line-height: 1;
 }
 
-.popup-blocked-pill a,
 .popup-blocked-pill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 30px;
   border-radius: 999px;
   padding: 0.28rem 0.54rem;
@@ -551,13 +555,6 @@ button:disabled {
   background: rgba(12, 25, 47, 0.68);
   font-size: 0.78rem;
   text-decoration: none;
-}
-
-.popup-blocked-pill button {
-  width: 30px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
 }
 
 .hand-energy-layer {
