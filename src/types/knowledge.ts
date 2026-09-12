@@ -12,7 +12,6 @@ export type KnowledgeNode = {
   url?: string
   contentType?: ContentType
   imageUrl?: string
-  thumbnailUrl?: string
   createdAt: string
   updatedAt: string
 }

@@ -102,6 +102,7 @@ export default function NodeHUD({
                   className="relation-link"
                   type="button"
                   data-gesture-clickable="true"
+                  data-gesture-click-sound="handled"
                   disabled={!relatedNode}
                   onClick={() => relatedNode && onSelectRelatedNode(relatedNode)}
                 >

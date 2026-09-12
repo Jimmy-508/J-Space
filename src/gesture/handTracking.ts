@@ -3,6 +3,9 @@ import { clampPoint } from './coordinateTransform'
 import { detectGesture, getPalmCenter, getPalmSide, getPalmSize, getPointerPoint, isPalmFacingCamera } from './gestureDetector'
 import type { TrackedHand } from './gestureTypes'
 
+const MIN_HAND_CONFIDENCE = 0.58
+const REQUIRED_LANDMARKS = 21
+
 export class HandTrackingSession {
   private landmarker?: HandLandmarker
   private stream?: MediaStream
@@ -28,11 +31,16 @@ export class HandTrackingSession {
     const tick = () => {
       if (!this.running || !this.landmarker || !this.video) return
       const result = this.landmarker.detectForVideo(this.video, performance.now())
-      const hands: TrackedHand[] = (result.landmarks ?? []).map((landmarks, index) => {
-        const handedness = result.handednesses?.[index]?.[0]?.categoryName ?? `hand-${index}`
-        return {
+      const handsBySide = new Map<string, TrackedHand>()
+      ;(result.landmarks ?? []).forEach((landmarks, index) => {
+        const category = result.handednesses?.[index]?.[0]
+        const handedness = category?.categoryName ?? `hand-${index}`
+        const trackingConfidence = category?.score ?? 1
+        if (landmarks.length < REQUIRED_LANDMARKS || trackingConfidence < MIN_HAND_CONFIDENCE) return
+        const hand = {
           id: handedness,
           handedness,
+          trackingConfidence,
           gesture: detectGesture(landmarks),
           pointer: clampPoint(getPointerPoint(landmarks)),
           landmarks: landmarks.map((point) => clampPoint({ x: point.x, y: point.y })),
@@ -40,8 +48,13 @@ export class HandTrackingSession {
           palmSize: getPalmSize(landmarks),
           palmFacing: isPalmFacingCamera(landmarks),
           palmSide: getPalmSide(landmarks),
+        } satisfies TrackedHand
+        const current = handsBySide.get(handedness)
+        if (!current || (current.trackingConfidence ?? 0) < trackingConfidence) {
+          handsBySide.set(handedness, hand)
         }
       })
+      const hands = [...handsBySide.values()]
       onHands(hands)
       requestAnimationFrame(tick)
     }

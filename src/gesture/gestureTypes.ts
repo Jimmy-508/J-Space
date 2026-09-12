@@ -10,6 +10,7 @@ export type NormalizedPoint = {
 export type TrackedHand = {
   id: string
   handedness: string
+  trackingConfidence?: number
   gesture: GestureName
   pointer: NormalizedPoint
   landmarks: NormalizedPoint[]

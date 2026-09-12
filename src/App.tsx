@@ -132,7 +132,6 @@ function HandEnergyOverlay({
     return null
   }
   const activeIds = new Set([...(status.zoomHands ?? []), ...(status.panHands ?? []), status.pointerHand, status.rotationHand].filter(Boolean) as string[])
-  const slots: Array<TrackedHand | undefined> = [hands[0], hands[1]]
   const pointerIds = new Set(status.pointerHand ? [status.pointerHand] : [])
   for (const id of cursorTrailsRef.current.keys()) {
     if (!pointerIds.has(id)) cursorTrailsRef.current.delete(id)
@@ -160,12 +159,11 @@ function HandEnergyOverlay({
       viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
       aria-hidden="true"
     >
-      {slots.map((hand, slotIndex) => {
-        if (!hand) return <g key={slotIndex} className="hand-energy" visibility="hidden" />
+      {hands.map((hand) => {
         const active = activeIds.has(hand.id)
         const points = hand.landmarks.map((point) => normalizedToCoverViewport(point, videoSize, viewportSize, true))
         return (
-          <g key={slotIndex} className={`hand-energy ${active ? 'active' : ''} ${hand.gesture}`}>
+          <g key={hand.id} className={`hand-energy ${active ? 'active' : ''} ${hand.gesture}`}>
             {handConnections.map(([from, to]) => points[from] && points[to] ? (
               <line
                 key={`${from}-${to}`}
@@ -362,6 +360,10 @@ export default function App() {
     resetIdle()
     audioManagerRef.current?.unlock()
   }, [resetIdle])
+  const playGestureUiClick = useCallback((target: HTMLElement) => {
+    if (target.dataset.gestureClickSound === 'handled') return
+    audioManagerRef.current?.playSelect()
+  }, [])
   const restoreDefaultSettings = useCallback(() => {
     clearBackgroundMusic().catch((error: unknown) => {
       console.debug('Background music reset failed.', error)
@@ -544,6 +546,7 @@ export default function App() {
         if (progress >= 1 && now >= state.cooldownUntil) {
           state.triggered = true
           state.cooldownUntil = now + GESTURE_UI_COOLDOWN_MS
+          playGestureUiClick(target)
           target.click()
         }
       }
@@ -551,7 +554,7 @@ export default function App() {
     }
     frame = window.requestAnimationFrame(updateDwell)
     return () => window.cancelAnimationFrame(frame)
-  }, [gesturePointerScreen?.x, gesturePointerScreen?.y, gestureStatus.activeGesture, clearGestureUiDwell])
+  }, [gesturePointerScreen?.x, gesturePointerScreen?.y, gestureStatus.activeGesture, clearGestureUiDwell, playGestureUiClick])
 
   useEffect(() => () => clearGestureUiDwell(), [clearGestureUiDwell])
 
@@ -713,26 +716,6 @@ export default function App() {
         onClearSelection={clearSelection}
         immersive={immersive}
       />
-      {viewerNode ? (
-        <div className="viewer-toolbar" aria-label="圖片檢視工具列">
-          <strong>{viewerNode.title}</strong>
-          <div>
-            <button data-gesture-clickable="true" onClick={() => setViewerResetKey((value) => value + 1)}>重置</button>
-            {viewerNode.url ? (
-              <button data-gesture-clickable="true" onClick={() => window.open(viewerNode.url, '_blank', 'noopener,noreferrer')}>開啟原始連結</button>
-            ) : null}
-            <button
-              data-gesture-clickable="true"
-              onClick={() => {
-                setViewerNodeId(undefined)
-                setViewerLoadState('idle')
-              }}
-            >
-              關閉
-            </button>
-          </div>
-        </div>
-      ) : null}
       {viewerNode && viewerLoadState !== 'ready' ? (
         <div className={`viewer-status ${viewerLoadState === 'error' ? 'error' : ''}`} role="status">
           {viewerLoadState === 'error' ? '圖片無法載入' : '圖片載入中...'}
@@ -763,25 +746,48 @@ export default function App() {
             J-Space
           </strong>
         </div>
-        <section className="search-panel" aria-hidden={viewerNode ? 'true' : undefined}>
-          <div className="search-box">
-            <span className="search-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <circle cx="10.5" cy="10.5" r="5.7" />
-                <path d="M15.2 15.2L20 20" />
-              </svg>
-            </span>
-            <input
-              aria-label="搜尋節點"
-              placeholder="探索"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {query ? <button className="clear-search" aria-label="清除搜尋" onClick={() => { setQuery(''); setFocusId(undefined); setHoveredId(undefined) }}>×</button> : null}
-          </div>
-          {results.length ? <div className="search-results">{results.map((node) => (
-            <button key={node.id} onClick={() => { selectNode(node, 'search'); setQuery('') }}>{node.title}<small>{node.category}</small></button>
-          ))}</div> : null}
+        <section className="search-panel">
+          {viewerNode ? (
+            <div className="viewer-toolbar" aria-label="圖片檢視工具列">
+              <strong>{viewerNode.title}</strong>
+              <div>
+                <button data-gesture-clickable="true" onClick={() => setViewerResetKey((value) => value + 1)}>重置</button>
+                {viewerNode.url ? (
+                  <button data-gesture-clickable="true" onClick={() => window.open(viewerNode.url, '_blank', 'noopener,noreferrer')}>原始連結</button>
+                ) : null}
+                <button
+                  data-gesture-clickable="true"
+                  onClick={() => {
+                    setViewerNodeId(undefined)
+                    setViewerLoadState('idle')
+                  }}
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="search-box">
+                <span className="search-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <circle cx="10.5" cy="10.5" r="5.7" />
+                    <path d="M15.2 15.2L20 20" />
+                  </svg>
+                </span>
+                <input
+                  aria-label="搜尋節點"
+                  placeholder="探索"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                {query ? <button className="clear-search" aria-label="清除搜尋" onClick={() => { setQuery(''); setFocusId(undefined); setHoveredId(undefined) }}>×</button> : null}
+              </div>
+              {results.length ? <div className="search-results">{results.map((node) => (
+                <button key={node.id} onClick={() => { selectNode(node, 'search'); setQuery('') }}>{node.title}<small>{node.category}</small></button>
+              ))}</div> : null}
+            </>
+          )}
         </section>
         <div className="camera-controls">
           {gestureEnabled || gestureStatus.cameraStatus === 'error' ? (
@@ -864,13 +870,13 @@ export default function App() {
         <div className="action-bar-shell">
           <nav className="action-bar" aria-label="主要功能">
             <div className="action-bar-track">
-              <button onClick={() => setEditing('new')}>新增節點</button>
-              <button onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯節點</button>
-              <button onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
-              <button onClick={uploadLocalDataToFirestore} disabled={firestoreUploading}>
+              <button data-gesture-clickable="true" onClick={() => setEditing('new')}>新增節點</button>
+              <button data-gesture-clickable="true" onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯節點</button>
+              <button data-gesture-clickable="true" onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
+              <button data-gesture-clickable="true" onClick={uploadLocalDataToFirestore} disabled={firestoreUploading}>
                 {firestoreUploading ? '同步中' : '同步資料'}
               </button>
-              <button className="action-logout" onClick={handleAdminLogout}>登出</button>
+              <button data-gesture-clickable="true" className="action-logout" onClick={handleAdminLogout}>登出</button>
             </div>
           </nav>
           {firestoreUploadMessage ? <span className="action-bar-status" aria-live="polite">{firestoreUploadMessage}</span> : null}

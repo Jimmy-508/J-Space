@@ -20,7 +20,6 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
     url: '',
     contentType: undefined,
     imageUrl: '',
-    thumbnailUrl: '',
   })
 
   useEffect(() => {
@@ -33,7 +32,6 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
       url: node.url ?? '',
       contentType: node.contentType,
       imageUrl: node.imageUrl ?? '',
-      thumbnailUrl: node.thumbnailUrl ?? '',
     })
   }, [node])
 
@@ -53,7 +51,6 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
             url: value.url?.trim() || undefined,
             contentType: value.contentType,
             imageUrl: value.contentType === 'image' ? value.imageUrl?.trim() || undefined : undefined,
-            thumbnailUrl: value.contentType === 'image' ? value.thumbnailUrl?.trim() || undefined : undefined,
           })
         }}
       >
@@ -75,10 +72,7 @@ export default function NodeForm({ node, onCancel, onSubmit }: Props) {
           </select>
         </label>
         {value.contentType === 'image' ? (
-          <>
-            <label>圖片 URL<input required type="url" value={value.imageUrl ?? ''} onChange={(event) => setValue({ ...value, imageUrl: event.target.value })} /></label>
-            <label>縮圖 URL<input type="url" value={value.thumbnailUrl ?? ''} onChange={(event) => setValue({ ...value, thumbnailUrl: event.target.value })} /></label>
-          </>
+          <label>圖片 URL<input required type="url" value={value.imageUrl ?? ''} onChange={(event) => setValue({ ...value, imageUrl: event.target.value })} /></label>
         ) : null}
         <div className="modal-actions"><button type="button" onClick={onCancel}>取消</button><button type="submit">儲存</button></div>
       </form>

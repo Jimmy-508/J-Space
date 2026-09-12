@@ -31,7 +31,6 @@ const toKnowledgeNode = (snapshot: QueryDocumentSnapshot<DocumentData>): Knowled
     url: data.url,
     contentType: data.contentType,
     imageUrl: data.imageUrl,
-    thumbnailUrl: data.thumbnailUrl,
     createdAt: data.createdAt ?? new Date(0).toISOString(),
     updatedAt: data.updatedAt ?? new Date(0).toISOString(),
   }
