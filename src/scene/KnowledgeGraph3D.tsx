@@ -603,14 +603,18 @@ export default function KnowledgeGraph3D({
     backgroundTimeOriginRef.current = performance.now() * 0.001
 
     let frame = 0
+    let lastFrameMs = performance.now()
     const animate = () => {
       frame = requestAnimationFrame(animate)
-      const time = performance.now() * 0.001
+      const nowMs = performance.now()
+      const deltaTimeMs = nowMs - lastFrameMs
+      lastFrameMs = nowMs
+      const time = nowMs * 0.001
       const backgroundTime = time - backgroundTimeOriginRef.current
       const activeGesture = gestureControlRef.current
       const viewer = imageViewerRef.current
       const viewerActive = !!viewer?.ready
-      viewer?.update(performance.now())
+      viewer?.update(nowMs)
       if (!viewerActive && focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
         focusTransitionRef.current = null
       }
@@ -623,7 +627,8 @@ export default function KnowledgeGraph3D({
             THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035),
           )
         } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
-          viewer.zoomBy(Math.exp(THREE.MathUtils.clamp(activeGesture.zoomDelta * 2.2, -0.045, 0.045)))
+          const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
+          viewer.zoomByGestureStep(zoomStep, deltaTimeMs)
         } else if (activeGesture?.activeGesture === 'pan') {
           viewer.panByGesturePixels(
             THREE.MathUtils.clamp(activeGesture.panDelta.x, -0.036, 0.036) * -760,
@@ -633,7 +638,7 @@ export default function KnowledgeGraph3D({
           )
         }
       } else if (viewReset) {
-        const progress = THREE.MathUtils.clamp((performance.now() - viewReset.startedAt) / viewReset.duration, 0, 1)
+        const progress = THREE.MathUtils.clamp((nowMs - viewReset.startedAt) / viewReset.duration, 0, 1)
         const eased = 1 - (1 - progress) ** 3
         camera.position.lerpVectors(viewReset.fromPosition, viewReset.toPosition, eased)
         cameraTargetRef.current.lerpVectors(viewReset.fromTarget, viewReset.toTarget, eased)
@@ -683,7 +688,7 @@ export default function KnowledgeGraph3D({
         }
       } else if (focusTransitionRef.current) {
         const transition = focusTransitionRef.current
-        const progress = THREE.MathUtils.clamp((performance.now() - transition.startedAt) / transition.duration, 0, 1)
+        const progress = THREE.MathUtils.clamp((nowMs - transition.startedAt) / transition.duration, 0, 1)
         const eased = progress < 0.5
           ? 4 * progress ** 3
           : 1 - (-2 * progress + 2) ** 3 / 2

@@ -12,6 +12,8 @@ export type ImageViewerLoadState = 'idle' | 'loading' | 'ready' | 'error'
 
 const VIEWER_DISTANCE = 10
 const RESET_DURATION_MS = 460
+const GESTURE_ZOOM_MAX_CAMERA_STEP = 0.65
+const GESTURE_ZOOM_SCALE_STEP = 0.0075
 
 export class ImageContentViewer3D {
   readonly root = new THREE.Group()
@@ -170,6 +172,19 @@ export class ImageContentViewer3D {
     this.cancelReset()
     this.entranceComplete = true
     const next = THREE.MathUtils.clamp(this.content.scale.x * factor, 0.38, 4.2)
+    this.content.scale.setScalar(next)
+  }
+
+  zoomByGestureStep(cameraZoomStep: number, deltaTimeMs: number) {
+    this.cancelReset()
+    this.entranceComplete = true
+    const frameScale = THREE.MathUtils.clamp(deltaTimeMs / (1000 / 60), 0.5, 1.5)
+    const normalizedStep = THREE.MathUtils.clamp(cameraZoomStep / GESTURE_ZOOM_MAX_CAMERA_STEP, -1, 1)
+    const next = THREE.MathUtils.clamp(
+      this.content.scale.x + normalizedStep * GESTURE_ZOOM_SCALE_STEP * frameScale,
+      0.38,
+      4.2,
+    )
     this.content.scale.setScalar(next)
   }
 
