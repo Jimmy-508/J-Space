@@ -3,6 +3,7 @@ import { AudioManager } from './audio/AudioManager'
 import { clearBackgroundMusic, loadBackgroundMusic, saveBackgroundMusic } from './audio/audioStorage'
 import NodeForm from './components/NodeForm'
 import RelationForm from './components/RelationForm'
+import SummonControls from './components/SummonControls'
 import { normalizedToCoverViewport } from './gesture/coordinateTransform'
 import { GestureStateMachine } from './gesture/gestureStateMachine'
 import { HandTrackingSession } from './gesture/handTracking'
@@ -20,6 +21,8 @@ import {
 } from './scene/nebulaThemes'
 import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
+import { SUMMON_NODE, SUMMON_NODE_ID, isSystemNode } from './system/systemNodes'
+import { createSummonStars, type SummonStar } from './summon/summonUtils'
 import { openExternalLink } from './utils/navigation'
 import type { GestureStatus, TrackedHand } from './gesture/gestureTypes'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
@@ -56,6 +59,8 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
   }).join(' ')
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | 'relation' | undefined
+type AppMode = 'universe' | 'transition-to-summon' | 'summon' | 'transition-to-universe'
+type SummonStage = 'setup' | 'drawing'
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SETTINGS_KEY = 'j-space-settings'
 const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
@@ -301,6 +306,14 @@ export default function App() {
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
   const [immersive, setImmersive] = useState(false)
   const [controlResetKey, setControlResetKey] = useState(0)
+  const [appMode, setAppMode] = useState<AppMode>('universe')
+  const [summonStage, setSummonStage] = useState<SummonStage>('setup')
+  const [summonMaxNumber, setSummonMaxNumber] = useState(35)
+  const [summonExcludedInput, setSummonExcludedInput] = useState('')
+  const [summonStars, setSummonStars] = useState<SummonStar[]>([])
+  const [selectedSummonStarId, setSelectedSummonStarId] = useState<string>()
+  const [armedSummonStarId, setArmedSummonStarId] = useState<string>()
+  const [summonResult, setSummonResult] = useState<number>()
   const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
   const [viewportSize, setViewportSize] = useState(() => ({
     width: typeof window === 'undefined' ? 390 : window.visualViewport?.width ?? window.innerWidth,
@@ -324,7 +337,11 @@ export default function App() {
     triggered: boolean
     cooldownUntil: number
   }>({ since: 0, triggered: false, cooldownUntil: 0 })
-  const selected = data.nodes.find((node) => node.id === selectedId)
+  const renderedData = useMemo<KnowledgeData>(() => ({
+    nodes: data.nodes.some((node) => node.id === SUMMON_NODE_ID) ? data.nodes : [...data.nodes, SUMMON_NODE],
+    links: data.links,
+  }), [data])
+  const selected = renderedData.nodes.find((node) => node.id === selectedId)
   const viewerNodeCandidate = data.nodes.find((node) => node.id === viewerNodeId)
   const viewerNode = viewerNodeCandidate?.contentType === 'image' && viewerNodeCandidate.imageUrl
     ? viewerNodeCandidate
@@ -349,6 +366,8 @@ export default function App() {
   const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
   ).slice(0, 8) : [], [data.nodes, query])
+  const isSummonActive = appMode === 'summon'
+  const isTransitioning = appMode === 'transition-to-summon' || appMode === 'transition-to-universe'
   const gesturePointerScreen = gestureStatus.activeGesture === 'pointer' && gestureStatus.pointerPoint
     ? normalizedToCoverViewport(gestureStatus.pointerPoint, videoSize, viewportSize, true)
     : undefined
@@ -414,6 +433,23 @@ export default function App() {
     setViewerLoadState('idle')
   }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
+    if (isSystemNode(node)) {
+      audioManagerRef.current?.playSelect()
+      setSelectedId(node.id)
+      setFocusId(node.id)
+      setSelectionSource(source)
+      setViewerNodeId(undefined)
+      setViewerLoadState('idle')
+      setEditing(undefined)
+      setRelationOpen(false)
+      setAppMode('transition-to-summon')
+      window.setTimeout(() => {
+        setSummonStage('setup')
+        setAppMode('summon')
+        setControlResetKey((value) => value + 1)
+      }, 920)
+      return
+    }
     if (selectedIdRef.current !== node.id) {
       audioManagerRef.current?.playSelect()
     }
@@ -422,6 +458,74 @@ export default function App() {
     setSelectionSource(source)
     setViewerNodeId(node.contentType === 'image' && !!node.imageUrl ? node.id : undefined)
   }, [])
+
+  const startSummon = useCallback(() => {
+    const stars = createSummonStars(summonMaxNumber, summonExcludedInput)
+    setSummonStars(stars)
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    setSummonResult(undefined)
+    setSummonStage('drawing')
+    audioManagerRef.current?.playSelect()
+    setControlResetKey((value) => value + 1)
+  }, [summonExcludedInput, summonMaxNumber])
+
+  const resetSummon = useCallback(() => {
+    setSummonStars(createSummonStars(summonMaxNumber, summonExcludedInput))
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    setSummonResult(undefined)
+    audioManagerRef.current?.playSelect()
+    setControlResetKey((value) => value + 1)
+  }, [summonExcludedInput, summonMaxNumber])
+
+  const exitSummon = useCallback(() => {
+    setAppMode('transition-to-universe')
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    window.setTimeout(() => {
+      setAppMode('universe')
+      setSummonStage('setup')
+      setSummonStars([])
+      setSummonResult(undefined)
+      clearSelection()
+      setControlResetKey((value) => value + 1)
+    }, 820)
+  }, [clearSelection])
+
+  const selectSummonStar = useCallback((id: string) => {
+    if (isTransitioning || summonStage !== 'drawing') return
+    setSelectedSummonStarId((current) => current === id ? undefined : id)
+    setArmedSummonStarId(undefined)
+    setSummonStars((current) => current.map((star) => {
+      if (star.status === 'summoned') return star
+      if (star.id === id) return { ...star, status: selectedSummonStarId === id ? 'available' : 'selected' }
+      return { ...star, status: 'available' }
+    }))
+    audioManagerRef.current?.playSelect()
+  }, [isTransitioning, selectedSummonStarId, summonStage])
+
+  const armSummonStar = useCallback((id: string) => {
+    if (id !== selectedSummonStarId || armedSummonStarId === id) return
+    setArmedSummonStarId(id)
+    setSummonStars((current) => current.map((star) => (
+      star.id === id && star.status !== 'summoned' ? { ...star, status: 'armed' } : star
+    )))
+    audioManagerRef.current?.playSelect()
+  }, [armedSummonStarId, selectedSummonStarId])
+
+  const triggerSummonStar = useCallback((id: string) => {
+    if (id !== armedSummonStarId) return
+    const star = summonStars.find((item) => item.id === id && item.status !== 'summoned')
+    if (!star) return
+    setSummonResult(star.number)
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    setSummonStars((current) => current.map((item) => (
+      item.id === id ? { ...item, status: 'summoned' } : item
+    )))
+    audioManagerRef.current?.playSelect()
+  }, [armedSummonStarId, summonStars])
   const clearGestureUiDwell = useCallback(() => {
     gestureUiDwellRef.current.element?.classList.remove('gesture-dwell-hover')
     gestureUiDwellRef.current = { since: 0, triggered: false, cooldownUntil: 0 }
@@ -809,7 +913,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}
@@ -819,7 +923,7 @@ export default function App() {
       onInputCapture={registerUserActivity}
     >
       <KnowledgeGraph3D
-        data={data}
+        data={renderedData}
         selectedId={selectedId}
         hoveredId={hoveredId}
         focusId={focusId}
@@ -841,7 +945,20 @@ export default function App() {
         onClearSelection={clearSelection}
         immersive={immersive}
         nebulaTheme={activeNebulaTheme}
+        appMode={appMode}
+        summonStage={summonStage}
+        summonStars={summonStars}
+        selectedSummonStarId={selectedSummonStarId}
+        armedSummonStarId={armedSummonStarId}
+        summonedResult={summonResult}
+        hands={hands}
+        onSummonStarSelect={selectSummonStar}
+        onSummonStarArm={armSummonStar}
+        onSummonStarTrigger={triggerSummonStar}
       />
+      <div className={`summon-transition-title ${isTransitioning ? 'visible' : ''}`} aria-hidden={!isTransitioning}>
+        {appMode === 'transition-to-universe' ? 'J-Space' : '召喚'}
+      </div>
       {viewerNode && viewerLoadState !== 'ready' ? (
         <div className={`viewer-status ${viewerLoadState === 'error' ? 'error' : ''}`} role="status">
           {viewerLoadState === 'error' ? '圖片無法載入' : '圖片載入中...'}
@@ -873,7 +990,7 @@ export default function App() {
           </strong>
         </div>
         <section className="search-panel">
-          {viewerNode ? (
+          {isSummonActive || isTransitioning ? null : viewerNode ? (
             <div className="viewer-toolbar" data-gesture-block-3d="true" aria-label="圖片檢視工具列">
               <strong>{viewerNode.title}</strong>
               <div>
@@ -953,7 +1070,7 @@ export default function App() {
           </button>
         </div>
       </header>
-      {settingsOpen ? (
+      {settingsOpen && !isSummonActive && !isTransitioning ? (
         <section className="settings-panel" aria-label="設定面板">
           <div className="settings-heading">
             <div>
@@ -1085,13 +1202,28 @@ export default function App() {
           </div>
         </section>
       ) : null}
-      {isAdmin ? (
+      <SummonControls
+        active={isSummonActive}
+        stage={summonStage}
+        maxNumber={summonMaxNumber}
+        excludedInput={summonExcludedInput}
+        remaining={summonStars.filter((star) => star.status !== 'summoned').length}
+        result={summonResult}
+        selectedStar={summonStars.find((star) => star.id === selectedSummonStarId)}
+        armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
+        onMaxNumberChange={(value) => setSummonMaxNumber(Math.max(1, Math.min(99, Math.round(value || 1))))}
+        onExcludedInputChange={setSummonExcludedInput}
+        onStart={startSummon}
+        onReset={resetSummon}
+        onExit={exitSummon}
+      />
+      {isAdmin && !isSummonActive && !isTransitioning ? (
         <div className="action-bar-shell">
           <nav className="action-bar" aria-label="主要功能">
             <div className="action-bar-track">
               <button data-gesture-clickable="true" onClick={() => setEditing('new')}>新增節點</button>
-              <button data-gesture-clickable="true" onClick={() => selected && setEditing(selected)} disabled={!selected}>編輯節點</button>
-              <button data-gesture-clickable="true" onClick={() => selected && setRelationOpen(true)} disabled={!selected}>新增關聯</button>
+              <button data-gesture-clickable="true" onClick={() => selected && setEditing(selected)} disabled={!selected || isSystemNode(selected)}>編輯節點</button>
+              <button data-gesture-clickable="true" onClick={() => selected && setRelationOpen(true)} disabled={!selected || isSystemNode(selected)}>新增關聯</button>
               <button data-gesture-clickable="true" onClick={uploadLocalDataToFirestore} disabled={firestoreUploading}>
                 {firestoreUploading ? '同步中' : '同步資料'}
               </button>
@@ -1118,12 +1250,12 @@ export default function App() {
           <button type="button" data-gesture-clickable="true" onClick={() => setBlockedExternalUrl(undefined)}>關閉</button>
         </div>
       ) : null}
-      {viewerNode ? null : (
+      {viewerNode || isSummonActive || isTransitioning ? null : (
         <NodeHUD
           node={selected}
-          data={data}
-          isAdmin={isAdmin}
-          hasActionBar={isAdmin}
+          data={renderedData}
+          isAdmin={isAdmin && !isSystemNode(selected)}
+          hasActionBar={isAdmin && !isSystemNode(selected)}
           onEdit={setEditing}
           onDelete={async (node) => {
             if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
@@ -1200,10 +1332,10 @@ export default function App() {
           }}
         />
       ) : null}
-      {isAdmin && relationOpen && selected ? (
+      {isAdmin && relationOpen && selected && !isSystemNode(selected) ? (
         <RelationForm
           node={selected}
-          data={data}
+          data={renderedData}
           onCancel={() => setRelationOpen(false)}
           onSubmit={async (target, relation) => {
             if (selected.id === target) {

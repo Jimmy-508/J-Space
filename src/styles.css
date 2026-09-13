@@ -557,6 +557,96 @@ button:disabled {
   text-decoration: none;
 }
 
+.summon-transition-title {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 18;
+  transform: translate(-50%, -50%) scale(0.92);
+  color: rgba(245, 250, 255, 0);
+  font-size: clamp(2.2rem, 7vw, 5rem);
+  font-weight: 750;
+  letter-spacing: 0;
+  text-shadow: 0 0 34px rgba(173, 214, 255, 0);
+  pointer-events: none;
+  transition: color 420ms ease, transform 620ms ease, text-shadow 520ms ease;
+}
+
+.summon-transition-title.visible {
+  color: rgba(245, 250, 255, 0.92);
+  transform: translate(-50%, -50%) scale(1);
+  text-shadow: 0 0 34px rgba(173, 214, 255, 0.42), 0 0 76px rgba(245, 202, 122, 0.26);
+}
+
+.summon-panel {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 26;
+  width: min(720px, calc(100vw - 28px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.52rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--space-glass-border);
+  border-radius: 999px;
+  padding: 0.48rem 0.62rem;
+  color: #eef5ff;
+  background: var(--space-glass-bg);
+  box-shadow: var(--space-glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+}
+
+.summon-panel strong {
+  color: #fff0c9;
+}
+
+.summon-panel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  color: #cfdcf3;
+  font-size: 0.82rem;
+}
+
+.summon-panel label span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+}
+
+.summon-panel input {
+  width: 86px;
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0.25rem 0.56rem;
+}
+
+.summon-panel label:nth-of-type(2) input {
+  width: min(210px, 42vw);
+}
+
+.summon-panel button {
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0.32rem 0.68rem;
+  border: 1px solid rgba(195, 217, 255, 0.18);
+  background: rgba(12, 25, 47, 0.68);
+}
+
+.summon-result-chip {
+  min-width: 42px;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  text-align: center;
+  color: #fff5d8;
+  background: rgba(244, 202, 105, 0.16);
+  box-shadow: 0 0 22px rgba(244, 192, 82, 0.22);
+}
+
 .hand-energy-layer {
   position: fixed;
   left: 0;
