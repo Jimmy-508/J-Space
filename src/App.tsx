@@ -332,49 +332,56 @@ function HandEnergyOverlay({
         const midY = (hand.point.y + target.y) / 2 + ny * bend
         const power = Math.min(1, summonFlowTime / 2.4)
         const sample = (t: number, lane = 0) => {
-          const eased = 1 - Math.pow(1 - t, 1.75)
+          const eased = 1 - Math.pow(1 - t, 2.15)
           const baseX = (1 - eased) * (1 - eased) * target.x + 2 * (1 - eased) * eased * midX + eased * eased * hand.point.x
           const baseY = (1 - eased) * (1 - eased) * target.y + 2 * (1 - eased) * eased * midY + eased * eased * hand.point.y
-          const spiral = Math.max(0, (t - 0.62) / 0.38)
+          const spiral = Math.max(0, (t - 0.58) / 0.42)
           const sourceSpread = Math.max(0, 1 - t / 0.28)
-          const orbit = Math.sin(t * 26 + lane * 1.7 + summonFlowTime * (7 + power * 7))
-          const swirl = (sourceSpread * (24 + lane % 5 * 6) + spiral * (44 * (1 - spiral))) * orbit
+          const lanePhase = lane * 1.83 + summonFlowTime * (6.5 + power * 6)
+          const orbit = Math.sin(t * 18 + lanePhase) + Math.sin(t * 37 + lanePhase * 0.42) * 0.34
+          const swirl = (sourceSpread * (24 + lane % 5 * 6) + spiral * (58 * (1 - spiral) + 9)) * orbit
+          const sink = spiral * spiral * (18 + (lane % 4) * 4)
           return {
-            x: baseX + nx * swirl - ux * sourceSpread * (8 + (lane % 4) * 3),
-            y: baseY + ny * swirl - uy * sourceSpread * (8 + (lane % 4) * 3),
+            x: baseX + nx * swirl + ux * sink - ux * sourceSpread * (8 + (lane % 4) * 3),
+            y: baseY + ny * swirl + uy * sink - uy * sourceSpread * (8 + (lane % 4) * 3),
           }
         }
         return (
           <g key={`summon-absorption-${hand.id}`} className="summon-absorption">
             <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
-              <path className="summon-singularity-gravity gravity-a" d={`M ${-132 - power * 28} -54 C -108 ${-112 - power * 16}, -14 ${-126 - power * 18}, ${82 + power * 20} -74 C ${150 + power * 22} -31, ${146 + power * 25} 42, 76 ${88 + power * 14} C -8 ${132 + power * 18}, ${-124 - power * 18} 96, ${-158 - power * 24} 22 C ${-178 - power * 28} -15, ${-166 - power * 26} -37, ${-132 - power * 28} -54 Z`} />
-              <path className="summon-singularity-gravity gravity-b" d={`M ${-102 - power * 20} -38 C -76 ${-86 - power * 14}, -4 ${-98 - power * 14}, ${66 + power * 18} -56 C ${120 + power * 18} -23, ${112 + power * 18} 38, 56 ${69 + power * 12} C -18 ${106 + power * 14}, ${-98 - power * 16} 70, ${-126 - power * 20} 12 C ${-142 - power * 18} -11, ${-132 - power * 16} -28, ${-102 - power * 20} -38 Z`} />
-              <path className="summon-space-warp warp-a" d="M -174 -76 C -88 -132, 54 -116, 154 -38 C 70 -54, -20 -38, -112 -8 C -166 -1, -205 -32, -174 -76 Z" />
-              <path className="summon-space-warp warp-b" d="M -172 64 C -90 124, 46 116, 168 36 C 86 58, -8 46, -112 14 C -170 8, -210 31, -172 64 Z" />
-              <path className="summon-accretion accretion-e" d="M -152 2 C -72 -22, 28 30, 164 -3" />
-              <path className="summon-accretion accretion-a" d="M -162 -23 C -108 -72, -14 -61, 55 -27 S 146 13, 188 -36" />
-              <path className="summon-accretion accretion-b" d="M -180 28 C -112 74, -24 65, 50 28 S 143 -17, 184 20" />
-              <path className="summon-accretion accretion-c" d="M -132 -48 C -70 -20, 15 -9, 124 -43" />
-              <path className="summon-accretion accretion-d" d="M -118 52 C -38 21, 47 19, 144 48" />
-              <path className="summon-singularity-core" d="M -78 -42 C -61 -76, -12 -83, 34 -68 C 82 -52, 93 -6, 70 34 C 46 78, -15 83, -58 57 C -95 34, -104 -10, -78 -42 Z" />
-              {Array.from({ length: 46 }).map((_, index) => {
-                const angle = summonFlowTime * (4.4 + power * 6.8) + index * 0.43
-                const radius = 58 + ((index * 17) % 76) * (1 - power * 0.18)
+              <path className="summon-singularity-gravity gravity-a" d="M -116 -88 C -68 -142, 38 -118, 140 -48" />
+              <path className="summon-singularity-gravity gravity-b" d="M -156 72 C -70 126, 38 112, 160 36" />
+              <path className="summon-space-warp warp-a" d="M -210 -76 C -124 -126, 5 -105, 104 -48" />
+              <path className="summon-space-warp warp-b" d="M -182 86 C -86 138, 50 116, 204 24" />
+              <path className="summon-space-warp warp-c" d="M -72 -132 C -20 -164, 78 -142, 164 -90" />
+              <path className="summon-accretion accretion-back" d="M -146 -44 C -92 -74, -28 -68, 38 -38" />
+              <path className="summon-accretion accretion-back accent" d="M 72 -24 C 116 -12, 150 -18, 186 -46" />
+              <path className="summon-singularity-core" d="M -62 -45 C -42 -76, 6 -84, 42 -63 C 78 -41, 85 1, 62 36 C 38 73, -15 78, -50 54 C -82 33, -89 -12, -62 -45 Z" />
+              <path className="summon-accretion accretion-front" d="M -192 32 C -122 74, -50 70, 24 36" />
+              <path className="summon-accretion accretion-front accent" d="M 66 18 C 118 42, 154 24, 202 -2" />
+              <path className="summon-accretion accretion-flare" d="M -38 -82 C 6 -100, 48 -96, 94 -72" />
+              <path className="summon-accretion accretion-flare cool" d="M -98 82 C -40 96, 18 86, 86 54" />
+              {Array.from({ length: 58 }).map((_, index) => {
+                const angle = summonFlowTime * (1.9 + power * 4.5) + index * 0.79
+                const radius = 46 + ((index * 19) % 128) * (1 - power * 0.16)
+                const pull = index % 3 === 0 ? 0.55 : 0.32
                 return (
-                  <circle
+                  <line
                     key={index}
                     className="summon-singularity-spark"
-                    cx={Math.cos(angle) * radius}
-                    cy={Math.sin(angle) * radius * (0.22 + (index % 4) * 0.035)}
-                    r={1.8 + (index % 5) * 0.9 + power * 1.2}
+                    x1={Math.cos(angle) * radius}
+                    y1={Math.sin(angle) * radius * (0.28 + (index % 4) * 0.05)}
+                    x2={Math.cos(angle + pull) * (radius - 14 - power * 10)}
+                    y2={Math.sin(angle + pull) * (radius - 14 - power * 10) * (0.26 + (index % 4) * 0.05)}
+                    strokeWidth={1.2 + (index % 5) * 0.55 + power * 1.2}
                   />
                 )
               })}
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
-              <ellipse className="summon-source-tear tear-a" cx="24" cy="0" rx={38 + power * 18} ry={15 + power * 7} />
-              <ellipse className="summon-source-tear tear-b" cx="48" cy="-11" rx={25 + power * 16} ry={8 + power * 5} />
-              <ellipse className="summon-source-tear tear-c" cx="42" cy="13" rx={30 + power * 15} ry={9 + power * 6} />
+              <path className="summon-source-tear tear-a" d={`M ${-18 + power * 4} -10 C 5 ${-28 - power * 8}, ${42 + power * 18} -14, ${72 + power * 22} -2 C ${41 + power * 13} ${14 + power * 5}, 8 ${19 + power * 7}, ${-18 + power * 4} 8 Z`} />
+              <path className="summon-source-tear tear-b" d={`M ${18 + power * 8} -21 C ${42 + power * 13} -32, ${74 + power * 20} -24, ${96 + power * 22} -12 C ${67 + power * 14} -3, ${39 + power * 12} -5, ${18 + power * 8} -21 Z`} />
+              <path className="summon-source-tear tear-c" d={`M ${10 + power * 7} 15 C ${43 + power * 14} 3, ${76 + power * 21} 12, ${104 + power * 24} 26 C ${64 + power * 16} 36, ${31 + power * 12} 33, ${10 + power * 7} 15 Z`} />
               {Array.from({ length: 26 }).map((_, index) => {
                 const angle = index * 0.75 + summonFlowTime * (2.2 + power * 3)
                 const radius = 25 + (index % 6) * 7
@@ -393,10 +400,10 @@ function HandEnergyOverlay({
               const speed = 0.24 + (index % 11) * 0.037 + power * 0.18
               const t = (summonFlowTime * speed + index * 0.047 + handIndex * 0.13) % 1
               const point = sample(t)
-              const next = sample(Math.min(1, t + 0.03 + t * 0.055), index)
-              const stretch = 0.8 + t * 4.1
-              const brightness = 0.36 + t * 0.58 + power * 0.2
-              const width = Math.max(1.2, 2.1 + t * 7.6 - (index % 4) * 0.45)
+              const next = sample(Math.min(1, t + 0.025 + t * 0.082), index)
+              const stretch = 0.72 + t * 5.8
+              const brightness = 0.28 + t * 0.68 + power * 0.22
+              const width = Math.max(0.9, 1.55 + t * 8.8 - (index % 4) * 0.5)
               return (
                 <line
                   key={index}
@@ -411,7 +418,7 @@ function HandEnergyOverlay({
               )
             })}
             {Array.from({ length: 58 }).map((_, index) => {
-              const t = (summonFlowTime * (0.32 + (index % 9) * 0.046 + power * 0.2) + index * 0.071) % 1
+              const t = (summonFlowTime * (0.28 + (index % 9) * 0.052 + power * 0.26) + index * 0.071) % 1
               const { x, y } = sample(t, index)
               return (
                 <circle
@@ -434,9 +441,9 @@ function HandEnergyOverlay({
         return (
           <g key={`summon-collapse-${hand.id}-${hand.nonce}`} className="summon-absorption collapse">
             <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
-              <path className="summon-singularity-gravity gravity-a" d="M -172 -62 C -124 -126, -18 -146, 96 -82 C 178 -30, 168 52, 82 102 C -12 152, -148 106, -188 20 C -208 -22, -196 -48, -172 -62 Z" />
-              <path className="summon-accretion accretion-a" d="M -166 -26 C -100 -74, -12 -62, 54 -24 S 142 10, 184 -34" />
-              <path className="summon-accretion accretion-b" d="M -182 30 C -104 78, -28 62, 56 24 S 148 -18, 188 18" />
+              <path className="summon-singularity-gravity gravity-a" d="M -188 -72 C -112 -132, -8 -124, 116 -54" />
+              <path className="summon-accretion accretion-front" d="M -178 30 C -98 82, -22 66, 70 18" />
+              <path className="summon-accretion accretion-back" d="M -134 -46 C -62 -80, 20 -68, 138 -24" />
               <path className="summon-singularity-core" d="M -88 -48 C -61 -82, -9 -88, 44 -69 C 92 -44, 102 4, 74 43 C 43 88, -22 86, -66 58 C -104 33, -112 -13, -88 -48 Z" />
             </g>
           </g>
