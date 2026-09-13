@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NODE_TYPE_LABELS } from '../constants/nodeTypes'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from '../types/knowledge'
 
@@ -13,6 +13,8 @@ type Props = {
   onDeleteLink: (link: KnowledgeLink) => void
   onSelectRelatedNode: (node: KnowledgeNode) => void
   onOpenExternalLink: (url: string) => void
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
 }
 
 function DrawerArrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
@@ -41,9 +43,12 @@ export default function NodeHUD({
   onDeleteLink,
   onSelectRelatedNode,
   onOpenExternalLink,
+  expanded,
+  onExpandedChange,
 }: Props) {
-  const [expanded, setExpanded] = useState(false)
   const [layoutMode, setLayoutMode] = useState<'side' | 'bottom'>('bottom')
+  const previousNodeIdRef = useRef(node?.id)
+  const previousLayoutModeRef = useRef(layoutMode)
 
   useEffect(() => {
     const updateLayoutMode = () => {
@@ -60,8 +65,12 @@ export default function NodeHUD({
   }, [])
 
   useEffect(() => {
-    setExpanded(false)
-  }, [node?.id, layoutMode])
+    const nodeChanged = previousNodeIdRef.current !== undefined && previousNodeIdRef.current !== node?.id
+    const layoutChanged = previousLayoutModeRef.current !== layoutMode
+    previousNodeIdRef.current = node?.id
+    previousLayoutModeRef.current = layoutMode
+    if (nodeChanged || layoutChanged) onExpandedChange(false)
+  }, [node?.id, layoutMode, onExpandedChange])
 
   if (!node) return null
 
@@ -71,7 +80,7 @@ export default function NodeHUD({
 
   return (
     <aside data-gesture-block-3d="true" className={`node-drawer ${expanded ? 'expanded' : 'collapsed'} ${layoutMode === 'side' ? 'side-drawer' : 'bottom-drawer'} ${hasActionBar ? 'with-action-bar' : 'without-action-bar'}`}>
-      <button data-gesture-clickable="true" className="drawer-summary" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+      <button data-gesture-clickable="true" className="drawer-summary" onClick={() => onExpandedChange(!expanded)} aria-expanded={expanded}>
         <span>
           <small>{NODE_TYPE_LABELS[node.type]} / {node.category || '未分類'}</small>
           <strong>{node.title}</strong>

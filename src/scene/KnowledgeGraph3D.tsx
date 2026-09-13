@@ -39,12 +39,14 @@ type Props = {
   selectedSummonStarId?: string
   armedSummonStarId?: string
   holdingSummonStarId?: string
+  resultReturnStarId?: string
   summonedResult?: number
   hands?: TrackedHand[]
   onSummonStarSelect?: (id: string) => void
   onSummonStarArm?: (id: string) => void
   onSummonStarHoldChange?: (id?: string) => void
   onSummonStarTrigger?: (id: string) => void
+  onSummonResultTargetChange?: (point?: { x: number; y: number }) => void
 }
 
 const typeColors: Record<string, number> = {
@@ -509,12 +511,14 @@ export default function KnowledgeGraph3D({
   selectedSummonStarId,
   armedSummonStarId,
   holdingSummonStarId,
+  resultReturnStarId,
   summonedResult,
   hands = [],
   onSummonStarSelect,
   onSummonStarArm,
   onSummonStarHoldChange,
   onSummonStarTrigger,
+  onSummonResultTargetChange,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -566,6 +570,7 @@ export default function KnowledgeGraph3D({
     active: false,
     pointerId: -1,
     summonId: undefined as string | undefined,
+    startedAt: 0,
     startX: 0,
     startY: 0,
     timeout: undefined as number | undefined,
@@ -609,8 +614,9 @@ export default function KnowledgeGraph3D({
   const selectedSummonStarIdRef = useRef<string | undefined>(selectedSummonStarId)
   const armedSummonStarIdRef = useRef<string | undefined>(armedSummonStarId)
   const holdingSummonStarIdRef = useRef<string | undefined>(holdingSummonStarId)
+  const resultReturnStarIdRef = useRef<string | undefined>(resultReturnStarId)
   const handsRef = useRef<TrackedHand[]>(hands)
-  const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger })
+  const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange })
   const summonArmLockRef = useRef({ armedAt: 0, triggeredAt: 0, holdStartedAt: 0, holdingId: undefined as string | undefined })
   const nebulaThemeRef = useRef(nebulaTheme)
   const cometsRef = useRef<THREE.Object3D[]>([])
@@ -724,9 +730,10 @@ export default function KnowledgeGraph3D({
     selectedSummonStarIdRef.current = selectedSummonStarId
     armedSummonStarIdRef.current = armedSummonStarId
     holdingSummonStarIdRef.current = holdingSummonStarId
+    resultReturnStarIdRef.current = resultReturnStarId
     handsRef.current = hands
-    summonCallbacksRef.current = { onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger }
-  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger])
+    summonCallbacksRef.current = { onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange }
+  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, resultReturnStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
 
   useEffect(() => {
     dragRef.current.active = false
@@ -1406,6 +1413,13 @@ export default function KnowledgeGraph3D({
         const resolved = object.userData.resolved === true
         const clearing = object.userData.clearing === true
         const clearingProgress = clearing ? THREE.MathUtils.clamp((time - (object.userData.clearingAt ?? time)) / 0.72, 0, 1) : 0
+        const objectId = object.userData.id as string | undefined
+        const pointerHoldStartedAt = pointerSummonHoldRef.current.active && pointerSummonHoldRef.current.summonId === objectId
+          ? pointerSummonHoldRef.current.startedAt
+          : 0
+        const gestureHoldStartedAt = summonArmLockRef.current.holdingId === objectId ? summonArmLockRef.current.holdStartedAt : 0
+        const holdStartedAt = pointerHoldStartedAt || gestureHoldStartedAt
+        const holdProgress = holding && holdStartedAt ? THREE.MathUtils.clamp((time - holdStartedAt) / (POINTER_SUMMON_HOLD_MS / 1000), 0, 1) : 0
         if (object.userData.deploying) {
           const progress = THREE.MathUtils.clamp((time - (object.userData.createdAt ?? time)) / 1.08, 0, 1)
           const eased = 1 - (1 - progress) ** 3
@@ -1414,7 +1428,7 @@ export default function KnowledgeGraph3D({
           object.position.lerpVectors(start, target, eased)
           object.scale.setScalar(0.58 + eased * 0.48 + Math.sin(progress * Math.PI) * 0.18)
         } else if (holding) {
-          object.scale.setScalar(0.92 + Math.sin(time * 22 + phase) * 0.035)
+          object.scale.setScalar(1 - holdProgress * 0.2 + Math.sin(time * (18 + holdProgress * 18) + phase) * (0.018 + holdProgress * 0.018))
         } else if (resolved) {
           object.scale.setScalar(0.94 + Math.sin(time * 0.9 + phase) * 0.012)
         } else if (clearing) {
@@ -1423,18 +1437,28 @@ export default function KnowledgeGraph3D({
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
             child.quaternion.copy(camera.quaternion)
-            if (child.userData.role === 'ring') child.scale.setScalar(holding ? 0.72 + Math.sin(time * 15 + phase) * 0.035 : 1 + Math.sin(time * 1.8 + phase) * 0.08)
-            if (child.userData.role === 'innerRing') child.scale.setScalar(holding ? 0.68 + Math.sin(time * 17 + phase) * 0.025 : 1 + Math.sin(time * 2.4 + phase) * 0.055)
-            if (child.userData.role === 'focusWave') child.scale.setScalar(holding ? 0.82 + Math.sin(time * 18 + phase) * 0.09 : 1.04 + Math.sin(time * 1.4 + phase) * 0.18)
+            if (child.userData.role === 'ring') child.scale.setScalar(holding ? 1 - holdProgress * 0.34 + Math.sin(time * (13 + holdProgress * 13) + phase) * 0.035 : 1 + Math.sin(time * 1.8 + phase) * 0.08)
+            if (child.userData.role === 'innerRing') child.scale.setScalar(holding ? 1 - holdProgress * 0.42 + Math.sin(time * (15 + holdProgress * 16) + phase) * 0.025 : 1 + Math.sin(time * 2.4 + phase) * 0.055)
+            if (child.userData.role === 'focusWave') child.scale.setScalar(holding ? 0.96 - holdProgress * 0.32 + Math.sin(time * 18 + phase) * 0.09 : 1.04 + Math.sin(time * 1.4 + phase) * 0.18)
             if (child.userData.role === 'resolvedRing') child.scale.setScalar(1 + Math.sin(time * 0.8 + phase) * 0.03)
-            if (child.userData.role === 'shockwave') child.scale.setScalar(1.2 + Math.sin(time * 1.2 + phase) * 0.18)
+            if (child.userData.role === 'shockwave') {
+              const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
+              child.scale.setScalar(0.45 + age * 2.5)
+            }
+            if (child.userData.role === 'lockArc') {
+              child.scale.setScalar(holding ? 1 - holdProgress * 0.36 : 1 + Math.sin(time * 1.35 + phase) * 0.06)
+              child.rotation.z += holding ? 0.016 : 0.003
+            }
             const material = child.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
             if ('opacity' in material && child.userData.role === 'shockwave') {
               const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
               material.opacity = Math.max(0, (0.44 + Math.sin(time * 1.5 + phase) * 0.08) * (1 - age / 1.1))
             }
-            if ('opacity' in material && child.userData.role === 'focusWave') material.opacity = (holding ? 0.4 : 0.28) + Math.sin(time * (holding ? 10 : 1.6) + phase) * 0.08
-            if ('emissiveIntensity' in material && child.userData.role === 'core' && holding) material.emissiveIntensity = 2.6 + Math.sin(time * 18 + phase) * 0.35
+            if ('opacity' in material && child.userData.role === 'focusWave') material.opacity = (holding ? 0.34 + holdProgress * 0.34 : 0.28) + Math.sin(time * (holding ? 10 : 1.6) + phase) * 0.08
+            if ('emissiveIntensity' in material && child.userData.role === 'core' && holding) {
+              material.emissiveIntensity = 2.2 + holdProgress * 2.2 + Math.sin(time * 18 + phase) * 0.35
+              child.scale.setScalar(1 - holdProgress * 0.3)
+            }
             if (clearing && 'opacity' in material) material.opacity *= Math.max(0, 1 - clearingProgress)
           }
           if (child instanceof THREE.Line && child.userData.role === 'deployTrail') {
@@ -1443,8 +1467,15 @@ export default function KnowledgeGraph3D({
               : 1
             ;(child.material as THREE.LineBasicMaterial).opacity = 0.56 * Math.max(0, 1 - progress)
           }
+          if (child instanceof THREE.Line && child.userData.role === 'burstStreak') {
+            const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
+            ;(child.material as THREE.LineBasicMaterial).opacity = Math.max(0, 0.5 * (1 - age / 0.62))
+          }
           if (child.userData.role === 'summonOrbit') {
-            child.rotation.z += child.userData.speed ?? 0.002
+            child.rotation.z += (child.userData.speed ?? 0.002) * (1 + holdProgress * 3.2)
+          }
+          if (child.userData.role === 'holdParticles') {
+            child.rotation.z += child.userData.speed ?? 0.012
           }
           if (child instanceof THREE.Sprite) {
             child.quaternion.copy(camera.quaternion)
@@ -1457,12 +1488,38 @@ export default function KnowledgeGraph3D({
               material.opacity = Math.max(0, (age < 1.55 ? 0.9 : 0.9 * (1 - (age - 1.55) / 0.85)) + Math.sin(time * 1.4 + phase) * 0.04)
             } else if (child.userData.role === 'resolvedLabel') {
               const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 9
-              const intro = THREE.MathUtils.clamp((age - 1.25) / 0.45, 0, 1)
+              const intro = THREE.MathUtils.clamp((age - 2.1) / 0.35, 0, 1)
               child.scale.set(child.userData.baseWidth ?? 0.92, child.userData.baseHeight ?? 0.46, 1)
               material.opacity = 0.76 * intro
             } else if (child.userData.role === 'holdingParticle') {
               child.position.multiplyScalar(0.985)
               material.opacity = 0.26 + Math.sin(time * 14 + phase) * 0.08
+            } else if (child.userData.role === 'holdParticle') {
+              const angle = (child.userData.angle ?? 0) + time * (1.2 + holdProgress * 3.2)
+              const radius = (child.userData.radius ?? 1) * (1 - holdProgress * 0.72)
+              child.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.82, 0.08)
+              material.opacity = 0.38 + holdProgress * 0.5 + Math.sin(time * 10 + phase) * 0.08
+              child.scale.setScalar((0.09 + holdProgress * 0.05) * (1 + Math.sin(time * 8 + phase) * 0.18))
+            } else if (child.userData.role === 'burstFlash') {
+              const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
+              child.scale.setScalar(1.2 + age * 4.8)
+              material.opacity = Math.max(0, 0.82 * (1 - age / 0.34))
+            } else if (child.userData.role === 'burstSpark') {
+              const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
+              const angle = child.userData.angle ?? 0
+              const travel = age * (child.userData.speed ?? 1.8)
+              const baseX = child.userData.baseX ?? child.position.x
+              const baseY = child.userData.baseY ?? child.position.y
+              child.position.set(baseX + Math.cos(angle) * travel, baseY + Math.sin(angle) * travel, 0.08)
+              material.opacity = Math.max(0, 0.62 * (1 - age / 0.78))
+            } else if (child.userData.role === 'corona') {
+              const baseScale = child.userData.baseScale ?? child.scale.x
+              const baseOpacity = child.userData.baseOpacity ?? 0.18
+              child.scale.setScalar(baseScale * (1 + Math.sin(time * 1.2 + phase) * 0.04))
+              material.opacity = Math.max(0.06, holding ? 0.34 + holdProgress * 0.38 : baseOpacity + Math.sin(time * 1.1 + phase) * 0.035)
+            } else if (child.userData.role === 'rimHaze' || child.userData.role === 'dustHaze' || child.userData.role === 'iceShard') {
+              const baseOpacity = child.userData.baseOpacity ?? 0.11
+              material.opacity = Math.max(0.04, baseOpacity + Math.sin(time * 1.4 + phase) * 0.015)
             } else {
               material.opacity = Math.max(material.opacity, 0.16 + Math.sin(time * 1.6 + phase) * 0.05)
             }
@@ -1474,6 +1531,20 @@ export default function KnowledgeGraph3D({
           }
         })
       })
+      const returnStarId = resultReturnStarIdRef.current
+      if (returnStarId) {
+        const mesh = resolvedSummonMeshesRef.current.get(returnStarId) ?? summonMeshesRef.current.get(returnStarId)
+        if (mesh) {
+          const world = new THREE.Vector3()
+          mesh.getWorldPosition(world)
+          const projected = world.clone().project(camera)
+          const x = (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth
+          const y = (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight
+          summonCallbacksRef.current.onSummonResultTargetChange?.({ x, y })
+        }
+      } else {
+        summonCallbacksRef.current.onSummonResultTargetChange?.(undefined)
+      }
       renderer.render(scene, camera)
     }
     animate()
@@ -1860,7 +1931,8 @@ export default function KnowledgeGraph3D({
       const palette = summonStarPalettes[Math.floor(visualSeed * summonStarPalettes.length) % summonStarPalettes.length]
       const phase = visualSeed * Math.PI * 12.8
       const variant = Math.floor(visualSeed * 11) % 5
-      const size = 0.37 + visualSeed * 0.08
+      const sizeTier = Math.floor(visualSeed * 17) % 3
+      const size = [0.34, 0.48, 0.62][sizeTier] + (visualSeed - 0.5) * 0.035
       const selected = star.id === selectedSummonStarId
       const armed = star.id === armedSummonStarId || star.status === 'armed'
       const holding = star.id === holdingSummonStarId
@@ -1874,7 +1946,7 @@ export default function KnowledgeGraph3D({
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 22, 14),
+        new THREE.SphereGeometry(size, variant === 1 ? 28 : 22, variant === 1 ? 18 : 14),
         new THREE.MeshStandardMaterial({
           color: coreColor,
           emissive: glowColor,
@@ -1886,6 +1958,63 @@ export default function KnowledgeGraph3D({
       )
       core.userData = { summonId: star.id, role: 'core' }
       root.add(core)
+      if (variant === 0) {
+        const corona = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: glowColor,
+          opacity: inactive ? 0.08 : holding ? 0.62 : selected ? 0.32 : 0.2,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        const coronaScale = size * (holding ? 5.2 : selected ? 4.3 : 3.6)
+        const coronaOpacity = inactive ? 0.08 : holding ? 0.62 : selected ? 0.32 : 0.2
+        corona.scale.setScalar(coronaScale)
+        corona.userData = { role: 'corona', baseScale: coronaScale, baseOpacity: coronaOpacity }
+        root.add(corona)
+      } else if (variant === 1) {
+        const rim = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: haloColor,
+          opacity: inactive ? 0.07 : selected ? 0.18 : 0.11,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        rim.position.set(size * 0.24, size * 0.08, -0.02)
+        rim.scale.setScalar(size * 2.05)
+        rim.userData = { role: 'rimHaze', baseOpacity: inactive ? 0.07 : selected ? 0.18 : 0.11 }
+        root.add(rim)
+      } else if (variant === 2) {
+        Array.from({ length: 3 }).forEach((_, chipIndex) => {
+          const chip = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: softDiscTexture,
+            color: palette.particle,
+            opacity: inactive ? 0.04 : 0.12,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }))
+          const angle = phase + chipIndex * 2.1
+          chip.position.set(Math.cos(angle) * size * 1.45, Math.sin(angle) * size * 1.18, 0.02)
+          chip.scale.setScalar(size * 0.38)
+          chip.userData = { role: 'iceShard', baseOpacity: inactive ? 0.04 : 0.12 }
+          root.add(chip)
+        })
+      } else if (variant === 4) {
+        const dust = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: palette.halo,
+          opacity: inactive ? 0.06 : 0.14,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        dust.position.set(Math.sin(phase) * size * 0.4, Math.cos(phase) * size * 0.26, -0.02)
+        dust.scale.set(size * 3.1, size * 1.7, 1)
+        dust.userData = { role: 'dustHaze', baseOpacity: inactive ? 0.06 : 0.14 }
+        root.add(dust)
+      }
       if (variant !== 0 || selected || armed || holding || inactive) {
         const ringRadius = inactive ? size + 0.18 : holding ? size + 0.1 : size + 0.24
         const ring = new THREE.Mesh(
@@ -1957,6 +2086,32 @@ export default function KnowledgeGraph3D({
         )
         focusWave.userData = { role: 'focusWave' }
         root.add(focusWave)
+        const lockArc = new THREE.Mesh(
+          new THREE.RingGeometry(size + 0.42, size + 0.455, 72, 1, phase, Math.PI * 1.28),
+          makeHaloMaterial(holding ? 0xfff0c8 : selected ? 0xdff7ff : 0xffe2aa, holding ? 0.62 : selected ? 0.36 : 0.3),
+        )
+        lockArc.userData = { role: 'lockArc' }
+        root.add(lockArc)
+      }
+      if (holding) {
+        const holdOrbit = new THREE.Object3D()
+        holdOrbit.userData = { role: 'holdParticles', speed: 0.012 }
+        Array.from({ length: 9 }).forEach((_, particleIndex) => {
+          const particle = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: softDiscTexture,
+            color: particleIndex % 3 === 0 ? 0xfff3ce : palette.particle,
+            opacity: 0.5,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }))
+          const angle = phase + particleIndex * 0.698
+          particle.position.set(Math.cos(angle) * (size + 0.8), Math.sin(angle) * (size + 0.62), 0.04)
+          particle.scale.setScalar(0.09 + (particleIndex % 3) * 0.018)
+          particle.userData = { role: 'holdParticle', angle, radius: size + 0.75 + (particleIndex % 3) * 0.12 }
+          holdOrbit.add(particle)
+        })
+        root.add(holdOrbit)
       }
       if (inactive) {
         const emberRing = new THREE.Mesh(
@@ -1967,12 +2122,56 @@ export default function KnowledgeGraph3D({
         emberRing.rotation.z = -phase * 0.4
         root.add(emberRing)
         if (resolved && resolvedAge < 1.2) {
+          const flash = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: softDiscTexture,
+            color: 0xfff2cb,
+            opacity: 0.82,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }))
+          flash.scale.setScalar(size * 6)
+          flash.userData = { role: 'burstFlash', createdAt: star.resolvedAt }
+          root.add(flash)
           const shockwave = new THREE.Mesh(
             new THREE.RingGeometry(0.68, 0.88, 80),
             makeHaloMaterial(0xffdc92, 0.58),
           )
           shockwave.userData = { role: 'shockwave', createdAt: star.resolvedAt }
           root.add(shockwave)
+          Array.from({ length: 14 }).forEach((_, burstIndex) => {
+            const angle = phase + burstIndex * 0.448
+            const distance = size * (1.15 + (burstIndex % 5) * 0.18)
+            const spark = new THREE.Sprite(new THREE.SpriteMaterial({
+              map: softDiscTexture,
+              color: burstIndex % 4 === 0 ? 0xffe2aa : palette.particle,
+              opacity: 0.54,
+              transparent: true,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            }))
+            const baseX = Math.cos(angle) * distance
+            const baseY = Math.sin(angle) * distance
+            spark.position.set(baseX, baseY, 0.08)
+            spark.scale.setScalar(0.12 + (burstIndex % 4) * 0.025)
+            spark.userData = { role: 'burstSpark', createdAt: star.resolvedAt, angle, speed: 1.7 + (burstIndex % 5) * 0.22, baseX, baseY }
+            root.add(spark)
+            if (burstIndex % 2 === 0) {
+              const streakGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(Math.cos(angle) * distance * 0.72, Math.sin(angle) * distance * 0.72, 0.06),
+                new THREE.Vector3(Math.cos(angle) * distance * 1.42, Math.sin(angle) * distance * 1.42, 0.06),
+              ])
+              const streak = new THREE.Line(streakGeometry, new THREE.LineBasicMaterial({
+                color: burstIndex % 4 === 0 ? 0xffe2aa : palette.particle,
+                transparent: true,
+                opacity: 0.42,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+              }))
+              streak.userData = { role: 'burstStreak', createdAt: star.resolvedAt }
+              root.add(streak)
+            }
+          })
         }
         const label = new THREE.Sprite(new THREE.SpriteMaterial({
           map: createNodeLabelTexture(String(star.number)),
@@ -1981,9 +2180,11 @@ export default function KnowledgeGraph3D({
           depthWrite: false,
           depthTest: false,
         }))
-        label.position.set(0, size + 0.42, 0.35)
-        label.scale.set(0.92, 0.46, 1)
-        label.userData = { role: 'resolvedLabel', createdAt: star.resolvedAt, baseWidth: 0.92, baseHeight: 0.46 }
+        const labelWidth = Math.max(0.62, size * 1.28)
+        const labelHeight = Math.max(0.31, size * 0.64)
+        label.position.set(0, 0, size + 0.04)
+        label.scale.set(labelWidth, labelHeight, 1)
+        label.userData = { role: 'resolvedLabel', createdAt: star.resolvedAt, baseWidth: labelWidth, baseHeight: labelHeight }
         root.add(label)
       }
       if (deploying) {
@@ -2129,6 +2330,7 @@ export default function KnowledgeGraph3D({
       active: false,
       pointerId: -1,
       summonId: undefined,
+      startedAt: 0,
       startX: 0,
       startY: 0,
       timeout: undefined,
@@ -2389,6 +2591,7 @@ export default function KnowledgeGraph3D({
               active: true,
               pointerId: event.pointerId,
               summonId,
+              startedAt: performance.now() * 0.001,
               startX: event.clientX,
               startY: event.clientY,
               timeout: window.setTimeout(() => {
@@ -2401,6 +2604,7 @@ export default function KnowledgeGraph3D({
                   active: false,
                   pointerId: -1,
                   summonId: undefined,
+                  startedAt: 0,
                   startX: 0,
                   startY: 0,
                   timeout: undefined,

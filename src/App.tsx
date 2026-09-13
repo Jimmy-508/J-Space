@@ -301,6 +301,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [blockedExternalUrl, setBlockedExternalUrl] = useState<string>()
   const [customNebulaOpen, setCustomNebulaOpen] = useState(false)
+  const [nodeHudExpanded, setNodeHudExpanded] = useState(false)
   const [gestureEnabled, setGestureEnabled] = useState(false)
   const [hands, setHands] = useState<TrackedHand[]>([])
   const [gestureStatus, setGestureStatus] = useState<GestureStatus>(() => emptyGestureStatus())
@@ -316,7 +317,8 @@ export default function App() {
   const [armedSummonStarId, setArmedSummonStarId] = useState<string>()
   const [holdingSummonStarId, setHoldingSummonStarId] = useState<string>()
   const [summonResult, setSummonResult] = useState<number>()
-  const [summonResultOverlay, setSummonResultOverlay] = useState<{ value: number; nonce: number }>()
+  const [summonResultOverlay, setSummonResultOverlay] = useState<{ value: number; starId: string; nonce: number }>()
+  const [summonResultTarget, setSummonResultTarget] = useState<{ x: number; y: number }>()
   const [clearingResolved, setClearingResolved] = useState(false)
   const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
   const [viewportSize, setViewportSize] = useState(() => ({
@@ -489,6 +491,7 @@ export default function App() {
     setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
     setSummonResultOverlay(undefined)
+    setSummonResultTarget(undefined)
     setClearingResolved(false)
     setSummonStage('deploying')
     audioManagerRef.current?.playSelect()
@@ -510,6 +513,7 @@ export default function App() {
     setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
     setSummonResultOverlay(undefined)
+    setSummonResultTarget(undefined)
     setClearingResolved(false)
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
@@ -528,6 +532,7 @@ export default function App() {
     setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
     setSummonResultOverlay(undefined)
+    setSummonResultTarget(undefined)
     setClearingResolved(false)
     audioManagerRef.current?.playSelect()
   }, [commitSummonMaxNumber])
@@ -548,6 +553,7 @@ export default function App() {
       setSummonStars([])
       setSummonResult(undefined)
       setSummonResultOverlay(undefined)
+      setSummonResultTarget(undefined)
     }, 820)
   }, [])
 
@@ -598,7 +604,7 @@ export default function App() {
     const star = summonStars.find((item) => item.id === id && item.status !== 'resolved' && item.status !== 'clearing')
     if (!star) return
     setSummonResult(star.number)
-    setSummonResultOverlay({ value: star.number, nonce: performance.now() })
+    setSummonResultOverlay({ value: star.number, starId: id, nonce: performance.now() })
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
@@ -1045,18 +1051,28 @@ export default function App() {
         selectedSummonStarId={selectedSummonStarId}
         armedSummonStarId={armedSummonStarId}
         holdingSummonStarId={holdingSummonStarId}
+        resultReturnStarId={summonResultOverlay?.starId}
         summonedResult={summonResult}
         hands={hands}
         onSummonStarSelect={selectSummonStar}
         onSummonStarArm={armSummonStar}
         onSummonStarHoldChange={holdSummonStar}
         onSummonStarTrigger={triggerSummonStar}
+        onSummonResultTargetChange={setSummonResultTarget}
       />
-      <div className={`summon-transition-title ${isTransitioning ? 'visible' : ''}`} aria-hidden={!isTransitioning}>
-        {appMode === 'transition-to-universe' ? 'J-Space' : '召喚'}
+      <div className={`summon-transition-title ${appMode === 'transition-to-summon' ? 'visible' : ''}`} aria-hidden={appMode !== 'transition-to-summon'}>
+        召喚
       </div>
       {isSummonActive && summonResultOverlay ? (
-        <div key={summonResultOverlay.nonce} className="summon-result-overlay" aria-live="polite">
+        <div
+          key={summonResultOverlay.nonce}
+          className="summon-result-overlay"
+          aria-live="polite"
+          style={{
+            '--return-x': `${summonResultTarget?.x ?? viewportSize.width / 2}px`,
+            '--return-y': `${summonResultTarget?.y ?? viewportSize.height / 2}px`,
+          } as CSSProperties}
+        >
           {summonResultOverlay.value}
         </div>
       ) : null}
@@ -1317,7 +1333,7 @@ export default function App() {
         stage={summonStage}
         maxNumberInput={summonMaxNumberInput}
         excludedInput={summonExcludedInput}
-        remaining={summonStars.filter((star) => star.status !== 'resolved').length}
+        remaining={summonStars.filter((star) => star.status === 'available' || star.status === 'selected' || star.status === 'armed').length}
         result={summonResult}
         selectedStar={summonStars.find((star) => star.id === selectedSummonStarId)}
         armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
@@ -1371,6 +1387,8 @@ export default function App() {
           data={renderedData}
           isAdmin={isAdmin && !isSystemNode(selected)}
           hasActionBar={isAdmin && !isSystemNode(selected)}
+          expanded={nodeHudExpanded}
+          onExpandedChange={setNodeHudExpanded}
           onEdit={setEditing}
           onDelete={async (node) => {
             if (confirm(`確定要刪除「${node.title}」嗎？\n\n與此節點相關的連線也會一併刪除。`)) {
