@@ -65,6 +65,8 @@ type AppMode = 'universe' | 'transition-to-summon' | 'summon' | 'transition-to-u
 type TransitionTitle = 'summon' | 'universe' | null
 type SummonStage = 'setup' | 'deploying' | 'drawing'
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
+const SUMMON_CHARGE_SOUND_URL = `${import.meta.env.BASE_URL}audio/05_burst_charge.wav`
+const SUMMON_SHATTER_SOUND_URL = `${import.meta.env.BASE_URL}audio/04_compound_shatter.wav`
 const SETTINGS_KEY = 'j-space-settings'
 const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
 const GESTURE_UI_DWELL_MS = 720
@@ -310,6 +312,7 @@ function HandEnergyOverlay({
       })}
       {summonEnergyHands.map((hand, handIndex) => {
         const target = summonEnergyTarget!
+        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320))
         const dx = hand.point.x - target.x
         const dy = hand.point.y - target.y
         const length = Math.hypot(dx, dy)
@@ -340,7 +343,7 @@ function HandEnergyOverlay({
               <ellipse className="summon-source-tear tear-a" cx="24" cy="0" rx={38 + power * 18} ry={15 + power * 7} />
               <ellipse className="summon-source-tear tear-b" cx="48" cy="-11" rx={25 + power * 16} ry={8 + power * 5} />
               <ellipse className="summon-source-tear tear-c" cx="42" cy="13" rx={30 + power * 15} ry={9 + power * 6} />
-              {Array.from({ length: 18 }).map((_, index) => {
+              {Array.from({ length: 26 }).map((_, index) => {
                 const angle = index * 0.75 + summonFlowTime * (2.2 + power * 3)
                 const radius = 25 + (index % 6) * 7
                 return (
@@ -354,14 +357,14 @@ function HandEnergyOverlay({
                 )
               })}
             </g>
-            {Array.from({ length: 64 }).map((_, index) => {
-              const speed = 0.18 + (index % 9) * 0.032 + power * 0.12
-              const t = (summonFlowTime * speed + index * 0.061 + handIndex * 0.13) % 1
+            {Array.from({ length: 84 }).map((_, index) => {
+              const speed = 0.24 + (index % 11) * 0.037 + power * 0.18
+              const t = (summonFlowTime * speed + index * 0.047 + handIndex * 0.13) % 1
               const point = sample(t)
-              const next = sample(Math.min(1, t + 0.028 + t * 0.035), index)
-              const stretch = 0.55 + t * 2.4
+              const next = sample(Math.min(1, t + 0.03 + t * 0.055), index)
+              const stretch = 0.8 + t * 4.1
               const brightness = 0.36 + t * 0.58 + power * 0.2
-              const width = Math.max(1.2, 2.4 + t * 5.8 - (index % 4) * 0.45)
+              const width = Math.max(1.2, 2.1 + t * 7.6 - (index % 4) * 0.45)
               return (
                 <line
                   key={index}
@@ -375,8 +378,8 @@ function HandEnergyOverlay({
                 />
               )
             })}
-            {Array.from({ length: 42 }).map((_, index) => {
-              const t = (summonFlowTime * (0.26 + (index % 7) * 0.04 + power * 0.16) + index * 0.089) % 1
+            {Array.from({ length: 58 }).map((_, index) => {
+              const t = (summonFlowTime * (0.32 + (index % 9) * 0.046 + power * 0.2) + index * 0.071) % 1
               const { x, y } = sample(t, index)
               return (
                 <circle
@@ -389,18 +392,20 @@ function HandEnergyOverlay({
                 />
               )
             })}
-            <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
-              <circle className="summon-singularity-gravity gravity-a" r={112 + power * 28} />
-              <circle className="summon-singularity-gravity gravity-b" r={78 + power * 24} />
-              <path className="summon-accretion accretion-a" d="M -122 -12 C -82 -54, -12 -46, 42 -22 S 118 8, 146 -22" />
-              <path className="summon-accretion accretion-b" d="M -136 18 C -86 54, -22 47, 36 18 S 110 -12, 138 12" />
-              <path className="summon-accretion accretion-c" d="M -92 -31 C -48 -12, 4 -7, 78 -29" />
-              <path className="summon-accretion accretion-d" d="M -72 35 C -22 14, 34 10, 102 32" />
-              <ellipse className="summon-singularity-lens" rx={128 + power * 24} ry={34 + power * 9} />
-              <circle className="summon-singularity-core" r={46 + power * 8} />
-              <circle className="summon-singularity-edge" r={54 + power * 10} />
-              {Array.from({ length: 28 }).map((_, index) => {
-                const angle = summonFlowTime * (3.4 + power * 5.2) + index * 0.58
+            <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
+              <ellipse className="summon-singularity-gravity gravity-a" rx={132 + power * 28} ry={92 + power * 18} />
+              <ellipse className="summon-singularity-gravity gravity-b" rx={102 + power * 26} ry={66 + power * 15} />
+              <path className="summon-space-warp warp-a" d="M -174 -76 C -88 -132, 54 -116, 154 -38 C 70 -54, -20 -38, -112 -8 C -166 -1, -205 -32, -174 -76 Z" />
+              <path className="summon-space-warp warp-b" d="M -172 64 C -90 124, 46 116, 168 36 C 86 58, -8 46, -112 14 C -170 8, -210 31, -172 64 Z" />
+              <path className="summon-accretion accretion-a" d="M -162 -23 C -108 -72, -14 -61, 55 -27 S 146 13, 188 -36" />
+              <path className="summon-accretion accretion-b" d="M -180 28 C -112 74, -24 65, 50 28 S 143 -17, 184 20" />
+              <path className="summon-accretion accretion-c" d="M -132 -48 C -70 -20, 15 -9, 124 -43" />
+              <path className="summon-accretion accretion-d" d="M -118 52 C -38 21, 47 19, 144 48" />
+              <path className="summon-accretion accretion-e" d="M -152 2 C -72 -22, 28 30, 164 -3" />
+              <ellipse className="summon-singularity-lens" rx={164 + power * 34} ry={42 + power * 10} />
+              <ellipse className="summon-singularity-core" rx={68 + power * 10} ry={58 + power * 8} />
+              {Array.from({ length: 46 }).map((_, index) => {
+                const angle = summonFlowTime * (4.4 + power * 6.8) + index * 0.43
                 const radius = 58 + ((index * 17) % 76) * (1 - power * 0.18)
                 return (
                   <circle
@@ -417,17 +422,17 @@ function HandEnergyOverlay({
         )
       })}
       {collapseHands.map((hand) => {
+        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320))
         const dx = hand.point.x - hand.target.x
         const dy = hand.point.y - hand.target.y
         return (
           <g key={`summon-collapse-${hand.id}-${hand.nonce}`} className="summon-absorption collapse">
-            <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
-              <circle className="summon-singularity-gravity gravity-a" r="132" />
-              <ellipse className="summon-singularity-lens" rx="152" ry="42" />
-              <path className="summon-accretion accretion-a" d="M -126 -18 C -80 -58, -10 -50, 46 -22 S 124 10, 150 -26" />
-              <path className="summon-accretion accretion-b" d="M -142 22 C -82 62, -24 48, 42 18 S 118 -12, 148 15" />
-              <circle className="summon-singularity-core" r="58" />
-              <circle className="summon-singularity-edge" r="68" />
+            <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
+              <ellipse className="summon-singularity-gravity gravity-a" rx="170" ry="104" />
+              <ellipse className="summon-singularity-lens" rx="190" ry="48" />
+              <path className="summon-accretion accretion-a" d="M -166 -26 C -100 -74, -12 -62, 54 -24 S 142 10, 184 -34" />
+              <path className="summon-accretion accretion-b" d="M -182 30 C -104 78, -28 62, 56 24 S 148 -18, 188 18" />
+              <ellipse className="summon-singularity-core" rx="78" ry="64" />
             </g>
           </g>
         )
@@ -535,6 +540,7 @@ export default function App() {
   const summonTransitionTimerRef = useRef<number | undefined>(undefined)
   const summonExitTimerRef = useRef<number | undefined>(undefined)
   const summonDeployTimerRef = useRef<number | undefined>(undefined)
+  const summonChargeAudioRef = useRef<string | undefined>(undefined)
   const universeUiSnapshotRef = useRef<{
     selectedId?: string
     focusId?: string
@@ -745,6 +751,7 @@ export default function App() {
     setSummonResultOverlay(undefined)
     setSummonResultTarget(undefined)
     setClearingResolved(false)
+    summonChargeAudioRef.current = undefined
     setSummonStage('deploying')
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
@@ -767,6 +774,7 @@ export default function App() {
     setSummonResultOverlay(undefined)
     setSummonResultTarget(undefined)
     setClearingResolved(false)
+    summonChargeAudioRef.current = undefined
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
   }, [summonExcludedInput, summonMaxNumber])
@@ -786,6 +794,7 @@ export default function App() {
     setSummonResultOverlay(undefined)
     setSummonResultTarget(undefined)
     setClearingResolved(false)
+    summonChargeAudioRef.current = undefined
     audioManagerRef.current?.playSelect()
   }, [commitSummonMaxNumber])
 
@@ -809,6 +818,7 @@ export default function App() {
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
     setClearingResolved(false)
+    summonChargeAudioRef.current = undefined
     summonExitTimerRef.current = window.setTimeout(() => {
       summonExitTimerRef.current = undefined
       setAppMode('universe')
@@ -828,6 +838,7 @@ export default function App() {
     setSelectedSummonStarId(deselecting ? undefined : id)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
+    summonChargeAudioRef.current = undefined
     setSummonStars((current) => current.map((star) => {
       if (star.status === 'resolved' || star.status === 'clearing') return star
       if (star.id === id) return { ...star, status: deselecting ? 'available' : 'selected' }
@@ -847,6 +858,12 @@ export default function App() {
   }, [armedSummonStarId, selectedSummonStarId])
 
   const holdSummonStar = useCallback((id?: string) => {
+    if (id && summonChargeAudioRef.current !== id) {
+      summonChargeAudioRef.current = id
+      audioManagerRef.current?.playSummonCharge()
+    } else if (!id) {
+      summonChargeAudioRef.current = undefined
+    }
     setHoldingSummonStarId(id)
   }, [])
 
@@ -868,6 +885,8 @@ export default function App() {
     if (id !== armedSummonStarId && id !== selectedSummonStarId) return
     const star = summonStars.find((item) => item.id === id && item.status !== 'resolved' && item.status !== 'clearing')
     if (!star) return
+    summonChargeAudioRef.current = undefined
+    audioManagerRef.current?.playSummonShatter()
     setSummonResult(star.number)
     setSummonResultOverlay({ value: star.number, starId: id, nonce: performance.now() })
     setSelectedSummonStarId(undefined)
@@ -876,7 +895,6 @@ export default function App() {
     setSummonStars((current) => current.map((item) => (
       item.id === id ? { ...item, status: 'resolved', resolvedAt: performance.now() } : item
     )))
-    audioManagerRef.current?.playSelect()
   }, [armedSummonStarId, selectedSummonStarId, summonStars])
   const clearGestureUiDwell = useCallback(() => {
     gestureUiDwellRef.current.element?.classList.remove('gesture-dwell-hover')
@@ -1048,7 +1066,10 @@ export default function App() {
 
   useEffect(() => {
     const audioManager = new AudioManager()
-    audioManager.init(SELECT_SOUND_URL)
+    audioManager.init(SELECT_SOUND_URL, {
+      summonCharge: SUMMON_CHARGE_SOUND_URL,
+      summonShatter: SUMMON_SHATTER_SOUND_URL,
+    })
     audioManager.setSfxVolume(settings.sfxVolume / 100)
     audioManager.setMusicVolume(settings.musicVolume / 100)
     audioManagerRef.current = audioManager
