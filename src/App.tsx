@@ -180,6 +180,8 @@ function HandEnergyOverlay({
   viewportSize,
   uiDwellActive,
   uiDwellProgress,
+  summonEnergyTarget,
+  summonEnergyActive,
 }: {
   hands: TrackedHand[]
   status: GestureStatus
@@ -187,6 +189,8 @@ function HandEnergyOverlay({
   viewportSize: { width: number; height: number }
   uiDwellActive: boolean
   uiDwellProgress: number
+  summonEnergyTarget?: ScreenPoint
+  summonEnergyActive?: boolean
 }) {
   const cursorTrailsRef = useRef(new Map<string, ScreenPoint[]>())
   if (!status.enabled || status.cameraStatus !== 'ready') {
@@ -215,6 +219,16 @@ function HandEnergyOverlay({
     cursorTrailsRef.current.set(id, trail)
     return { id, point: fingertip, trail: [...trail] }
   }) : []
+  const summonEnergyHands = summonEnergyActive && summonEnergyTarget
+    ? hands.filter((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex').map((hand) => {
+      const palm = hand.landmarks[9] ?? hand.landmarks[0]
+      return {
+        id: hand.id,
+        point: normalizedToCoverViewport(palm, videoSize, viewportSize, true),
+      }
+    })
+    : []
+
   return (
     <svg
       className="hand-energy-layer"
@@ -238,6 +252,27 @@ function HandEnergyOverlay({
             {points.map((point, index) => (
               <circle key={index} cx={point.x} cy={point.y} r={active ? 4.4 : 3.1} />
             ))}
+          </g>
+        )
+      })}
+      {summonEnergyHands.map((hand, handIndex) => {
+        const dx = summonEnergyTarget!.x - hand.point.x
+        const dy = summonEnergyTarget!.y - hand.point.y
+        const length = Math.hypot(dx, dy)
+        const nx = length ? -dy / length : 0
+        const ny = length ? dx / length : 0
+        const bend = 26 + handIndex * 12
+        const midX = (hand.point.x + summonEnergyTarget!.x) / 2 + nx * bend
+        const midY = (hand.point.y + summonEnergyTarget!.y) / 2 + ny * bend
+        return (
+          <g key={`summon-flow-${hand.id}`} className="hand-summon-flow">
+            <path d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
+            {[0.2, 0.38, 0.56, 0.74, 0.9].map((offset, index) => {
+              const t = (offset + handIndex * 0.08) % 1
+              const x = (1 - t) * (1 - t) * hand.point.x + 2 * (1 - t) * t * midX + t * t * summonEnergyTarget!.x
+              const y = (1 - t) * (1 - t) * hand.point.y + 2 * (1 - t) * t * midY + t * t * summonEnergyTarget!.y
+              return <circle key={index} className="hand-summon-flow-particle" cx={x} cy={y} r={Math.max(2.2, 6.2 - index * 0.58)} />
+            })}
           </g>
         )
       })}
@@ -871,9 +906,14 @@ export default function App() {
 
   useEffect(() => {
     if (!summonResultOverlay) return
-    const timer = window.setTimeout(() => setSummonResultOverlay(undefined), 2400)
+    const timer = window.setTimeout(() => setSummonResultOverlay(undefined), 2850)
     return () => window.clearTimeout(timer)
   }, [summonResultOverlay])
+
+  useEffect(() => {
+    if (!isSummonActive || (!holdingSummonStarId && !summonResultOverlay)) return
+    resetIdle()
+  }, [holdingSummonStarId, isSummonActive, resetIdle, summonResultOverlay])
 
   useEffect(() => {
     const handleOrientationSignal = () => {
@@ -1013,7 +1053,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${holdingSummonStarId || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}
@@ -1051,7 +1091,7 @@ export default function App() {
         selectedSummonStarId={selectedSummonStarId}
         armedSummonStarId={armedSummonStarId}
         holdingSummonStarId={holdingSummonStarId}
-        resultReturnStarId={summonResultOverlay?.starId}
+        resultReturnStarId={summonResultOverlay?.starId ?? holdingSummonStarId ?? armedSummonStarId ?? selectedSummonStarId}
         summonedResult={summonResult}
         hands={hands}
         onSummonStarSelect={selectSummonStar}
@@ -1060,8 +1100,11 @@ export default function App() {
         onSummonStarTrigger={triggerSummonStar}
         onSummonResultTargetChange={setSummonResultTarget}
       />
-      <div className={`summon-transition-title ${appMode === 'transition-to-summon' ? 'visible' : ''}`} aria-hidden={appMode !== 'transition-to-summon'}>
-        召喚
+      <div
+        className={`summon-transition-title ${appMode === 'transition-to-summon' || appMode === 'transition-to-universe' ? 'visible' : ''}`}
+        aria-hidden={appMode !== 'transition-to-summon' && appMode !== 'transition-to-universe'}
+      >
+        {appMode === 'transition-to-universe' ? 'J-Space' : '召喚'}
       </div>
       {isSummonActive && summonResultOverlay ? (
         <div
@@ -1091,6 +1134,8 @@ export default function App() {
         viewportSize={viewportSize}
         uiDwellActive={gestureUiDwell.active}
         uiDwellProgress={gestureUiDwell.progress}
+        summonEnergyTarget={summonResultTarget}
+        summonEnergyActive={isSummonActive && !!holdingSummonStarId && hands.some((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex')}
       />
       <header className="top-bar">
         <div className="title-panel">
@@ -1335,7 +1380,6 @@ export default function App() {
         excludedInput={summonExcludedInput}
         remaining={summonStars.filter((star) => star.status === 'available' || star.status === 'selected' || star.status === 'armed').length}
         result={summonResult}
-        selectedStar={summonStars.find((star) => star.id === selectedSummonStarId)}
         armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
         canClearResolved={summonStars.some((star) => star.status === 'resolved' || star.status === 'clearing')}
         clearingResolved={clearingResolved}

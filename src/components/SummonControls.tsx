@@ -8,7 +8,6 @@ type Props = {
   remaining: number
   result?: number
   armedStar?: SummonStar
-  selectedStar?: SummonStar
   canClearResolved: boolean
   clearingResolved: boolean
   onMaxNumberInputChange: (value: string) => void
@@ -29,7 +28,6 @@ export default function SummonControls({
   remaining,
   result,
   armedStar,
-  selectedStar,
   canClearResolved,
   clearingResolved,
   onMaxNumberInputChange,
@@ -90,7 +88,7 @@ export default function SummonControls({
         <>
           <strong>召喚</strong>
           <span>剩餘：{remaining}</span>
-          {armedStar ? <span>已啟動</span> : selectedStar ? <span>已選取</span> : null}
+          {armedStar ? <span>已啟動</span> : null}
           {result ? <span className="summon-result-chip">已召喚：{result}</span> : null}
           <button type="button" data-gesture-clickable="true" disabled={!canClearResolved || clearingResolved} onClick={onClearResolved}>清場</button>
           <button type="button" data-gesture-clickable="true" onClick={onReset}>重置</button>

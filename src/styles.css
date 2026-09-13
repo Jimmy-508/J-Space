@@ -701,6 +701,7 @@ button:disabled {
   box-shadow: var(--space-glass-shadow), inset 0 0 24px rgba(146, 184, 255, 0.08);
   -webkit-backdrop-filter: blur(20px) saturate(145%);
   backdrop-filter: blur(20px) saturate(145%);
+  transition: opacity 0.34s ease, transform 0.34s ease, filter 0.34s ease;
 }
 
 .summon-panel strong {
@@ -762,9 +763,9 @@ button:disabled {
   transform: translate(calc(50vw - 50%), calc(50dvh - 50%));
   min-width: 1.6em;
   color: rgba(255, 246, 218, 0.96);
-  font-size: clamp(7rem, 64vmin, 22rem);
+  font-size: clamp(10rem, 88vmin, 30rem);
   font-weight: 800;
-  line-height: 0.9;
+  line-height: 0.82;
   text-align: center;
   text-shadow: 0 0 28px rgba(242, 201, 109, 0.62), 0 0 76px rgba(166, 212, 255, 0.34);
   pointer-events: none;
@@ -826,6 +827,42 @@ button:disabled {
 
 .hand-energy circle {
   fill: rgba(248, 221, 156, 0.68);
+}
+
+.hand-summon-flow {
+  filter: drop-shadow(0 0 12px rgba(120, 205, 255, 0.46)) drop-shadow(0 0 24px rgba(255, 215, 145, 0.28));
+}
+
+.hand-summon-flow path {
+  fill: none;
+  stroke: rgba(172, 226, 255, 0.62);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-dasharray: 0.18 0.12;
+  animation: hand-summon-flow 0.62s linear infinite;
+  vector-effect: non-scaling-stroke;
+}
+
+.hand-summon-flow-particle {
+  fill: rgba(255, 237, 185, 0.9);
+  animation: hand-summon-particle 0.56s ease-in-out infinite alternate;
+}
+
+@keyframes hand-summon-flow {
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
+@keyframes hand-summon-particle {
+  from {
+    opacity: 0.58;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.18);
+  }
 }
 
 .hand-energy.active line,
@@ -1662,7 +1699,8 @@ textarea {
 .immersive .settings-panel,
 .immersive .viewer-toolbar,
 .immersive .viewer-status,
-.immersive .modal-backdrop {
+.immersive .modal-backdrop,
+.immersive.summon-active:not(.summon-critical-ui-visible) .summon-panel {
   opacity: 0;
   transform: translateY(-8px);
   filter: blur(2px);
@@ -1675,4 +1713,8 @@ textarea {
 
 .immersive .node-drawer {
   transform: translateY(10px);
+}
+
+.immersive.summon-active:not(.summon-critical-ui-visible) .summon-panel {
+  transform: translate(-50%, 10px);
 }
