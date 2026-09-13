@@ -362,15 +362,17 @@ function HandEnergyOverlay({
               <path className="summon-lensed-disk lens-lower" d="M -112 8 C -91 72, -50 102, 2 103 C 61 104, 100 70, 116 8" />
               <path className="summon-accretion lens-upper-hot" d="M -92 5 C -78 -48, -42 -79, 4 -81 C 52 -83, 84 -47, 96 5" />
               <path className="summon-accretion lens-lower-hot" d="M -86 9 C -70 51, -36 74, 8 75 C 54 76, 82 48, 92 9" />
-              <path className="summon-photon-flow flow-a" d="M -108 1 C -96 -60, -53 -98, -2 -100 C 56 -102, 99 -58, 112 1" />
-              <path className="summon-photon-flow flow-b" d="M -116 2 C -101 -67, -48 -111, 12 -108 C 70 -104, 108 -61, 121 -2" />
-              <path className="summon-photon-flow flow-c" d="M -106 9 C -88 64, -42 93, 9 93 C 60 93, 96 59, 109 9" />
-              <path className="summon-photon-flow flow-d" d="M -154 -3 C -111 -13, -75 -13, -34 -5 M 36 -4 C 81 5, 116 5, 156 -5" />
-              <path className="summon-photon-flow flow-e" d="M -150 7 C -109 2, -74 4, -36 10 M 39 10 C 82 16, 118 13, 151 4" />
-              <path className="summon-photon-flow flow-f" d="M -95 -7 C -81 -48, -42 -79, 5 -80 C 51 -81, 84 -52, 96 -7" />
-              <path className="summon-photon-flow flow-g" d="M -97 15 C -78 48, -40 76, 8 76 C 52 76, 84 50, 98 15" />
-              <path className="summon-photon-flow flow-h" d="M -138 -2 C -100 -8, -67 -7, -36 -2 M 36 0 C 70 6, 103 5, 139 -3" />
-              <path className="summon-photon-flow flow-i" d="M -134 9 C -97 6, -64 8, -34 12 M 36 12 C 70 16, 104 13, 135 8" />
+              <path className="summon-event-halo halo-a" d="M -78 -54 C -56 -82, -12 -91, 30 -78 C 70 -66, 88 -29, 80 14 C 70 60, 32 83, -13 78 C -58 72, -87 41, -89 -5 C -90 -25, -86 -42, -78 -54 Z" />
+              <path className="summon-event-halo halo-b" d="M -69 -47 C -47 -72, -10 -80, 27 -69 C 61 -58, 77 -25, 70 11 C 61 49, 27 70, -10 67 C -49 63, -76 36, -77 -4 C -78 -22, -75 -36, -69 -47 Z" />
+              <path className="summon-photon-flow flow-a" d="M -86 0 C -78 -48, -42 -78, -2 -80 C 44 -82, 78 -47, 88 0" />
+              <path className="summon-photon-flow flow-b" d="M -93 1 C -83 -53, -38 -87, 10 -86 C 56 -84, 86 -50, 96 -1" />
+              <path className="summon-photon-flow flow-c" d="M -84 8 C -70 50, -36 74, 8 74 C 51 74, 78 48, 88 8" />
+              <path className="summon-photon-flow flow-d" d="M -106 -3 C -78 -8, -55 -8, -31 -4 M 33 -3 C 60 3, 82 3, 108 -4" />
+              <path className="summon-photon-flow flow-e" d="M -102 7 C -76 3, -53 4, -31 8 M 33 8 C 60 12, 83 10, 103 5" />
+              <path className="summon-photon-flow flow-f" d="M -75 -6 C -65 -39, -34 -65, 4 -66 C 42 -67, 67 -43, 77 -6" />
+              <path className="summon-photon-flow flow-g" d="M -76 14 C -62 39, -32 62, 7 63 C 43 63, 68 42, 78 14" />
+              <path className="summon-photon-flow flow-h" d="M -96 -1 C -70 -6, -51 -6, -30 -2 M 31 0 C 52 4, 72 4, 98 -2" />
+              <path className="summon-photon-flow flow-i" d="M -93 9 C -69 6, -49 7, -29 11 M 31 11 C 53 14, 73 12, 94 7" />
               <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>

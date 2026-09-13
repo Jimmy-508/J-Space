@@ -769,8 +769,8 @@ button:disabled {
 }
 
 .summon-panel input {
-  width: 69px;
-  min-width: 59px;
+  width: 55px;
+  min-width: 47px;
   min-height: 32px;
   border-radius: 999px;
   padding: 0.25rem 0.56rem;
@@ -787,8 +787,8 @@ button:disabled {
 }
 
 .summon-panel .summon-exclude-field input {
-  width: clamp(340px, 48dvw, 500px);
-  min-width: 300px;
+  width: clamp(220px, 28dvw, 260px);
+  min-width: 220px;
 }
 
 .summon-panel button {
@@ -953,6 +953,7 @@ button:disabled {
 .summon-disk-haze,
 .summon-lensed-disk,
 .summon-accretion,
+.summon-event-halo,
 .summon-photon-flow {
   fill: none;
   stroke-linecap: round;
@@ -1030,62 +1031,84 @@ button:disabled {
   animation-delay: -0.2s;
 }
 
-.summon-photon-flow {
-  stroke: rgba(255, 246, 220, 0.38);
-  stroke-width: 0.95px;
-  filter: blur(0.08px) drop-shadow(0 0 8px rgba(255, 224, 156, 0.48));
+.summon-event-halo {
+  stroke: rgba(255, 230, 158, 0.52);
+  stroke-width: 12px;
+  filter: blur(8px) drop-shadow(0 0 30px rgba(255, 212, 116, 0.58));
   mix-blend-mode: screen;
-  animation: summon-photon-drift 3.8s ease-in-out infinite alternate;
+  animation: summon-event-halo-breathe 1.8s ease-in-out infinite alternate;
+}
+
+.summon-event-halo.halo-b {
+  stroke: rgba(255, 248, 225, 0.32);
+  stroke-width: 6px;
+  filter: blur(4px) drop-shadow(0 0 22px rgba(255, 236, 180, 0.48));
+  animation-delay: -0.7s;
+}
+
+.summon-photon-flow {
+  stroke: rgba(255, 246, 220, 0.64);
+  stroke-width: 1.15px;
+  stroke-dasharray: 56 120;
+  stroke-dashoffset: 0;
+  filter: blur(0.04px) drop-shadow(0 0 10px rgba(255, 224, 156, 0.68));
+  mix-blend-mode: screen;
+  animation: summon-photon-flow 2.8s linear infinite, summon-photon-drift 3.8s ease-in-out infinite alternate;
 }
 
 .summon-photon-flow.flow-b {
-  stroke: rgba(255, 216, 138, 0.28);
-  stroke-width: 0.74px;
+  stroke: rgba(255, 216, 138, 0.52);
+  stroke-width: 0.95px;
+  stroke-dasharray: 44 118;
   animation-delay: -0.7s;
 }
 
 .summon-photon-flow.flow-c {
-  stroke: rgba(255, 234, 184, 0.34);
-  stroke-width: 0.82px;
-  opacity: 0.74;
+  stroke: rgba(255, 234, 184, 0.56);
+  stroke-width: 1px;
+  stroke-dasharray: 48 126;
+  opacity: 0.86;
   animation-delay: -1.1s;
 }
 
 .summon-photon-flow.flow-d,
 .summon-photon-flow.flow-e {
-  stroke: rgba(255, 238, 196, 0.32);
-  stroke-width: 0.72px;
-  animation-duration: 4.2s;
+  stroke: rgba(255, 238, 196, 0.5);
+  stroke-width: 0.82px;
+  stroke-dasharray: 38 112;
+  animation-duration: 3.4s, 4.2s;
 }
 
 .summon-photon-flow.flow-e {
-  stroke: rgba(255, 188, 96, 0.26);
+  stroke: rgba(255, 188, 96, 0.42);
   animation-delay: -1.45s;
 }
 
 .summon-photon-flow.flow-f,
 .summon-photon-flow.flow-g {
-  stroke: rgba(255, 248, 224, 0.32);
-  stroke-width: 0.66px;
-  filter: blur(0.04px) drop-shadow(0 0 7px rgba(255, 231, 172, 0.4));
-  animation-duration: 4.6s;
+  stroke: rgba(255, 248, 224, 0.58);
+  stroke-width: 0.86px;
+  stroke-dasharray: 34 96;
+  filter: blur(0.02px) drop-shadow(0 0 8px rgba(255, 231, 172, 0.52));
+  animation-duration: 3.2s, 4.6s;
 }
 
 .summon-photon-flow.flow-g {
-  stroke: rgba(255, 212, 132, 0.24);
+  stroke: rgba(255, 212, 132, 0.42);
   animation-delay: -1.9s;
 }
 
 .summon-photon-flow.flow-h,
 .summon-photon-flow.flow-i {
-  stroke: rgba(255, 243, 214, 0.28);
-  stroke-width: 0.62px;
-  filter: blur(0.06px) drop-shadow(0 0 7px rgba(255, 220, 148, 0.36));
-  animation-duration: 4.9s;
+  stroke: rgba(255, 243, 214, 0.46);
+  stroke-width: 0.74px;
+  stroke-dasharray: 30 88;
+  filter: blur(0.04px) drop-shadow(0 0 7px rgba(255, 220, 148, 0.44));
+  animation-duration: 3s, 4.9s;
 }
 
 .summon-photon-flow.flow-i {
-  stroke: rgba(255, 190, 103, 0.2);
+  stroke: rgba(255, 190, 103, 0.36);
   animation-delay: -2.3s;
 }
 
@@ -1181,6 +1204,26 @@ button:disabled {
   to {
     opacity: 1;
     transform: scaleX(1.035) skewX(1.8deg);
+  }
+}
+
+@keyframes summon-event-halo-breathe {
+  from {
+    opacity: 0.46;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 0.88;
+    transform: scale(1.025);
+  }
+}
+
+@keyframes summon-photon-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -176;
   }
 }
 
