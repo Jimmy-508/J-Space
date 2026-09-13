@@ -38,11 +38,11 @@ export default function SummonControls({
   if (!active) return null
 
   return (
-    <section className="summon-panel" data-gesture-block-3d="true" aria-label="召喚工具">
+    <section className={`summon-panel summon-panel-${stage}`} data-gesture-block-3d="true" aria-label="召喚工具">
       {stage === 'setup' ? (
         <>
           <strong>召喚</strong>
-          <label>
+          <label className="summon-range-field">
             範圍
             <span>
               1 ～
@@ -62,7 +62,7 @@ export default function SummonControls({
               />
             </span>
           </label>
-          <label>
+          <label className="summon-exclude-field">
             排除
             <input
               value={excludedInput}

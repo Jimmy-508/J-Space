@@ -348,32 +348,32 @@ function HandEnergyOverlay({
         }
         return (
           <g key={`summon-absorption-${hand.id}`} className="summon-absorption">
-            <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
-              <path className="summon-singularity-gravity gravity-a" d="M -116 -88 C -68 -142, 38 -118, 140 -48" />
-              <path className="summon-singularity-gravity gravity-b" d="M -156 72 C -70 126, 38 112, 160 36" />
-              <path className="summon-space-warp warp-a" d="M -210 -76 C -124 -126, 5 -105, 104 -48" />
-              <path className="summon-space-warp warp-b" d="M -182 86 C -86 138, 50 116, 204 24" />
-              <path className="summon-space-warp warp-c" d="M -72 -132 C -20 -164, 78 -142, 164 -90" />
-              <path className="summon-accretion accretion-back" d="M -146 -44 C -92 -74, -28 -68, 38 -38" />
-              <path className="summon-accretion accretion-back accent" d="M 72 -24 C 116 -12, 150 -18, 186 -46" />
-              <path className="summon-singularity-core" d="M -62 -45 C -42 -76, 6 -84, 42 -63 C 78 -41, 85 1, 62 36 C 38 73, -15 78, -50 54 C -82 33, -89 -12, -62 -45 Z" />
-              <path className="summon-accretion accretion-front" d="M -192 32 C -122 74, -50 70, 24 36" />
-              <path className="summon-accretion accretion-front accent" d="M 66 18 C 118 42, 154 24, 202 -2" />
-              <path className="summon-accretion accretion-flare" d="M -38 -82 C 6 -100, 48 -96, 94 -72" />
-              <path className="summon-accretion accretion-flare cool" d="M -98 82 C -40 96, 18 86, 86 54" />
-              {Array.from({ length: 58 }).map((_, index) => {
-                const angle = summonFlowTime * (1.9 + power * 4.5) + index * 0.79
-                const radius = 46 + ((index * 19) % 128) * (1 - power * 0.16)
-                const pull = index % 3 === 0 ? 0.55 : 0.32
+            <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) scale(${singularityScale})`}>
+              <path className="summon-disk-haze" d="M -270 2 C -178 -20, -82 -11, -26 -2 M 26 -2 C 94 8, 178 11, 270 -9" />
+              <path className="summon-lensed-disk lens-upper" d="M -118 1 C -104 -61, -61 -105, -4 -108 C 62 -111, 107 -62, 124 2" />
+              <path className="summon-lensed-disk lens-lower" d="M -112 8 C -91 72, -50 102, 2 103 C 61 104, 100 70, 116 8" />
+              <path className="summon-accretion disk-main" d="M -282 0 C -204 -10, -126 -9, -48 -2 M 48 1 C 128 8, 204 6, 284 -7" />
+              <path className="summon-accretion disk-hot" d="M -238 -4 C -164 -15, -92 -13, -34 -3 M 38 0 C 106 12, 178 11, 244 -1" />
+              <path className="summon-accretion disk-filament" d="M -258 8 C -176 1, -94 4, -46 10 M 56 9 C 124 17, 188 13, 256 4" />
+              <path className="summon-accretion lens-upper-hot" d="M -92 5 C -78 -48, -42 -79, 4 -81 C 52 -83, 84 -47, 96 5" />
+              <path className="summon-accretion lens-lower-hot" d="M -86 9 C -70 51, -36 74, 8 75 C 54 76, 82 48, 92 9" />
+              <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
+              {Array.from({ length: 64 }).map((_, index) => {
+                const side = index % 2 === 0 ? -1 : 1
+                const lane = (index % 7) - 3
+                const drift = (summonFlowTime * (34 + (index % 5) * 8) + index * 13) % 226
+                const x = side * (42 + drift)
+                const y = Math.sin(index * 1.7 + summonFlowTime * 5.2) * 8 + lane * 2.4
+                const len = 5 + (index % 5) * 2 + power * 5
                 return (
                   <line
                     key={index}
                     className="summon-singularity-spark"
-                    x1={Math.cos(angle) * radius}
-                    y1={Math.sin(angle) * radius * (0.28 + (index % 4) * 0.05)}
-                    x2={Math.cos(angle + pull) * (radius - 14 - power * 10)}
-                    y2={Math.sin(angle + pull) * (radius - 14 - power * 10) * (0.26 + (index % 4) * 0.05)}
-                    strokeWidth={1.2 + (index % 5) * 0.55 + power * 1.2}
+                    x1={x}
+                    y1={y}
+                    x2={x + side * len}
+                    y2={y + Math.sin(index * 0.9) * 2.2}
+                    strokeWidth={0.7 + (index % 4) * 0.35 + power * 0.65}
                   />
                 )
               })}
@@ -401,9 +401,9 @@ function HandEnergyOverlay({
               const t = (summonFlowTime * speed + index * 0.047 + handIndex * 0.13) % 1
               const point = sample(t)
               const next = sample(Math.min(1, t + 0.025 + t * 0.082), index)
-              const stretch = 0.72 + t * 5.8
+              const stretch = 0.42 + Math.pow(t, 2.3) * 5.2
               const brightness = 0.28 + t * 0.68 + power * 0.22
-              const width = Math.max(0.9, 1.55 + t * 8.8 - (index % 4) * 0.5)
+              const width = Math.max(0.55, 0.82 + Math.pow(t, 2.1) * 4.2 - (index % 4) * 0.25)
               return (
                 <line
                   key={index}
@@ -440,10 +440,10 @@ function HandEnergyOverlay({
         const dy = hand.point.y - hand.target.y
         return (
           <g key={`summon-collapse-${hand.id}-${hand.nonce}`} className="summon-absorption collapse">
-            <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
-              <path className="summon-singularity-gravity gravity-a" d="M -188 -72 C -112 -132, -8 -124, 116 -54" />
-              <path className="summon-accretion accretion-front" d="M -178 30 C -98 82, -22 66, 70 18" />
-              <path className="summon-accretion accretion-back" d="M -134 -46 C -62 -80, 20 -68, 138 -24" />
+            <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) scale(${singularityScale})`}>
+              <path className="summon-disk-haze" d="M -238 0 C -156 -13, -86 -10, -34 -2 M 34 -1 C 98 8, 166 7, 238 -4" />
+              <path className="summon-accretion disk-main" d="M -224 1 C -142 -10, -76 -8, -36 -1 M 36 1 C 86 8, 148 8, 224 -2" />
+              <path className="summon-lensed-disk lens-upper" d="M -96 1 C -76 -58, -32 -84, 12 -82 C 56 -80, 82 -45, 96 2" />
               <path className="summon-singularity-core" d="M -88 -48 C -61 -82, -9 -88, 44 -69 C 92 -44, 102 4, 74 43 C 43 88, -22 86, -66 58 C -104 33, -112 -13, -88 -48 Z" />
             </g>
           </g>
