@@ -319,7 +319,7 @@ function HandEnergyOverlay({
       })}
       {summonEnergyHands.map((hand, handIndex) => {
         const target = summonEnergyTarget!
-        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320))
+        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320)) * 0.85
         const dx = hand.point.x - target.x
         const dy = hand.point.y - target.y
         const length = Math.hypot(dx, dy)
@@ -355,16 +355,18 @@ function HandEnergyOverlay({
               <path className="summon-accretion disk-main" d="M -282 0 C -204 -10, -126 -9, -48 -2 M 48 1 C 128 8, 204 6, 284 -7" />
               <path className="summon-accretion disk-hot" d="M -238 -4 C -164 -15, -92 -13, -34 -3 M 38 0 C 106 12, 178 11, 244 -1" />
               <path className="summon-accretion disk-filament" d="M -258 8 C -176 1, -94 4, -46 10 M 56 9 C 124 17, 188 13, 256 4" />
+              <path className="summon-accretion disk-thread" d="M -252 -12 C -178 -19, -104 -15, -40 -7 M 52 -6 C 122 0, 184 -2, 252 -14" />
+              <path className="summon-accretion disk-thread warm" d="M -266 14 C -190 10, -118 12, -54 18 M 58 17 C 132 24, 196 18, 268 9" />
               <path className="summon-accretion lens-upper-hot" d="M -92 5 C -78 -48, -42 -79, 4 -81 C 52 -83, 84 -47, 96 5" />
               <path className="summon-accretion lens-lower-hot" d="M -86 9 C -70 51, -36 74, 8 75 C 54 76, 82 48, 92 9" />
               <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
-              {Array.from({ length: 64 }).map((_, index) => {
+              {Array.from({ length: 96 }).map((_, index) => {
                 const side = index % 2 === 0 ? -1 : 1
                 const lane = (index % 7) - 3
-                const drift = (summonFlowTime * (34 + (index % 5) * 8) + index * 13) % 226
+                const drift = (summonFlowTime * (18 + (index % 5) * 4.5) + index * 11) % 226
                 const x = side * (42 + drift)
                 const y = Math.sin(index * 1.7 + summonFlowTime * 5.2) * 8 + lane * 2.4
-                const len = 5 + (index % 5) * 2 + power * 5
+                const len = 3.5 + (index % 5) * 1.6 + power * 3.5
                 return (
                   <line
                     key={index}
@@ -373,7 +375,7 @@ function HandEnergyOverlay({
                     y1={y}
                     x2={x + side * len}
                     y2={y + Math.sin(index * 0.9) * 2.2}
-                    strokeWidth={0.7 + (index % 4) * 0.35 + power * 0.65}
+                    strokeWidth={0.45 + (index % 4) * 0.22 + power * 0.38}
                   />
                 )
               })}
@@ -403,7 +405,7 @@ function HandEnergyOverlay({
               const next = sample(Math.min(1, t + 0.025 + t * 0.082), index)
               const stretch = 0.42 + Math.pow(t, 2.3) * 5.2
               const brightness = 0.28 + t * 0.68 + power * 0.22
-              const width = Math.max(0.55, 0.82 + Math.pow(t, 2.1) * 4.2 - (index % 4) * 0.25)
+              const width = Math.max(0.42, 0.62 + Math.pow(t, 2.1) * 3.05 - (index % 4) * 0.18)
               return (
                 <line
                   key={index}
@@ -435,7 +437,7 @@ function HandEnergyOverlay({
         )
       })}
       {collapseHands.map((hand) => {
-        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320))
+        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320)) * 0.85
         const dx = hand.point.x - hand.target.x
         const dy = hand.point.y - hand.target.y
         return (
