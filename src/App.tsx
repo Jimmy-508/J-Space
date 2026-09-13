@@ -347,8 +347,8 @@ function HandEnergyOverlay({
         return (
           <g key={`summon-absorption-${hand.id}`} className="summon-absorption">
             <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
-              <ellipse className="summon-singularity-gravity gravity-a" rx={132 + power * 28} ry={92 + power * 18} />
-              <ellipse className="summon-singularity-gravity gravity-b" rx={102 + power * 26} ry={66 + power * 15} />
+              <path className="summon-singularity-gravity gravity-a" d={`M ${-132 - power * 28} -54 C -108 ${-112 - power * 16}, -14 ${-126 - power * 18}, ${82 + power * 20} -74 C ${150 + power * 22} -31, ${146 + power * 25} 42, 76 ${88 + power * 14} C -8 ${132 + power * 18}, ${-124 - power * 18} 96, ${-158 - power * 24} 22 C ${-178 - power * 28} -15, ${-166 - power * 26} -37, ${-132 - power * 28} -54 Z`} />
+              <path className="summon-singularity-gravity gravity-b" d={`M ${-102 - power * 20} -38 C -76 ${-86 - power * 14}, -4 ${-98 - power * 14}, ${66 + power * 18} -56 C ${120 + power * 18} -23, ${112 + power * 18} 38, 56 ${69 + power * 12} C -18 ${106 + power * 14}, ${-98 - power * 16} 70, ${-126 - power * 20} 12 C ${-142 - power * 18} -11, ${-132 - power * 16} -28, ${-102 - power * 20} -38 Z`} />
               <path className="summon-space-warp warp-a" d="M -174 -76 C -88 -132, 54 -116, 154 -38 C 70 -54, -20 -38, -112 -8 C -166 -1, -205 -32, -174 -76 Z" />
               <path className="summon-space-warp warp-b" d="M -172 64 C -90 124, 46 116, 168 36 C 86 58, -8 46, -112 14 C -170 8, -210 31, -172 64 Z" />
               <path className="summon-accretion accretion-e" d="M -152 2 C -72 -22, 28 30, 164 -3" />
@@ -434,7 +434,7 @@ function HandEnergyOverlay({
         return (
           <g key={`summon-collapse-${hand.id}-${hand.nonce}`} className="summon-absorption collapse">
             <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) scale(${singularityScale})`}>
-              <ellipse className="summon-singularity-gravity gravity-a" rx="170" ry="104" />
+              <path className="summon-singularity-gravity gravity-a" d="M -172 -62 C -124 -126, -18 -146, 96 -82 C 178 -30, 168 52, 82 102 C -12 152, -148 106, -188 20 C -208 -22, -196 -48, -172 -62 Z" />
               <path className="summon-accretion accretion-a" d="M -166 -26 C -100 -74, -12 -62, 54 -24 S 142 10, 184 -34" />
               <path className="summon-accretion accretion-b" d="M -182 30 C -104 78, -28 62, 56 24 S 148 -18, 188 18" />
               <path className="summon-singularity-core" d="M -88 -48 C -61 -82, -9 -88, 44 -69 C 92 -44, 102 4, 74 43 C 43 88, -22 86, -66 58 C -104 33, -112 -13, -88 -48 Z" />
@@ -1648,7 +1648,6 @@ export default function App() {
         excludedInput={summonExcludedInput}
         remaining={summonStars.filter((star) => star.status === 'available' || star.status === 'selected' || star.status === 'armed').length}
         result={summonResult}
-        armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
         canClearResolved={summonStars.some((star) => star.status === 'resolved' || star.status === 'clearing')}
         clearingResolved={clearingResolved}
         onMaxNumberInputChange={setSummonMaxNumberInput}

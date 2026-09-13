@@ -1,5 +1,3 @@
-import type { SummonStar } from '../summon/summonUtils'
-
 type Props = {
   active: boolean
   stage: 'setup' | 'deploying' | 'drawing'
@@ -7,7 +5,6 @@ type Props = {
   excludedInput: string
   remaining: number
   result?: number
-  armedStar?: SummonStar
   canClearResolved: boolean
   clearingResolved: boolean
   onMaxNumberInputChange: (value: string) => void
@@ -27,7 +24,6 @@ export default function SummonControls({
   excludedInput,
   remaining,
   result,
-  armedStar,
   canClearResolved,
   clearingResolved,
   onMaxNumberInputChange,
@@ -86,13 +82,17 @@ export default function SummonControls({
         </>
       ) : (
         <>
-          <strong>召喚</strong>
-          <span>剩餘：{remaining}</span>
-          {result ? <span className="summon-result-chip">已召喚：{result}</span> : null}
-          <button type="button" data-gesture-clickable="true" disabled={!canClearResolved || clearingResolved} onClick={onClearResolved}>清場</button>
-          <button type="button" data-gesture-clickable="true" onClick={onReset}>重置</button>
-          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>退場</button>
-          <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
+          <div className="summon-panel-status">
+            <strong>召喚</strong>
+            <span>剩餘：{remaining}</span>
+            {result ? <span className="summon-result-chip">已召喚：{result}</span> : null}
+          </div>
+          <div className="summon-panel-actions">
+            <button type="button" data-gesture-clickable="true" disabled={!canClearResolved || clearingResolved} onClick={onClearResolved}>清場</button>
+            <button type="button" data-gesture-clickable="true" onClick={onReset}>重置</button>
+            <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>退場</button>
+            <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
+          </div>
         </>
       )}
     </section>
