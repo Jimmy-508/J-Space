@@ -350,25 +350,27 @@ function HandEnergyOverlay({
         return (
           <g key={`summon-absorption-${hand.id}`} className="summon-absorption">
             <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) scale(${singularityScale})`}>
-              <path className="summon-disk-haze" d="M -270 2 C -178 -20, -82 -11, -26 -2 M 26 -2 C 94 8, 178 11, 270 -9" />
+              <g className="summon-central-disk" transform="scale(0.7)">
+                <path className="summon-disk-haze" d="M -270 2 C -178 -20, -82 -11, -26 -2 M 26 -2 C 94 8, 178 11, 270 -9" />
+                <path className="summon-accretion disk-main" d="M -282 0 C -204 -10, -126 -9, -48 -2 M 48 1 C 128 8, 204 6, 284 -7" />
+                <path className="summon-accretion disk-hot" d="M -238 -4 C -164 -15, -92 -13, -34 -3 M 38 0 C 106 12, 178 11, 244 -1" />
+                <path className="summon-accretion disk-filament" d="M -258 8 C -176 1, -94 4, -46 10 M 56 9 C 124 17, 188 13, 256 4" />
+                <path className="summon-accretion disk-thread" d="M -252 -12 C -178 -19, -104 -15, -40 -7 M 52 -6 C 122 0, 184 -2, 252 -14" />
+                <path className="summon-accretion disk-thread warm" d="M -266 14 C -190 10, -118 12, -54 18 M 58 17 C 132 24, 196 18, 268 9" />
+              </g>
               <path className="summon-lensed-disk lens-upper" d="M -118 1 C -104 -61, -61 -105, -4 -108 C 62 -111, 107 -62, 124 2" />
               <path className="summon-lensed-disk lens-lower" d="M -112 8 C -91 72, -50 102, 2 103 C 61 104, 100 70, 116 8" />
-              <path className="summon-accretion disk-main" d="M -282 0 C -204 -10, -126 -9, -48 -2 M 48 1 C 128 8, 204 6, 284 -7" />
-              <path className="summon-accretion disk-hot" d="M -238 -4 C -164 -15, -92 -13, -34 -3 M 38 0 C 106 12, 178 11, 244 -1" />
-              <path className="summon-accretion disk-filament" d="M -258 8 C -176 1, -94 4, -46 10 M 56 9 C 124 17, 188 13, 256 4" />
-              <path className="summon-accretion disk-thread" d="M -252 -12 C -178 -19, -104 -15, -40 -7 M 52 -6 C 122 0, 184 -2, 252 -14" />
-              <path className="summon-accretion disk-thread warm" d="M -266 14 C -190 10, -118 12, -54 18 M 58 17 C 132 24, 196 18, 268 9" />
               <path className="summon-accretion lens-upper-hot" d="M -92 5 C -78 -48, -42 -79, 4 -81 C 52 -83, 84 -47, 96 5" />
               <path className="summon-accretion lens-lower-hot" d="M -86 9 C -70 51, -36 74, 8 75 C 54 76, 82 48, 92 9" />
-              <path className="summon-photon-flow flow-a" d="M -128 1 C -112 -72, -62 -118, -2 -121 C 68 -124, 117 -70, 135 1" />
-              <path className="summon-photon-flow flow-b" d="M -141 2 C -120 -83, -54 -137, 18 -132 C 87 -127, 130 -74, 149 -2" />
-              <path className="summon-photon-flow flow-c" d="M -124 10 C -101 76, -49 112, 12 111 C 73 110, 115 70, 130 9" />
-              <path className="summon-photon-flow flow-d" d="M -276 -5 C -190 -20, -102 -18, -36 -5 M 42 -4 C 118 11, 194 9, 276 -7" />
-              <path className="summon-photon-flow flow-e" d="M -268 7 C -192 2, -112 3, -42 11 M 48 11 C 120 20, 198 16, 270 3" />
-              <path className="summon-photon-flow flow-f" d="M -104 -8 C -88 -56, -48 -91, 5 -92 C 57 -93, 94 -59, 108 -8" />
-              <path className="summon-photon-flow flow-g" d="M -109 16 C -88 55, -45 86, 8 86 C 59 86, 95 57, 111 17" />
-              <path className="summon-photon-flow flow-h" d="M -232 -2 C -164 -9, -98 -8, -44 -2 M 44 0 C 104 7, 166 5, 234 -3" />
-              <path className="summon-photon-flow flow-i" d="M -218 10 C -151 7, -91 9, -39 14 M 42 14 C 101 19, 164 15, 220 8" />
+              <path className="summon-photon-flow flow-a" d="M -108 1 C -96 -60, -53 -98, -2 -100 C 56 -102, 99 -58, 112 1" />
+              <path className="summon-photon-flow flow-b" d="M -116 2 C -101 -67, -48 -111, 12 -108 C 70 -104, 108 -61, 121 -2" />
+              <path className="summon-photon-flow flow-c" d="M -106 9 C -88 64, -42 93, 9 93 C 60 93, 96 59, 109 9" />
+              <path className="summon-photon-flow flow-d" d="M -154 -3 C -111 -13, -75 -13, -34 -5 M 36 -4 C 81 5, 116 5, 156 -5" />
+              <path className="summon-photon-flow flow-e" d="M -150 7 C -109 2, -74 4, -36 10 M 39 10 C 82 16, 118 13, 151 4" />
+              <path className="summon-photon-flow flow-f" d="M -95 -7 C -81 -48, -42 -79, 5 -80 C 51 -81, 84 -52, 96 -7" />
+              <path className="summon-photon-flow flow-g" d="M -97 15 C -78 48, -40 76, 8 76 C 52 76, 84 50, 98 15" />
+              <path className="summon-photon-flow flow-h" d="M -138 -2 C -100 -8, -67 -7, -36 -2 M 36 0 C 70 6, 103 5, 139 -3" />
+              <path className="summon-photon-flow flow-i" d="M -134 9 C -97 6, -64 8, -34 12 M 36 12 C 70 16, 104 13, 135 8" />
               <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>

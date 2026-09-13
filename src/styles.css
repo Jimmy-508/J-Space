@@ -769,8 +769,8 @@ button:disabled {
 }
 
 .summon-panel input {
-  width: 86px;
-  min-width: 74px;
+  width: 69px;
+  min-width: 59px;
   min-height: 32px;
   border-radius: 999px;
   padding: 0.25rem 0.56rem;
@@ -786,9 +786,9 @@ button:disabled {
   min-width: 0;
 }
 
-.summon-panel label:nth-of-type(2) input {
-  width: clamp(170px, 24dvw, 250px);
-  min-width: 150px;
+.summon-panel .summon-exclude-field input {
+  width: clamp(340px, 48dvw, 500px);
+  min-width: 300px;
 }
 
 .summon-panel button {
