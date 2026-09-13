@@ -761,12 +761,14 @@ button:disabled {
   --return-x: 50vw;
   --return-y: 50dvh;
   transform: translate(calc(50vw - 50%), calc(50dvh - 50%));
-  min-width: 1.6em;
+  max-width: calc(100vw - 24px);
+  min-width: min(1.6em, calc(100vw - 24px));
   color: rgba(255, 246, 218, 0.96);
-  font-size: clamp(10rem, 88vmin, 30rem);
+  font-size: clamp(7rem, min(44vw, 88vmin), 30rem);
   font-weight: 800;
   line-height: 0.82;
   text-align: center;
+  white-space: nowrap;
   text-shadow: 0 0 28px rgba(242, 201, 109, 0.62), 0 0 76px rgba(166, 212, 255, 0.34);
   pointer-events: none;
   animation: summon-result-return 2.65s cubic-bezier(0.2, 0.75, 0.16, 1) both;
@@ -953,9 +955,9 @@ button:disabled {
 }
 
 .summon-singularity-lens {
-  fill: rgba(255, 208, 91, 0.12);
+  fill: rgba(255, 208, 91, 0.06);
   stroke: none;
-  filter: blur(5px) drop-shadow(0 0 36px rgba(255, 214, 107, 0.76));
+  filter: blur(11px) drop-shadow(0 0 24px rgba(255, 214, 107, 0.34));
   animation: summon-lens-shear 0.5s ease-in-out infinite alternate;
 }
 
@@ -1267,6 +1269,10 @@ button:disabled {
   background:
     radial-gradient(circle at 18% 0%, rgba(244, 210, 134, 0.12), transparent 32%),
     linear-gradient(180deg, rgba(8, 17, 36, 0.9), rgba(5, 10, 24, 0.82));
+}
+
+.summon-active .settings-panel {
+  z-index: 31;
 }
 
 .settings-heading {

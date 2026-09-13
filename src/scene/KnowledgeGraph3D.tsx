@@ -933,7 +933,7 @@ export default function KnowledgeGraph3D({
       group.visible = !summonActive
       if (summonGroup) summonGroup.visible = summonActive && summonStage !== 'setup'
       viewer?.update(nowMs)
-      if (!viewerActive && focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
+      if (!viewerActive && focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture) && !(summonActive && activeGesture.activeGesture === 'zoomOut')) {
         focusTransitionRef.current = null
       }
       const viewReset = viewResetRef.current
@@ -1032,7 +1032,11 @@ export default function KnowledgeGraph3D({
           controlGroup.rotation.x += THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035)
         } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
           const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)
-          camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
+          if (summonActive && selectedSummonStarIdRef.current && zoomStep < -0.08) {
+            startSummonZoomOutTransition()
+          } else {
+            camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
+          }
         } else if (activeGesture?.activeGesture === 'pan') {
           const targetDistance = camera.position.distanceTo(cameraTargetRef.current)
           panCameraView(
@@ -2513,6 +2517,41 @@ export default function KnowledgeGraph3D({
     return raycasterRef.current.intersectObjects([...resolvedSummonMeshesRef.current.values()])[0]
   }
 
+  const playFocusBlur = (travelDistance: number, blurBase = 1.4, blurScale = 0.14, scaleBase = 1.006, scaleScale = 0.00055) => {
+    const mount = mountRef.current
+    if (!mount) return
+    const blur = THREE.MathUtils.clamp(blurBase + travelDistance * blurScale, 1.8, 5.2)
+    const scale = THREE.MathUtils.clamp(scaleBase + travelDistance * scaleScale, scaleBase, 1.026)
+    mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
+    mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
+    mount.classList.remove('is-focus-transitioning')
+    void mount.offsetWidth
+    mount.classList.add('is-focus-transitioning')
+    if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
+    focusBlurTimerRef.current = window.setTimeout(() => {
+      mount.classList.remove('is-focus-transitioning')
+      focusBlurTimerRef.current = undefined
+    }, FOCUS_TRANSITION_DURATION_MS + 40)
+  }
+
+  const startSummonZoomOutTransition = () => {
+    const camera = cameraRef.current
+    const summonGroup = summonGroupRef.current
+    if (!camera || !summonGroup || focusTransitionRef.current || viewResetRef.current) return
+    const travelDistance = cameraTargetRef.current.distanceTo(DEFAULT_CAMERA_TARGET) + camera.position.distanceTo(DEFAULT_CAMERA_POSITION)
+    focusTransitionRef.current = {
+      startedAt: performance.now(),
+      duration: VIEW_RESET_DURATION_MS,
+      fromPosition: camera.position.clone(),
+      toPosition: DEFAULT_CAMERA_POSITION.clone(),
+      fromTarget: cameraTargetRef.current.clone(),
+      toTarget: DEFAULT_CAMERA_TARGET.clone(),
+      fromRotation: summonGroup.rotation.clone(),
+      resetRotation: false,
+    }
+    playFocusBlur(travelDistance, 1.8, 0.12, 1.008, 0.0005)
+  }
+
   const resetView = () => {
     if (imageViewerRef.current?.ready) {
       imageViewerRef.current.reset()
@@ -2533,6 +2572,7 @@ export default function KnowledgeGraph3D({
         fromRotation: summonGroup.rotation.clone(),
         resetRotation: true,
       }
+      playFocusBlur(camera.position.distanceTo(DEFAULT_CAMERA_POSITION), 1.8, 0.12, 1.008, 0.0005)
       touchRef.current.mode = 'none'
       dragRef.current.active = false
       dragRef.current.dragging = false
@@ -2972,7 +3012,11 @@ export default function KnowledgeGraph3D({
               viewer.setScale(touchRef.current.startViewerScale * (distance / Math.max(1, touchRef.current.startDistance)))
             } else {
               const scale = touchRef.current.startDistance / Math.max(1, distance)
-              camera.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
+              if (appModeRef.current === 'summon' && selectedSummonStarIdRef.current && scale > 1.04) {
+                startSummonZoomOutTransition()
+              } else {
+                camera.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
+              }
             }
           } else if (touchRef.current.mode === 'twoFingerPan') {
             const viewer = imageViewerRef.current
@@ -3013,7 +3057,11 @@ export default function KnowledgeGraph3D({
         if (viewer?.ready) {
           viewer.zoomBy(Math.exp(-event.deltaY * 0.0015))
         } else {
-          cameraRef.current.position.z = Math.max(11, Math.min(70, cameraRef.current.position.z + event.deltaY * 0.025))
+          if (appModeRef.current === 'summon' && selectedSummonStarIdRef.current && event.deltaY > 0) {
+            startSummonZoomOutTransition()
+          } else {
+            cameraRef.current.position.z = Math.max(11, Math.min(70, cameraRef.current.position.z + event.deltaY * 0.025))
+          }
         }
       }}
     />
