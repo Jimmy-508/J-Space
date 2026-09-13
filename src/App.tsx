@@ -319,7 +319,8 @@ function HandEnergyOverlay({
       })}
       {summonEnergyHands.map((hand, handIndex) => {
         const target = summonEnergyTarget!
-        const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242)))
+        const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 1.2 : 1
+        const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
         const dx = hand.point.x - target.x
         const dy = hand.point.y - target.y
         const length = Math.hypot(dx, dy)
@@ -364,6 +365,10 @@ function HandEnergyOverlay({
               <path className="summon-photon-flow flow-c" d="M -124 10 C -101 76, -49 112, 12 111 C 73 110, 115 70, 130 9" />
               <path className="summon-photon-flow flow-d" d="M -276 -5 C -190 -20, -102 -18, -36 -5 M 42 -4 C 118 11, 194 9, 276 -7" />
               <path className="summon-photon-flow flow-e" d="M -268 7 C -192 2, -112 3, -42 11 M 48 11 C 120 20, 198 16, 270 3" />
+              <path className="summon-photon-flow flow-f" d="M -104 -8 C -88 -56, -48 -91, 5 -92 C 57 -93, 94 -59, 108 -8" />
+              <path className="summon-photon-flow flow-g" d="M -109 16 C -88 55, -45 86, 8 86 C 59 86, 95 57, 111 17" />
+              <path className="summon-photon-flow flow-h" d="M -232 -2 C -164 -9, -98 -8, -44 -2 M 44 0 C 104 7, 166 5, 234 -3" />
+              <path className="summon-photon-flow flow-i" d="M -218 10 C -151 7, -91 9, -39 14 M 42 14 C 101 19, 164 15, 220 8" />
               <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
@@ -423,7 +428,8 @@ function HandEnergyOverlay({
         )
       })}
       {collapseHands.map((hand) => {
-        const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242)))
+        const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 1.2 : 1
+        const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
         const dx = hand.point.x - hand.target.x
         const dy = hand.point.y - hand.target.y
         return (

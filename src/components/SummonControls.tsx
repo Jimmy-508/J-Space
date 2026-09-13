@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 type Props = {
   active: boolean
   stage: 'setup' | 'deploying' | 'drawing'
@@ -35,10 +37,32 @@ export default function SummonControls({
   onBackToMenu,
   onExit,
 }: Props) {
+  const panelRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const panel = panelRef.current
+    const viewport = window.visualViewport
+    if (!panel || !viewport) return
+
+    const syncKeyboardOffset = () => {
+      const keyboardOffset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      panel.style.setProperty('--summon-keyboard-offset', `${Math.round(keyboardOffset)}px`)
+    }
+
+    syncKeyboardOffset()
+    viewport.addEventListener('resize', syncKeyboardOffset)
+    viewport.addEventListener('scroll', syncKeyboardOffset)
+    return () => {
+      viewport.removeEventListener('resize', syncKeyboardOffset)
+      viewport.removeEventListener('scroll', syncKeyboardOffset)
+      panel.style.removeProperty('--summon-keyboard-offset')
+    }
+  }, [active])
+
   if (!active) return null
 
   return (
-    <section className={`summon-panel summon-panel-${stage}`} data-gesture-block-3d="true" aria-label="召喚工具">
+    <section ref={panelRef} className={`summon-panel summon-panel-${stage}`} data-gesture-block-3d="true" aria-label="召喚工具">
       {stage === 'setup' ? (
         <>
           <div className="summon-setup-row summon-setup-primary">
