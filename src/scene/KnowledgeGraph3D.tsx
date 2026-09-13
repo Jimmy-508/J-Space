@@ -2774,10 +2774,15 @@ export default function KnowledgeGraph3D({
           const releasedId = hold.active ? hold.summonId : undefined
           cancelPointerSummonHold()
           if (releasedId) {
+            const beforeRelease = Number(mountRef.current?.dataset.activeTouches ?? '1')
+            const activeTouches = Math.max(0, beforeRelease - 1)
+            if (mountRef.current) mountRef.current.dataset.activeTouches = String(activeTouches)
             dragRef.current.pendingTap = false
             summonCallbacksRef.current.onSummonStarTrigger?.(releasedId)
             dragRef.current.active = false
             dragRef.current.dragging = false
+            dragRef.current.pointerType = ''
+            lastTapRef.current = { time: 0, x: 0, y: 0, pointerType: '', blank: false, nodeId: undefined }
             return
           }
         }

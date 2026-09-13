@@ -228,6 +228,7 @@ function HandEnergyOverlay({
       }
     })
     : []
+  const hiddenHandIds = new Set(summonEnergyHands.map((hand) => hand.id))
 
   return (
     <svg
@@ -236,6 +237,7 @@ function HandEnergyOverlay({
       aria-hidden="true"
     >
       {hands.map((hand) => {
+        if (hiddenHandIds.has(hand.id)) return null
         const active = activeIds.has(hand.id)
         const points = hand.landmarks.map((point) => normalizedToCoverViewport(point, videoSize, viewportSize, true))
         return (
@@ -261,24 +263,24 @@ function HandEnergyOverlay({
         const length = Math.hypot(dx, dy)
         const nx = length ? -dy / length : 0
         const ny = length ? dx / length : 0
-        const bend = 26 + handIndex * 12
+        const bend = 42 + handIndex * 18
         const midX = (hand.point.x + summonEnergyTarget!.x) / 2 + nx * bend
         const midY = (hand.point.y + summonEnergyTarget!.y) / 2 + ny * bend
         return (
           <g key={`summon-flow-${hand.id}`} className="hand-summon-flow">
             <g className="hand-black-hole" transform={`translate(${hand.point.x} ${hand.point.y})`}>
-              <circle className="hand-black-hole-gravity" r="58" />
-              <ellipse className="hand-black-hole-disc disc-a" rx="54" ry="18" />
-              <ellipse className="hand-black-hole-disc disc-b" rx="42" ry="13" />
-              <circle className="hand-black-hole-core" r="20" />
-              {[0, 1, 2, 3, 4, 5].map((index) => {
-                const angle = index * 1.047 + handIndex * 0.3
+              <circle className="hand-black-hole-gravity" r="88" />
+              <ellipse className="hand-black-hole-disc disc-a" rx="82" ry="26" />
+              <ellipse className="hand-black-hole-disc disc-b" rx="62" ry="18" />
+              <circle className="hand-black-hole-core" r="28" />
+              {Array.from({ length: 12 }).map((_, index) => {
+                const angle = index * 0.524 + handIndex * 0.3
                 return (
                   <circle
                     key={index}
                     className="hand-black-hole-particle"
-                    cx={Math.cos(angle) * (36 + (index % 3) * 8)}
-                    cy={Math.sin(angle) * (12 + (index % 2) * 5)}
+                    cx={Math.cos(angle) * (44 + (index % 4) * 11)}
+                    cy={Math.sin(angle) * (14 + (index % 3) * 6)}
                     r={2.8 + (index % 3) * 0.8}
                   />
                 )
@@ -288,8 +290,8 @@ function HandEnergyOverlay({
             <path className="hand-summon-flow-core" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
             {[0.12, 0.24, 0.36, 0.48, 0.62, 0.76, 0.9].map((offset, index) => {
               const t = (offset + handIndex * 0.08) % 1
-              const x = (1 - t) * (1 - t) * hand.point.x + 2 * (1 - t) * t * midX + t * t * summonEnergyTarget!.x
-              const y = (1 - t) * (1 - t) * hand.point.y + 2 * (1 - t) * t * midY + t * t * summonEnergyTarget!.y
+              const x = (1 - t) * (1 - t) * summonEnergyTarget!.x + 2 * (1 - t) * t * midX + t * t * hand.point.x
+              const y = (1 - t) * (1 - t) * summonEnergyTarget!.y + 2 * (1 - t) * t * midY + t * t * hand.point.y
               return <circle key={index} className="hand-summon-flow-particle" cx={x} cy={y} r={Math.max(2.4, 7.4 - index * 0.62)} />
             })}
           </g>
@@ -395,6 +397,7 @@ export default function App() {
   const orientationResetTimerRef = useRef<number | undefined>(undefined)
   const summonTransitionTimerRef = useRef<number | undefined>(undefined)
   const summonDeployTimerRef = useRef<number | undefined>(undefined)
+  const summonReturnGuardUntilRef = useRef(0)
   const universeUiSnapshotRef = useRef<{
     selectedId?: string
     focusId?: string
@@ -516,9 +519,12 @@ export default function App() {
       setNodeHudExpanded(false)
       return
     }
-    setSelectedId(snapshot.selectedId)
-    setFocusId(snapshot.focusId)
-    setHoveredId(snapshot.hoveredId)
+    const selectedSnapshot = snapshot.selectedId === SUMMON_NODE_ID ? undefined : snapshot.selectedId
+    const focusSnapshot = snapshot.focusId === SUMMON_NODE_ID ? undefined : snapshot.focusId
+    const hoveredSnapshot = snapshot.hoveredId === SUMMON_NODE_ID ? undefined : snapshot.hoveredId
+    setSelectedId(selectedSnapshot)
+    setFocusId(focusSnapshot)
+    setHoveredId(hoveredSnapshot)
     setViewerNodeId(snapshot.viewerNodeId)
     setViewerLoadState('idle')
     setSelectionSource(undefined)
@@ -526,6 +532,9 @@ export default function App() {
   }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
     if (isSystemNode(node)) {
+      if (performance.now() < summonReturnGuardUntilRef.current || appMode !== 'universe') {
+        return
+      }
       if (selectedIdRef.current !== SUMMON_NODE_ID) {
         universeUiSnapshotRef.current = {
           selectedId: selectedIdRef.current,
@@ -565,7 +574,7 @@ export default function App() {
     setFocusId(node.id)
     setSelectionSource(source)
     setViewerNodeId(node.contentType === 'image' && !!node.imageUrl ? node.id : undefined)
-  }, [])
+  }, [appMode])
 
   const commitSummonMaxNumber = useCallback(() => {
     const parsed = Number(summonMaxNumberInput)
@@ -644,6 +653,7 @@ export default function App() {
       window.clearTimeout(summonDeployTimerRef.current)
       summonDeployTimerRef.current = undefined
     }
+    summonReturnGuardUntilRef.current = performance.now() + 1800
     restoreUniverseUiSnapshot()
     setAppMode('transition-to-universe')
     setSelectedSummonStarId(undefined)
