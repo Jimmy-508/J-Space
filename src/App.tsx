@@ -60,7 +60,7 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | 'relation' | undefined
 type AppMode = 'universe' | 'transition-to-summon' | 'summon' | 'transition-to-universe'
-type SummonStage = 'setup' | 'drawing'
+type SummonStage = 'setup' | 'deploying' | 'drawing'
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SETTINGS_KEY = 'j-space-settings'
 const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
@@ -309,6 +309,7 @@ export default function App() {
   const [appMode, setAppMode] = useState<AppMode>('universe')
   const [summonStage, setSummonStage] = useState<SummonStage>('setup')
   const [summonMaxNumber, setSummonMaxNumber] = useState(35)
+  const [summonMaxNumberInput, setSummonMaxNumberInput] = useState('35')
   const [summonExcludedInput, setSummonExcludedInput] = useState('')
   const [summonStars, setSummonStars] = useState<SummonStar[]>([])
   const [selectedSummonStarId, setSelectedSummonStarId] = useState<string>()
@@ -330,6 +331,7 @@ export default function App() {
   const viewerNodeIdRef = useRef<string | undefined>(undefined)
   const viewportOrientationRef = useRef(getViewportOrientation())
   const orientationResetTimerRef = useRef<number | undefined>(undefined)
+  const summonDeployTimerRef = useRef<number | undefined>(undefined)
   const audioManagerRef = useRef<AudioManager | undefined>(undefined)
   const gestureUiDwellRef = useRef<{
     element?: HTMLElement
@@ -363,9 +365,9 @@ export default function App() {
     settings.customNebulaBrightness,
     settings.customNebulaOpacity,
   ])
-  const results = useMemo(() => query.trim() ? data.nodes.filter((node) =>
+  const results = useMemo(() => query.trim() ? renderedData.nodes.filter((node) =>
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
-  ).slice(0, 8) : [], [data.nodes, query])
+  ).slice(0, 8) : [], [renderedData.nodes, query])
   const isSummonActive = appMode === 'summon'
   const isTransitioning = appMode === 'transition-to-summon' || appMode === 'transition-to-universe'
   const gesturePointerScreen = gestureStatus.activeGesture === 'pointer' && gestureStatus.pointerPoint
@@ -459,18 +461,40 @@ export default function App() {
     setViewerNodeId(node.contentType === 'image' && !!node.imageUrl ? node.id : undefined)
   }, [])
 
+  const commitSummonMaxNumber = useCallback(() => {
+    const parsed = Number(summonMaxNumberInput)
+    const next = Number.isFinite(parsed)
+      ? Math.max(1, Math.min(99, Math.round(parsed)))
+      : summonMaxNumber
+    setSummonMaxNumber(next)
+    setSummonMaxNumberInput(String(next))
+    return next
+  }, [summonMaxNumber, summonMaxNumberInput])
+
   const startSummon = useCallback(() => {
-    const stars = createSummonStars(summonMaxNumber, summonExcludedInput)
+    if (summonDeployTimerRef.current !== undefined) {
+      window.clearTimeout(summonDeployTimerRef.current)
+    }
+    const maxNumber = commitSummonMaxNumber()
+    const stars = createSummonStars(maxNumber, summonExcludedInput)
     setSummonStars(stars)
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setSummonResult(undefined)
-    setSummonStage('drawing')
+    setSummonStage('deploying')
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
-  }, [summonExcludedInput, summonMaxNumber])
+    summonDeployTimerRef.current = window.setTimeout(() => {
+      summonDeployTimerRef.current = undefined
+      setSummonStage('drawing')
+    }, 1150)
+  }, [commitSummonMaxNumber, summonExcludedInput])
 
   const resetSummon = useCallback(() => {
+    if (summonDeployTimerRef.current !== undefined) {
+      window.clearTimeout(summonDeployTimerRef.current)
+      summonDeployTimerRef.current = undefined
+    }
     setSummonStars(createSummonStars(summonMaxNumber, summonExcludedInput))
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
@@ -479,7 +503,25 @@ export default function App() {
     setControlResetKey((value) => value + 1)
   }, [summonExcludedInput, summonMaxNumber])
 
+  const backToSummonMenu = useCallback(() => {
+    if (summonDeployTimerRef.current !== undefined) {
+      window.clearTimeout(summonDeployTimerRef.current)
+      summonDeployTimerRef.current = undefined
+    }
+    commitSummonMaxNumber()
+    setSummonStage('setup')
+    setSummonStars([])
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    setSummonResult(undefined)
+    audioManagerRef.current?.playSelect()
+  }, [commitSummonMaxNumber])
+
   const exitSummon = useCallback(() => {
+    if (summonDeployTimerRef.current !== undefined) {
+      window.clearTimeout(summonDeployTimerRef.current)
+      summonDeployTimerRef.current = undefined
+    }
     setAppMode('transition-to-universe')
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
@@ -495,11 +537,12 @@ export default function App() {
 
   const selectSummonStar = useCallback((id: string) => {
     if (isTransitioning || summonStage !== 'drawing') return
-    setSelectedSummonStarId((current) => current === id ? undefined : id)
+    const deselecting = selectedSummonStarId === id
+    setSelectedSummonStarId(deselecting ? undefined : id)
     setArmedSummonStarId(undefined)
     setSummonStars((current) => current.map((star) => {
       if (star.status === 'summoned') return star
-      if (star.id === id) return { ...star, status: selectedSummonStarId === id ? 'available' : 'selected' }
+      if (star.id === id) return { ...star, status: deselecting ? 'available' : 'selected' }
       return { ...star, status: 'available' }
     }))
     audioManagerRef.current?.playSelect()
@@ -677,6 +720,9 @@ export default function App() {
     if (adminPressTimerRef.current !== undefined) {
       window.clearTimeout(adminPressTimerRef.current)
     }
+    if (summonDeployTimerRef.current !== undefined) {
+      window.clearTimeout(summonDeployTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -774,6 +820,10 @@ export default function App() {
       window.visualViewport?.removeEventListener('resize', updateViewport)
     }
   }, [])
+
+  useEffect(() => {
+    if (!settingsOpen) setCustomNebulaOpen(false)
+  }, [settingsOpen])
 
   useEffect(() => {
     const handleOrientationSignal = () => {
@@ -1071,7 +1121,13 @@ export default function App() {
         </div>
       </header>
       {settingsOpen && !isSummonActive && !isTransitioning ? (
-        <section className="settings-panel" aria-label="設定面板">
+        <section
+          className="settings-panel"
+          aria-label="設定面板"
+          onPointerDownCapture={(event) => {
+            if (!(event.target as HTMLElement).closest('.nebula-settings')) setCustomNebulaOpen(false)
+          }}
+        >
           <div className="settings-heading">
             <div>
               <strong>設定</strong>
@@ -1093,7 +1149,10 @@ export default function App() {
                     '--nebula-b': theme.preview[1],
                     '--nebula-c': theme.preview[2],
                   } as CSSProperties}
-                  onClick={() => setSettings((current) => ({ ...current, selectedNebulaPreset: theme.id }))}
+                  onClick={() => {
+                    setCustomNebulaOpen(false)
+                    setSettings((current) => ({ ...current, selectedNebulaPreset: theme.id }))
+                  }}
                 >
                   <span aria-hidden="true" />
                   {theme.name}
@@ -1205,16 +1264,18 @@ export default function App() {
       <SummonControls
         active={isSummonActive}
         stage={summonStage}
-        maxNumber={summonMaxNumber}
+        maxNumberInput={summonMaxNumberInput}
         excludedInput={summonExcludedInput}
         remaining={summonStars.filter((star) => star.status !== 'summoned').length}
         result={summonResult}
         selectedStar={summonStars.find((star) => star.id === selectedSummonStarId)}
         armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
-        onMaxNumberChange={(value) => setSummonMaxNumber(Math.max(1, Math.min(99, Math.round(value || 1))))}
+        onMaxNumberInputChange={setSummonMaxNumberInput}
+        onMaxNumberCommit={commitSummonMaxNumber}
         onExcludedInputChange={setSummonExcludedInput}
         onStart={startSummon}
         onReset={resetSummon}
+        onBackToMenu={backToSummonMenu}
         onExit={exitSummon}
       />
       {isAdmin && !isSummonActive && !isTransitioning ? (

@@ -2,33 +2,37 @@ import type { SummonStar } from '../summon/summonUtils'
 
 type Props = {
   active: boolean
-  stage: 'setup' | 'drawing'
-  maxNumber: number
+  stage: 'setup' | 'deploying' | 'drawing'
+  maxNumberInput: string
   excludedInput: string
   remaining: number
   result?: number
   armedStar?: SummonStar
   selectedStar?: SummonStar
-  onMaxNumberChange: (value: number) => void
+  onMaxNumberInputChange: (value: string) => void
+  onMaxNumberCommit: () => void
   onExcludedInputChange: (value: string) => void
   onStart: () => void
   onReset: () => void
+  onBackToMenu: () => void
   onExit: () => void
 }
 
 export default function SummonControls({
   active,
   stage,
-  maxNumber,
+  maxNumberInput,
   excludedInput,
   remaining,
   result,
   armedStar,
   selectedStar,
-  onMaxNumberChange,
+  onMaxNumberInputChange,
+  onMaxNumberCommit,
   onExcludedInputChange,
   onStart,
   onReset,
+  onBackToMenu,
   onExit,
 }: Props) {
   if (!active) return null
@@ -46,8 +50,15 @@ export default function SummonControls({
                 type="number"
                 min="1"
                 max="99"
-                value={maxNumber}
-                onChange={(event) => onMaxNumberChange(Number(event.target.value))}
+                value={maxNumberInput}
+                onBlur={onMaxNumberCommit}
+                onChange={(event) => onMaxNumberInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                    onMaxNumberCommit()
+                  }
+                }}
               />
             </span>
           </label>
@@ -62,6 +73,13 @@ export default function SummonControls({
           <button type="button" data-gesture-clickable="true" onClick={onStart}>開始</button>
           <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
         </>
+      ) : stage === 'deploying' ? (
+        <>
+          <strong>召喚</strong>
+          <span>展開中</span>
+          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>返回選單</button>
+          <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
+        </>
       ) : (
         <>
           <strong>召喚</strong>
@@ -69,6 +87,7 @@ export default function SummonControls({
           {armedStar ? <span>已啟動</span> : selectedStar ? <span>已選取</span> : null}
           {result ? <b className="summon-result-chip">{result}</b> : null}
           <button type="button" data-gesture-clickable="true" onClick={onReset}>重置</button>
+          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>返回選單</button>
           <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
         </>
       )}

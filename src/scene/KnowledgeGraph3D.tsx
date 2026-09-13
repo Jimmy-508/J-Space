@@ -34,7 +34,7 @@ type Props = {
   immersive?: boolean
   nebulaTheme: NebulaTheme
   appMode?: 'universe' | 'transition-to-summon' | 'summon' | 'transition-to-universe'
-  summonStage?: 'setup' | 'drawing'
+  summonStage?: 'setup' | 'deploying' | 'drawing'
   summonStars?: SummonStar[]
   selectedSummonStarId?: string
   armedSummonStarId?: string
@@ -51,6 +51,12 @@ const typeColors: Record<string, number> = {
   website: 0xf5d98b,
   project: 0xd7b3ff,
   file: 0xe7edf8,
+}
+
+const summonNodeColors = {
+  core: 0xf2c96d,
+  midGlow: 0xc99a3d,
+  outerGlow: 0x8a6728,
 }
 
 const clusterPositions: Record<string, THREE.Vector3> = {
@@ -772,10 +778,12 @@ export default function KnowledgeGraph3D({
       const viewer = imageViewerRef.current
       const viewerActive = !!viewer?.ready
       const summonActive = appModeRef.current === 'summon'
+      const summonStage = summonStageRef.current
+      const summonDeploying = summonActive && summonStage === 'deploying'
       const transitionActive = appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe'
       const summonGroup = summonGroupRef.current
       group.visible = !summonActive
-      if (summonGroup) summonGroup.visible = summonActive && summonStageRef.current === 'drawing'
+      if (summonGroup) summonGroup.visible = summonActive && summonStage !== 'setup'
       viewer?.update(nowMs)
       if (!viewerActive && focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture)) {
         focusTransitionRef.current = null
@@ -866,7 +874,7 @@ export default function KnowledgeGraph3D({
         camera.position.lerpVectors(transition.fromPosition, transition.toPosition, eased)
         cameraTargetRef.current.lerpVectors(transition.fromTarget, transition.toTarget, eased)
         if (progress >= 1) focusTransitionRef.current = null
-      } else if (!transitionActive) {
+      } else if (!transitionActive && !summonDeploying) {
         const controlGroup = summonActive && summonGroup ? summonGroup : group
         controlGroup.rotation.y += 0.00085
         if (activeGesture?.activeGesture === 'rotate') {
@@ -889,7 +897,7 @@ export default function KnowledgeGraph3D({
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
       const pointerOverUi = !!activeGesture?.pointerScreen && !!isGesturePointerOverUiRef.current?.(activeGesture.pointerScreen)
-      if (summonActive && !viewerActive && activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current && !pointerOverUi) {
+      if (summonActive && summonStage === 'drawing' && !viewerActive && activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current && !pointerOverUi) {
         const hitId = getScreenSummonHit(activeGesture.pointerScreen, summonMeshesRef.current, camera, renderer)
         if (hitId) {
           const mesh = summonMeshesRef.current.get(hitId)
@@ -973,7 +981,7 @@ export default function KnowledgeGraph3D({
         dwellRef.current = { since: 0, triggeredAt: dwellRef.current.triggeredAt, armed: true }
         if (dwellFeedbackRef.current) dwellFeedbackRef.current.visible = false
       }
-      if (summonActive && summonStageRef.current === 'drawing') {
+      if (summonActive && summonStage === 'drawing') {
         const selectedSummonId = selectedSummonStarIdRef.current
         const armedSummonId = armedSummonStarIdRef.current
         if (selectedSummonId && !armedSummonId) {
@@ -1181,10 +1189,19 @@ export default function KnowledgeGraph3D({
       })
       summonEffectsRef.current.forEach((object) => {
         const phase = object.userData.phase ?? 0
+        if (object.userData.deploying) {
+          const progress = THREE.MathUtils.clamp((time - (object.userData.createdAt ?? time)) / 1.08, 0, 1)
+          const eased = 1 - (1 - progress) ** 3
+          const start = object.userData.startPosition as THREE.Vector3
+          const target = object.userData.targetPosition as THREE.Vector3
+          object.position.lerpVectors(start, target, eased)
+          object.scale.setScalar(0.58 + eased * 0.48 + Math.sin(progress * Math.PI) * 0.18)
+        }
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
             child.quaternion.copy(camera.quaternion)
             if (child.userData.role === 'ring') child.scale.setScalar(1 + Math.sin(time * 1.8 + phase) * 0.08)
+            if (child.userData.role === 'innerRing') child.scale.setScalar(1 + Math.sin(time * 2.4 + phase) * 0.055)
             if (child.userData.role === 'shockwave') child.scale.setScalar(1.2 + Math.sin(time * 1.2 + phase) * 0.18)
             const material = child.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
             if ('opacity' in material && child.userData.role === 'shockwave') material.opacity = 0.28 + Math.sin(time * 1.5 + phase) * 0.08
@@ -1354,11 +1371,11 @@ export default function KnowledgeGraph3D({
       const isSummonNode = node.id === SUMMON_NODE_ID
       const hasContent = isContentNode(node)
       const nodeRadius = isSummonNode ? 0.52 : isCluster ? 0.68 : hasContent ? 0.4 : 0.34
-      const nodeColor = isSummonNode ? 0xffd48a : typeColors[node.type]
+      const nodeColor = isSummonNode ? summonNodeColors.core : typeColors[node.type]
       const geometry = new THREE.SphereGeometry(nodeRadius, isCluster || hasContent ? 24 : 18, isCluster || hasContent ? 16 : 12)
       const material = new THREE.MeshStandardMaterial({
         color: nodeColor,
-        emissive: nodeColor,
+        emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
         emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
         roughness: hasContent ? 0.38 : 0.5,
         transparent: true,
@@ -1371,7 +1388,7 @@ export default function KnowledgeGraph3D({
       if (hasContent || isSummonNode) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(nodeRadius + 0.12, nodeRadius + 0.17, 48),
-          makeHaloMaterial(isSummonNode ? 0xffdfa4 : typeColors[node.type], isSummonNode ? 0.34 : selectedId ? 0.16 : 0.2),
+          makeHaloMaterial(isSummonNode ? summonNodeColors.outerGlow : typeColors[node.type], isSummonNode ? 0.38 : selectedId ? 0.16 : 0.2),
         )
         ring.position.copy(mesh.position)
         ring.userData = { nodeId: node.id, markerKind: 'content-ring', baseOpacity: selectedId ? 0.09 : 0.14, opacityRange: 0.055, baseScale: 1, scaleRange: 0.035, faceCamera: true }
@@ -1379,8 +1396,8 @@ export default function KnowledgeGraph3D({
         group.add(ring)
         const flare = new THREE.Sprite(new THREE.SpriteMaterial({
           map: starFlareTexture,
-          color: typeColors[node.type],
-          opacity: selectedId ? 0.12 : 0.16,
+          color: isSummonNode ? summonNodeColors.midGlow : typeColors[node.type],
+          opacity: isSummonNode ? selectedId ? 0.16 : 0.22 : selectedId ? 0.12 : 0.16,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
@@ -1524,11 +1541,13 @@ export default function KnowledgeGraph3D({
     summonMeshesRef.current.clear()
     summonEffectsRef.current.forEach(disposeObject)
     summonEffectsRef.current = []
-    if (appMode === 'universe' || summonStage !== 'drawing') {
+    if (appMode === 'universe' || summonStage === 'setup') {
       group.visible = false
       return
     }
     group.visible = true
+    const deploying = summonStage === 'deploying'
+    const createdAt = performance.now() * 0.001
     summonStars.forEach((star) => {
       if (star.status === 'summoned') {
         const burst = new THREE.Group()
@@ -1566,16 +1585,18 @@ export default function KnowledgeGraph3D({
         return
       }
       const root = new THREE.Group()
-      root.position.copy(toVector3(star.position))
-      root.userData = { id: star.id, number: star.number, phase: star.number * 0.41 }
+      const targetPosition = toVector3(star.position)
+      const startPosition = new THREE.Vector3(targetPosition.x * 0.12, targetPosition.y * 0.12, -9)
+      root.position.copy(deploying ? startPosition : targetPosition)
+      root.userData = { id: star.id, number: star.number, phase: star.number * 0.41, startPosition, targetPosition, createdAt, deploying }
       const selected = star.id === selectedSummonStarId
       const armed = star.id === armedSummonStarId || star.status === 'armed'
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(0.42, 20, 14),
+        new THREE.SphereGeometry(0.42, 24, 16),
         new THREE.MeshStandardMaterial({
-          color: armed ? 0xffe0a3 : selected ? 0xd8f4ff : 0xb8d7ff,
-          emissive: armed ? 0xffba5d : selected ? 0x9be8ff : 0x7bb4ff,
-          emissiveIntensity: armed ? 1.82 : selected ? 1.08 : 0.58,
+          color: armed ? 0xffe0a3 : selected ? 0xd8f4ff : 0x596f93,
+          emissive: armed ? 0xffba5d : selected ? 0x9be8ff : 0x6f9ed8,
+          emissiveIntensity: armed ? 1.95 : selected ? 1.16 : 0.48,
           roughness: 0.38,
           transparent: true,
           opacity: 0.96,
@@ -1588,7 +1609,15 @@ export default function KnowledgeGraph3D({
         makeHaloMaterial(armed ? 0xffd48a : selected ? 0xc8f4ff : 0xa9cfff, armed ? 0.58 : selected ? 0.42 : 0.22),
       )
       ring.userData = { role: 'ring' }
+      ring.rotation.z = star.number * 0.19
       root.add(ring)
+      const innerRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.49, 0.515, 56),
+        makeHaloMaterial(armed ? 0xffefc2 : selected ? 0xe0fbff : 0x86aee4, armed ? 0.46 : selected ? 0.28 : 0.13),
+      )
+      innerRing.userData = { role: 'innerRing' }
+      innerRing.rotation.z = star.number * 0.37
+      root.add(innerRing)
       const flare = new THREE.Sprite(new THREE.SpriteMaterial({
         map: starFlareTexture,
         color: armed ? 0xffd48a : selected ? 0xc8f4ff : 0xa9cfff,
@@ -1599,6 +1628,18 @@ export default function KnowledgeGraph3D({
       }))
       flare.scale.setScalar(armed ? 2.8 : selected ? 2.2 : 1.62)
       root.add(flare)
+      const companion = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: starFlareTexture,
+        color: 0xcde4ff,
+        opacity: 0.16,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }))
+      companion.position.set(Math.sin(star.number) * 0.72, Math.cos(star.number * 1.7) * 0.52, 0)
+      companion.scale.setScalar(0.34)
+      companion.userData = { role: 'companion' }
+      root.add(companion)
       group.add(root)
       summonEffectsRef.current.push(root)
       summonMeshesRef.current.set(star.id, core)
@@ -1824,7 +1865,7 @@ export default function KnowledgeGraph3D({
       className="graph-canvas"
       ref={mountRef}
       onPointerMove={(event) => {
-        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe') return
+        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
         updatePointer(event)
         if (event.pointerType === 'mouse') {
           const isMousePanChord = (event.buttons & 3) === 3
@@ -1880,7 +1921,7 @@ export default function KnowledgeGraph3D({
         } else hoverAtPointer()
       }}
       onPointerDown={(event) => {
-        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe') return
+        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
         if (event.pointerType === 'mouse' && (event.buttons & 3) === 3) {
           event.preventDefault()
           beginMousePan(event.clientX, event.clientY)
@@ -1906,7 +1947,7 @@ export default function KnowledgeGraph3D({
         }
       }}
       onPointerUp={(event) => {
-        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe') return
+        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
         if (event.pointerType === 'mouse' && mousePanRef.current.consumed) {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId)
@@ -2014,7 +2055,7 @@ export default function KnowledgeGraph3D({
         }
       }}
       onTouchStart={(event) => {
-        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe') return
+        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
         cancelViewReset()
         if (event.touches.length === 2 && cameraRef.current) {
           const { distance, midpoint } = getTouchMetrics(event.touches)
@@ -2032,10 +2073,21 @@ export default function KnowledgeGraph3D({
           dragRef.current.dragging = false
         } else if (event.touches.length === 1) {
           touchRef.current.mode = 'rotate'
+          touchRef.current.lastMidpoint.set(event.touches[0].clientX, event.touches[0].clientY)
         }
       }}
       onTouchMove={(event) => {
-        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe') return
+        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
+        if (event.touches.length === 1 && touchRef.current.mode === 'rotate' && appModeRef.current === 'summon' && summonGroupRef.current) {
+          event.preventDefault()
+          const touch = event.touches[0]
+          const dx = touch.clientX - touchRef.current.lastMidpoint.x
+          const dy = touch.clientY - touchRef.current.lastMidpoint.y
+          summonGroupRef.current.rotation.y += dx * 0.006
+          summonGroupRef.current.rotation.x += dy * 0.004
+          touchRef.current.lastMidpoint.set(touch.clientX, touch.clientY)
+          return
+        }
         if (event.touches.length === 2 && cameraRef.current) {
           event.preventDefault()
           const camera = cameraRef.current
@@ -2086,7 +2138,7 @@ export default function KnowledgeGraph3D({
         if (event.touches.length < 2) touchRef.current.mode = 'none'
       }}
       onWheel={(event) => {
-        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe') return
+        if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
         if (!cameraRef.current) return
         cancelViewReset()
         const viewer = imageViewerRef.current
