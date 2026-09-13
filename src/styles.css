@@ -830,21 +830,32 @@ button:disabled {
 }
 
 .hand-summon-flow {
-  filter: drop-shadow(0 0 12px rgba(120, 205, 255, 0.46)) drop-shadow(0 0 24px rgba(255, 215, 145, 0.28));
+  filter: drop-shadow(0 0 14px rgba(120, 205, 255, 0.6)) drop-shadow(0 0 30px rgba(255, 215, 145, 0.42));
 }
 
 .hand-summon-flow path {
   fill: none;
-  stroke: rgba(172, 226, 255, 0.62);
-  stroke-width: 2.5px;
   stroke-linecap: round;
-  stroke-dasharray: 0.18 0.12;
-  animation: hand-summon-flow 0.62s linear infinite;
   vector-effect: non-scaling-stroke;
+}
+
+.hand-summon-flow-aura {
+  stroke: rgba(114, 205, 255, 0.24);
+  stroke-width: 10px;
+  stroke-dasharray: 0.08 0.18;
+  animation: hand-summon-flow 0.82s linear infinite;
+}
+
+.hand-summon-flow-core {
+  stroke: rgba(255, 238, 185, 0.82);
+  stroke-width: 3.2px;
+  stroke-dasharray: 0.18 0.1;
+  animation: hand-summon-flow 0.46s linear infinite;
 }
 
 .hand-summon-flow-particle {
   fill: rgba(255, 237, 185, 0.9);
+  filter: drop-shadow(0 0 8px rgba(255, 225, 150, 0.9));
   animation: hand-summon-particle 0.56s ease-in-out infinite alternate;
 }
 

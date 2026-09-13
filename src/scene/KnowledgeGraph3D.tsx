@@ -1469,9 +1469,11 @@ export default function KnowledgeGraph3D({
               : 1
             ;(child.material as THREE.LineBasicMaterial).opacity = 0.56 * Math.max(0, 1 - progress)
           }
-          if (child instanceof THREE.Line && child.userData.role === 'burstStreak') {
+          if (child instanceof THREE.Line && (child.userData.role === 'burstStreak' || child.userData.role === 'burstRay')) {
             const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
-            ;(child.material as THREE.LineBasicMaterial).opacity = Math.max(0, 0.68 * (1 - age / 0.72))
+            const base = child.userData.role === 'burstRay' ? 0.86 : 0.68
+            const duration = child.userData.role === 'burstRay' ? 0.5 : 0.72
+            ;(child.material as THREE.LineBasicMaterial).opacity = Math.max(0, base * (1 - age / duration))
           }
           if (child instanceof THREE.Line && child.userData.role === 'holdTendril') {
             const material = child.material as THREE.LineBasicMaterial
@@ -1510,6 +1512,12 @@ export default function KnowledgeGraph3D({
               child.position.set(Math.cos(angle) * (radius + wobble), Math.sin(angle * 0.92) * radius * (child.userData.ellipse ?? 0.82), 0.08 + holdProgress * 0.08)
               material.opacity = 0.5 + holdProgress * 0.46 + Math.sin(time * 10 + phase) * 0.08
               child.scale.setScalar((child.userData.baseScale ?? 0.12) * (1 + holdProgress * 0.72) * (1 + Math.sin(time * 8 + phase) * 0.18))
+            } else if (child.userData.role === 'holdGleam') {
+              const angle = (child.userData.angle ?? 0) + time * (child.userData.speed ?? 1.5)
+              const radius = (child.userData.radius ?? 1) * (1 - holdProgress * 0.62)
+              child.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.72, 0.16)
+              child.scale.setScalar((child.userData.baseScale ?? 0.32) * (0.8 + holdProgress * 1.1) * (1 + Math.sin(time * 14 + phase) * 0.22))
+              material.opacity = 0.16 + holdProgress * 0.72 + Math.sin(time * 12 + phase) * 0.08
             } else if (child.userData.role === 'burstFlash') {
               const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
               child.scale.setScalar(1.4 + age * 6.2)
@@ -2176,6 +2184,28 @@ export default function KnowledgeGraph3D({
           holdOrbit.add(particle)
         })
         root.add(holdOrbit)
+        Array.from({ length: 7 }).forEach((_, gleamIndex) => {
+          const gleam = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: starFlareTexture,
+            color: gleamIndex % 2 === 0 ? 0xfff0bd : 0xcfeeff,
+            opacity: 0.26,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }))
+          const angle = phase + gleamIndex * 0.91
+          const radius = size + 0.62 + (gleamIndex % 3) * 0.16
+          gleam.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.72, 0.16)
+          gleam.scale.setScalar(0.28 + (gleamIndex % 3) * 0.07)
+          gleam.userData = {
+            role: 'holdGleam',
+            angle,
+            radius,
+            baseScale: 0.28 + (gleamIndex % 3) * 0.07,
+            speed: 1.4 + gleamIndex * 0.12,
+          }
+          root.add(gleam)
+        })
         Array.from({ length: 8 }).forEach((_, tendrilIndex) => {
           const angle = phase + tendrilIndex * 0.785 + Math.sin(tendrilIndex) * 0.18
           const outer = size + 1.25 + (tendrilIndex % 3) * 0.18
@@ -2257,6 +2287,24 @@ export default function KnowledgeGraph3D({
               root.add(streak)
             }
           })
+          Array.from({ length: 12 }).forEach((_, rayIndex) => {
+            const angle = phase + rayIndex * 0.524
+            const start = size * 0.45
+            const end = size * (3.0 + (rayIndex % 3) * 0.42)
+            const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(Math.cos(angle) * start, Math.sin(angle) * start, 0.09),
+              new THREE.Vector3(Math.cos(angle) * end, Math.sin(angle) * end, 0.09),
+            ])
+            const ray = new THREE.Line(rayGeometry, new THREE.LineBasicMaterial({
+              color: rayIndex % 2 === 0 ? 0xffefbd : 0xaee8ff,
+              transparent: true,
+              opacity: 0.72,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            }))
+            ray.userData = { role: 'burstRay', createdAt: star.resolvedAt }
+            root.add(ray)
+          })
         }
         const label = new THREE.Sprite(new THREE.SpriteMaterial({
           map: createNodeLabelTexture(String(star.number)),
@@ -2309,15 +2357,15 @@ export default function KnowledgeGraph3D({
       startedAt: performance.now(),
       duration: FOCUS_TRANSITION_DURATION_MS,
       fromPosition: camera.position.clone(),
-      toPosition: new THREE.Vector3(world.x, world.y + 1.35, world.z + 13.5),
+      toPosition: new THREE.Vector3(world.x, world.y + 0.62, world.z + 5.8),
       fromTarget: cameraTargetRef.current.clone(),
       toTarget: world,
       fromRotation: summonGroupRef.current?.rotation.clone() ?? new THREE.Euler(),
       resetRotation: false,
     }
 
-    const blur = THREE.MathUtils.clamp(1.4 + travelDistance * 0.14, 1.8, 4.2)
-    const scale = THREE.MathUtils.clamp(1.004 + travelDistance * 0.0004, 1.004, 1.012)
+    const blur = THREE.MathUtils.clamp(1.8 + travelDistance * 0.18, 2.2, 5.2)
+    const scale = THREE.MathUtils.clamp(1.01 + travelDistance * 0.0008, 1.01, 1.026)
     mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
     mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
     mount.classList.remove('is-focus-transitioning')

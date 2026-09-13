@@ -266,12 +266,13 @@ function HandEnergyOverlay({
         const midY = (hand.point.y + summonEnergyTarget!.y) / 2 + ny * bend
         return (
           <g key={`summon-flow-${hand.id}`} className="hand-summon-flow">
-            <path d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
-            {[0.2, 0.38, 0.56, 0.74, 0.9].map((offset, index) => {
+            <path className="hand-summon-flow-aura" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
+            <path className="hand-summon-flow-core" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
+            {[0.12, 0.24, 0.36, 0.48, 0.62, 0.76, 0.9].map((offset, index) => {
               const t = (offset + handIndex * 0.08) % 1
               const x = (1 - t) * (1 - t) * hand.point.x + 2 * (1 - t) * t * midX + t * t * summonEnergyTarget!.x
               const y = (1 - t) * (1 - t) * hand.point.y + 2 * (1 - t) * t * midY + t * t * summonEnergyTarget!.y
-              return <circle key={index} className="hand-summon-flow-particle" cx={x} cy={y} r={Math.max(2.2, 6.2 - index * 0.58)} />
+              return <circle key={index} className="hand-summon-flow-particle" cx={x} cy={y} r={Math.max(2.4, 7.4 - index * 0.62)} />
             })}
           </g>
         )
@@ -368,10 +369,20 @@ export default function App() {
   const gestureMachineRef = useRef(new GestureStateMachine())
   const idleTimerRef = useRef<number | undefined>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
+  const focusIdRef = useRef<string | undefined>(undefined)
+  const hoveredIdRef = useRef<string | undefined>(undefined)
   const viewerNodeIdRef = useRef<string | undefined>(undefined)
+  const nodeHudExpandedRef = useRef(false)
   const viewportOrientationRef = useRef(getViewportOrientation())
   const orientationResetTimerRef = useRef<number | undefined>(undefined)
   const summonDeployTimerRef = useRef<number | undefined>(undefined)
+  const universeUiSnapshotRef = useRef<{
+    selectedId?: string
+    focusId?: string
+    hoveredId?: string
+    viewerNodeId?: string
+    nodeHudExpanded: boolean
+  } | undefined>(undefined)
   const audioManagerRef = useRef<AudioManager | undefined>(undefined)
   const gestureUiDwellRef = useRef<{
     element?: HTMLElement
@@ -474,8 +485,37 @@ export default function App() {
     setViewerNodeId(undefined)
     setViewerLoadState('idle')
   }, [])
+  const restoreUniverseUiSnapshot = useCallback(() => {
+    const snapshot = universeUiSnapshotRef.current
+    if (!snapshot) {
+      setSelectedId(undefined)
+      setFocusId(undefined)
+      setHoveredId(undefined)
+      setViewerNodeId(undefined)
+      setViewerLoadState('idle')
+      setSelectionSource(undefined)
+      setNodeHudExpanded(false)
+      return
+    }
+    setSelectedId(snapshot.selectedId)
+    setFocusId(snapshot.focusId)
+    setHoveredId(snapshot.hoveredId)
+    setViewerNodeId(snapshot.viewerNodeId)
+    setViewerLoadState('idle')
+    setSelectionSource(undefined)
+    setNodeHudExpanded(snapshot.nodeHudExpanded)
+  }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
     if (isSystemNode(node)) {
+      if (selectedIdRef.current !== SUMMON_NODE_ID) {
+        universeUiSnapshotRef.current = {
+          selectedId: selectedIdRef.current,
+          focusId: focusIdRef.current,
+          hoveredId: hoveredIdRef.current,
+          viewerNodeId: viewerNodeIdRef.current,
+          nodeHudExpanded: nodeHudExpandedRef.current,
+        }
+      }
       audioManagerRef.current?.playSelect()
       setSelectedId(node.id)
       setFocusId(node.id)
@@ -577,6 +617,7 @@ export default function App() {
       window.clearTimeout(summonDeployTimerRef.current)
       summonDeployTimerRef.current = undefined
     }
+    restoreUniverseUiSnapshot()
     setAppMode('transition-to-universe')
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
@@ -590,7 +631,7 @@ export default function App() {
       setSummonResultOverlay(undefined)
       setSummonResultTarget(undefined)
     }, 820)
-  }, [])
+  }, [restoreUniverseUiSnapshot])
 
   const selectSummonStar = useCallback((id: string) => {
     if (isTransitioning || summonStage !== 'drawing') return
@@ -755,8 +796,20 @@ export default function App() {
   }, [selectedId])
 
   useEffect(() => {
+    focusIdRef.current = focusId
+  }, [focusId])
+
+  useEffect(() => {
+    hoveredIdRef.current = hoveredId
+  }, [hoveredId])
+
+  useEffect(() => {
     viewerNodeIdRef.current = viewerNodeId
   }, [viewerNodeId])
+
+  useEffect(() => {
+    nodeHudExpandedRef.current = nodeHudExpanded
+  }, [nodeHudExpanded])
 
   useEffect(() => {
     const unsubscribe = firestoreKnowledgeRepository.subscribeAll(
