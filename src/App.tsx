@@ -51,6 +51,8 @@ type ScreenPoint = { x: number; y: number }
 
 const distance2d = (a: ScreenPoint, b: ScreenPoint) => Math.hypot(a.x - b.x, a.y - b.y)
 
+const mix = (a: number, b: number, t: number) => a + (b - a) * t
+
 const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius: number) =>
   Array.from({ length: 16 }, (_, index) => {
     const angle = -Math.PI / 2 + (index / 16) * Math.PI * 2
@@ -194,10 +196,31 @@ function HandEnergyOverlay({
   summonEnergyActive?: boolean
 }) {
   const cursorTrailsRef = useRef(new Map<string, ScreenPoint[]>())
-  if (!status.enabled || status.cameraStatus !== 'ready') {
-    cursorTrailsRef.current.clear()
-    return null
-  }
+  const chargeStartedAtRef = useRef<number | undefined>(undefined)
+  const previousSummonHandsRef = useRef<Array<{ id: string; point: ScreenPoint; target: ScreenPoint }>>([])
+  const collapseTimerRef = useRef<number | undefined>(undefined)
+  const [collapseHands, setCollapseHands] = useState<Array<{ id: string; point: ScreenPoint; target: ScreenPoint; nonce: number }>>([])
+  const [summonFlowTime, setSummonFlowTime] = useState(0)
+  useEffect(() => {
+    if (!summonEnergyActive || !summonEnergyTarget) {
+      chargeStartedAtRef.current = undefined
+      setSummonFlowTime(0)
+      return
+    }
+    let frame = 0
+    const tick = () => {
+      const now = performance.now() * 0.001
+      chargeStartedAtRef.current ??= now
+      setSummonFlowTime(now - chargeStartedAtRef.current)
+      frame = window.requestAnimationFrame(tick)
+    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [summonEnergyActive, summonEnergyTarget])
+  useEffect(() => () => {
+    if (collapseTimerRef.current !== undefined) window.clearTimeout(collapseTimerRef.current)
+  }, [])
+  const handsReady = status.enabled && status.cameraStatus === 'ready'
   const activeIds = new Set([...(status.zoomHands ?? []), ...(status.panHands ?? []), status.pointerHand, status.rotationHand].filter(Boolean) as string[])
   const pointerIds = new Set(status.pointerHand ? [status.pointerHand] : [])
   for (const id of cursorTrailsRef.current.keys()) {
@@ -229,7 +252,34 @@ function HandEnergyOverlay({
       }
     })
     : []
-  const hiddenHandIds = new Set(summonEnergyHands.map((hand) => hand.id))
+  const summonHandSignature = summonEnergyHands.map((hand) => `${hand.id}:${Math.round(hand.point.x)},${Math.round(hand.point.y)}`).join('|')
+  useEffect(() => {
+    if (!handsReady) {
+      cursorTrailsRef.current.clear()
+      previousSummonHandsRef.current = []
+      setCollapseHands((current) => current.length ? [] : current)
+      return
+    }
+    if (summonEnergyHands.length && summonEnergyTarget) {
+      previousSummonHandsRef.current = summonEnergyHands.map((hand) => ({
+        ...hand,
+        target: summonEnergyTarget,
+      }))
+      return
+    }
+    if (!previousSummonHandsRef.current.length) return
+    const previousHands = previousSummonHandsRef.current
+    previousSummonHandsRef.current = []
+    setCollapseHands(previousHands.map((hand) => ({ ...hand, nonce: performance.now() })))
+    if (collapseTimerRef.current !== undefined) window.clearTimeout(collapseTimerRef.current)
+    collapseTimerRef.current = window.setTimeout(() => {
+      setCollapseHands([])
+      collapseTimerRef.current = undefined
+    }, 420)
+  }, [handsReady, summonEnergyActive, summonEnergyTarget, summonHandSignature, summonEnergyHands])
+  const hiddenHandIds = new Set([...summonEnergyHands.map((hand) => hand.id), ...collapseHands.map((hand) => hand.id)])
+
+  if (!handsReady) return null
 
   return (
     <svg
@@ -259,64 +309,130 @@ function HandEnergyOverlay({
         )
       })}
       {summonEnergyHands.map((hand, handIndex) => {
-        const dx = hand.point.x - summonEnergyTarget!.x
-        const dy = hand.point.y - summonEnergyTarget!.y
+        const target = summonEnergyTarget!
+        const dx = hand.point.x - target.x
+        const dy = hand.point.y - target.y
         const length = Math.hypot(dx, dy)
         const nx = length ? -dy / length : 0
         const ny = length ? dx / length : 0
-        const bend = 42 + handIndex * 18
-        const midX = (hand.point.x + summonEnergyTarget!.x) / 2 + nx * bend
-        const midY = (hand.point.y + summonEnergyTarget!.y) / 2 + ny * bend
-        const sample = (t: number) => ({
-          x: (1 - t) * (1 - t) * summonEnergyTarget!.x + 2 * (1 - t) * t * midX + t * t * hand.point.x,
-          y: (1 - t) * (1 - t) * summonEnergyTarget!.y + 2 * (1 - t) * t * midY + t * t * hand.point.y,
-        })
+        const ux = length ? dx / length : 0
+        const uy = length ? dy / length : 0
+        const bend = (length * 0.16 + 52 + handIndex * 18) * (handIndex % 2 ? -1 : 1)
+        const midX = (hand.point.x + target.x) / 2 + nx * bend
+        const midY = (hand.point.y + target.y) / 2 + ny * bend
+        const power = Math.min(1, summonFlowTime / 2.4)
+        const sample = (t: number, lane = 0) => {
+          const eased = 1 - Math.pow(1 - t, 1.75)
+          const baseX = (1 - eased) * (1 - eased) * target.x + 2 * (1 - eased) * eased * midX + eased * eased * hand.point.x
+          const baseY = (1 - eased) * (1 - eased) * target.y + 2 * (1 - eased) * eased * midY + eased * eased * hand.point.y
+          const spiral = Math.max(0, (t - 0.62) / 0.38)
+          const sourceSpread = Math.max(0, 1 - t / 0.28)
+          const orbit = Math.sin(t * 26 + lane * 1.7 + summonFlowTime * (7 + power * 7))
+          const swirl = (sourceSpread * (24 + lane % 5 * 6) + spiral * (44 * (1 - spiral))) * orbit
+          return {
+            x: baseX + nx * swirl - ux * sourceSpread * (8 + (lane % 4) * 3),
+            y: baseY + ny * swirl - uy * sourceSpread * (8 + (lane % 4) * 3),
+          }
+        }
         return (
-          <g key={`summon-flow-${hand.id}`} className="hand-summon-flow">
-            <g className="hand-black-hole" transform={`translate(${hand.point.x} ${hand.point.y})`}>
-              <circle className="hand-black-hole-gravity" r="88" />
-              <ellipse className="hand-black-hole-disc disc-a" rx="82" ry="26" />
-              <ellipse className="hand-black-hole-disc disc-b" rx="62" ry="18" />
-              <circle className="hand-black-hole-core" r="28" />
-              {Array.from({ length: 12 }).map((_, index) => {
-                const angle = index * 0.524 + handIndex * 0.3
+          <g key={`summon-absorption-${hand.id}`} className="summon-absorption">
+            <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
+              <ellipse className="summon-source-tear tear-a" cx="24" cy="0" rx={38 + power * 18} ry={15 + power * 7} />
+              <ellipse className="summon-source-tear tear-b" cx="48" cy="-11" rx={25 + power * 16} ry={8 + power * 5} />
+              <ellipse className="summon-source-tear tear-c" cx="42" cy="13" rx={30 + power * 15} ry={9 + power * 6} />
+              {Array.from({ length: 18 }).map((_, index) => {
+                const angle = index * 0.75 + summonFlowTime * (2.2 + power * 3)
+                const radius = 25 + (index % 6) * 7
                 return (
                   <circle
                     key={index}
-                    className="hand-black-hole-particle"
-                    cx={Math.cos(angle) * (44 + (index % 4) * 11)}
-                    cy={Math.sin(angle) * (14 + (index % 3) * 6)}
-                    r={2.8 + (index % 3) * 0.8}
+                    className="summon-source-flake"
+                    cx={Math.cos(angle) * radius + ux * (18 + power * 18)}
+                    cy={Math.sin(angle) * radius * 0.62}
+                    r={1.8 + (index % 4) * 0.7}
                   />
                 )
               })}
             </g>
-            {Array.from({ length: 18 }).map((_, index) => {
-              const t = ((index * 0.055 + handIndex * 0.08) % 0.92) + 0.04
+            {Array.from({ length: 64 }).map((_, index) => {
+              const speed = 0.18 + (index % 9) * 0.032 + power * 0.12
+              const t = (summonFlowTime * speed + index * 0.061 + handIndex * 0.13) % 1
               const point = sample(t)
-              const next = sample(Math.min(1, t + 0.035))
-              const pull = 0.55 + t * 0.75
+              const next = sample(Math.min(1, t + 0.028 + t * 0.035), index)
+              const stretch = 0.55 + t * 2.4
+              const brightness = 0.36 + t * 0.58 + power * 0.2
+              const width = Math.max(1.2, 2.4 + t * 5.8 - (index % 4) * 0.45)
               return (
                 <line
                   key={index}
-                  className="hand-summon-flow-streak"
-                  x1={point.x - (next.x - point.x) * pull}
-                  y1={point.y - (next.y - point.y) * pull}
+                  className={`summon-absorb-streak ${index % 5 === 0 ? 'large' : ''}`}
+                  x1={point.x - (next.x - point.x) * stretch}
+                  y1={point.y - (next.y - point.y) * stretch}
                   x2={next.x}
                   y2={next.y}
-                  strokeWidth={Math.max(1.8, 6.4 - index * 0.18)}
+                  strokeWidth={width}
+                  opacity={Math.min(1, brightness)}
                 />
               )
             })}
-            {[0.1, 0.18, 0.25, 0.33, 0.42, 0.5, 0.58, 0.68, 0.78, 0.88, 0.95].map((offset, index) => {
-              const t = (offset + handIndex * 0.08) % 1
-              const { x, y } = sample(t)
-              return <circle key={index} className="hand-summon-flow-particle" cx={x} cy={y} r={Math.max(2.4, 7.4 - index * 0.62)} />
+            {Array.from({ length: 42 }).map((_, index) => {
+              const t = (summonFlowTime * (0.26 + (index % 7) * 0.04 + power * 0.16) + index * 0.089) % 1
+              const { x, y } = sample(t, index)
+              return (
+                <circle
+                  key={index}
+                  className={`summon-absorb-particle ${index % 6 === 0 ? 'chunk' : ''}`}
+                  cx={x}
+                  cy={y}
+                  r={mix(2.2, index % 6 === 0 ? 8.6 : 5.3, t)}
+                  opacity={Math.min(1, 0.38 + t * 0.58 + power * 0.18)}
+                />
+              )
             })}
+            <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
+              <circle className="summon-singularity-gravity gravity-a" r={112 + power * 28} />
+              <circle className="summon-singularity-gravity gravity-b" r={78 + power * 24} />
+              <path className="summon-accretion accretion-a" d="M -122 -12 C -82 -54, -12 -46, 42 -22 S 118 8, 146 -22" />
+              <path className="summon-accretion accretion-b" d="M -136 18 C -86 54, -22 47, 36 18 S 110 -12, 138 12" />
+              <path className="summon-accretion accretion-c" d="M -92 -31 C -48 -12, 4 -7, 78 -29" />
+              <path className="summon-accretion accretion-d" d="M -72 35 C -22 14, 34 10, 102 32" />
+              <ellipse className="summon-singularity-lens" rx={128 + power * 24} ry={34 + power * 9} />
+              <circle className="summon-singularity-core" r={46 + power * 8} />
+              <circle className="summon-singularity-edge" r={54 + power * 10} />
+              {Array.from({ length: 28 }).map((_, index) => {
+                const angle = summonFlowTime * (3.4 + power * 5.2) + index * 0.58
+                const radius = 58 + ((index * 17) % 76) * (1 - power * 0.18)
+                return (
+                  <circle
+                    key={index}
+                    className="summon-singularity-spark"
+                    cx={Math.cos(angle) * radius}
+                    cy={Math.sin(angle) * radius * (0.22 + (index % 4) * 0.035)}
+                    r={1.8 + (index % 5) * 0.9 + power * 1.2}
+                  />
+                )
+              })}
+            </g>
           </g>
         )
       })}
-      {pointerCursors.map((cursor) => (
+      {collapseHands.map((hand) => {
+        const dx = hand.point.x - hand.target.x
+        const dy = hand.point.y - hand.target.y
+        return (
+          <g key={`summon-collapse-${hand.id}-${hand.nonce}`} className="summon-absorption collapse">
+            <g className="summon-singularity collapsing" transform={`translate(${hand.point.x} ${hand.point.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
+              <circle className="summon-singularity-gravity gravity-a" r="132" />
+              <ellipse className="summon-singularity-lens" rx="152" ry="42" />
+              <path className="summon-accretion accretion-a" d="M -126 -18 C -80 -58, -10 -50, 46 -22 S 124 10, 150 -26" />
+              <path className="summon-accretion accretion-b" d="M -142 22 C -82 62, -24 48, 42 18 S 118 -12, 148 15" />
+              <circle className="summon-singularity-core" r="58" />
+              <circle className="summon-singularity-edge" r="68" />
+            </g>
+          </g>
+        )
+      })}
+      {pointerCursors.filter((cursor) => !hiddenHandIds.has(cursor.id)).map((cursor) => (
         <g key={`cursor-${cursor.id}`} className="star-cursor">
           {cursor.trail.slice(1).map((point, index) => (
             <circle
