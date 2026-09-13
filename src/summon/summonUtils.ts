@@ -6,7 +6,8 @@ export type SummonStar = {
   position: [number, number, number]
   visualSeed: number
   resolvedAt?: number
-  status: 'available' | 'selected' | 'armed' | 'resolved'
+  clearingAt?: number
+  status: 'available' | 'selected' | 'armed' | 'resolved' | 'clearing'
 }
 
 export const parseExcludedNumbers = (input: string, maxNumber: number) => {

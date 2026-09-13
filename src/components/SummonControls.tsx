@@ -9,9 +9,12 @@ type Props = {
   result?: number
   armedStar?: SummonStar
   selectedStar?: SummonStar
+  canClearResolved: boolean
+  clearingResolved: boolean
   onMaxNumberInputChange: (value: string) => void
   onMaxNumberCommit: () => void
   onExcludedInputChange: (value: string) => void
+  onClearResolved: () => void
   onStart: () => void
   onReset: () => void
   onBackToMenu: () => void
@@ -27,9 +30,12 @@ export default function SummonControls({
   result,
   armedStar,
   selectedStar,
+  canClearResolved,
+  clearingResolved,
   onMaxNumberInputChange,
   onMaxNumberCommit,
   onExcludedInputChange,
+  onClearResolved,
   onStart,
   onReset,
   onBackToMenu,
@@ -77,7 +83,7 @@ export default function SummonControls({
         <>
           <strong>召喚</strong>
           <span>展開中</span>
-          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>返回選單</button>
+          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>退場</button>
           <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
         </>
       ) : (
@@ -86,8 +92,9 @@ export default function SummonControls({
           <span>剩餘：{remaining}</span>
           {armedStar ? <span>已啟動</span> : selectedStar ? <span>已選取</span> : null}
           {result ? <b className="summon-result-chip">{result}</b> : null}
+          <button type="button" data-gesture-clickable="true" disabled={!canClearResolved || clearingResolved} onClick={onClearResolved}>清場</button>
           <button type="button" data-gesture-clickable="true" onClick={onReset}>重置</button>
-          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>返回選單</button>
+          <button type="button" data-gesture-clickable="true" onClick={onBackToMenu}>退場</button>
           <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
         </>
       )}

@@ -316,6 +316,8 @@ export default function App() {
   const [armedSummonStarId, setArmedSummonStarId] = useState<string>()
   const [holdingSummonStarId, setHoldingSummonStarId] = useState<string>()
   const [summonResult, setSummonResult] = useState<number>()
+  const [summonResultOverlay, setSummonResultOverlay] = useState<{ value: number; nonce: number }>()
+  const [clearingResolved, setClearingResolved] = useState(false)
   const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
   const [viewportSize, setViewportSize] = useState(() => ({
     width: typeof window === 'undefined' ? 390 : window.visualViewport?.width ?? window.innerWidth,
@@ -486,6 +488,8 @@ export default function App() {
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
+    setSummonResultOverlay(undefined)
+    setClearingResolved(false)
     setSummonStage('deploying')
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
@@ -505,6 +509,8 @@ export default function App() {
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
+    setSummonResultOverlay(undefined)
+    setClearingResolved(false)
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
   }, [summonExcludedInput, summonMaxNumber])
@@ -521,6 +527,8 @@ export default function App() {
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
+    setSummonResultOverlay(undefined)
+    setClearingResolved(false)
     audioManagerRef.current?.playSelect()
   }, [commitSummonMaxNumber])
 
@@ -533,11 +541,13 @@ export default function App() {
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
+    setClearingResolved(false)
     window.setTimeout(() => {
       setAppMode('universe')
       setSummonStage('setup')
       setSummonStars([])
       setSummonResult(undefined)
+      setSummonResultOverlay(undefined)
     }, 820)
   }, [])
 
@@ -548,7 +558,7 @@ export default function App() {
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
     setSummonStars((current) => current.map((star) => {
-      if (star.status === 'resolved') return star
+      if (star.status === 'resolved' || star.status === 'clearing') return star
       if (star.id === id) return { ...star, status: deselecting ? 'available' : 'selected' }
       return { ...star, status: 'available' }
     }))
@@ -560,7 +570,7 @@ export default function App() {
     setArmedSummonStarId(id)
     setHoldingSummonStarId(undefined)
     setSummonStars((current) => current.map((star) => (
-      star.id === id && star.status !== 'resolved' ? { ...star, status: 'armed' } : star
+      star.id === id && star.status !== 'resolved' && star.status !== 'clearing' ? { ...star, status: 'armed' } : star
     )))
     audioManagerRef.current?.playSelect()
   }, [armedSummonStarId, selectedSummonStarId])
@@ -569,11 +579,26 @@ export default function App() {
     setHoldingSummonStarId(id)
   }, [])
 
+  const clearResolvedStars = useCallback(() => {
+    if (clearingResolved) return
+    const now = performance.now()
+    setClearingResolved(true)
+    setSummonStars((current) => current.map((star) => (
+      star.status === 'resolved' ? { ...star, status: 'clearing', clearingAt: now } : star
+    )))
+    window.setTimeout(() => {
+      setSummonStars((current) => current.filter((star) => star.status !== 'clearing'))
+      setClearingResolved(false)
+    }, 760)
+    audioManagerRef.current?.playSelect()
+  }, [clearingResolved])
+
   const triggerSummonStar = useCallback((id: string) => {
-    if (id !== armedSummonStarId) return
-    const star = summonStars.find((item) => item.id === id && item.status !== 'resolved')
+    if (id !== armedSummonStarId && id !== selectedSummonStarId) return
+    const star = summonStars.find((item) => item.id === id && item.status !== 'resolved' && item.status !== 'clearing')
     if (!star) return
     setSummonResult(star.number)
+    setSummonResultOverlay({ value: star.number, nonce: performance.now() })
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
@@ -581,7 +606,7 @@ export default function App() {
       item.id === id ? { ...item, status: 'resolved', resolvedAt: performance.now() } : item
     )))
     audioManagerRef.current?.playSelect()
-  }, [armedSummonStarId, summonStars])
+  }, [armedSummonStarId, selectedSummonStarId, summonStars])
   const clearGestureUiDwell = useCallback(() => {
     gestureUiDwellRef.current.element?.classList.remove('gesture-dwell-hover')
     gestureUiDwellRef.current = { since: 0, triggered: false, cooldownUntil: 0 }
@@ -839,6 +864,12 @@ export default function App() {
   }, [settingsOpen])
 
   useEffect(() => {
+    if (!summonResultOverlay) return
+    const timer = window.setTimeout(() => setSummonResultOverlay(undefined), 2400)
+    return () => window.clearTimeout(timer)
+  }, [summonResultOverlay])
+
+  useEffect(() => {
     const handleOrientationSignal = () => {
       if (orientationResetTimerRef.current !== undefined) {
         window.clearTimeout(orientationResetTimerRef.current)
@@ -1024,6 +1055,11 @@ export default function App() {
       <div className={`summon-transition-title ${isTransitioning ? 'visible' : ''}`} aria-hidden={!isTransitioning}>
         {appMode === 'transition-to-universe' ? 'J-Space' : '召喚'}
       </div>
+      {isSummonActive && summonResultOverlay ? (
+        <div key={summonResultOverlay.nonce} className="summon-result-overlay" aria-live="polite">
+          {summonResultOverlay.value}
+        </div>
+      ) : null}
       {viewerNode && viewerLoadState !== 'ready' ? (
         <div className={`viewer-status ${viewerLoadState === 'error' ? 'error' : ''}`} role="status">
           {viewerLoadState === 'error' ? '圖片無法載入' : '圖片載入中...'}
@@ -1285,9 +1321,12 @@ export default function App() {
         result={summonResult}
         selectedStar={summonStars.find((star) => star.id === selectedSummonStarId)}
         armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
+        canClearResolved={summonStars.some((star) => star.status === 'resolved' || star.status === 'clearing')}
+        clearingResolved={clearingResolved}
         onMaxNumberInputChange={setSummonMaxNumberInput}
         onMaxNumberCommit={commitSummonMaxNumber}
         onExcludedInputChange={setSummonExcludedInput}
+        onClearResolved={clearResolvedStars}
         onStart={startSummon}
         onReset={resetSummon}
         onBackToMenu={backToSummonMenu}
