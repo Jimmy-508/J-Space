@@ -833,34 +833,18 @@ button:disabled {
   filter: drop-shadow(0 0 14px rgba(120, 205, 255, 0.6)) drop-shadow(0 0 30px rgba(255, 215, 145, 0.42));
 }
 
-.hand-summon-flow path {
-  fill: none;
+.hand-summon-flow-streak {
+  stroke: rgba(255, 231, 166, 0.78);
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-}
-
-.hand-summon-flow-aura {
-  stroke: rgba(114, 205, 255, 0.22);
-  stroke-width: 13px;
-  animation: hand-summon-beam-breathe 0.72s ease-in-out infinite alternate;
-}
-
-.hand-summon-flow-core {
-  stroke: rgba(255, 238, 185, 0.88);
-  stroke-width: 4px;
-  animation: hand-summon-beam-breathe 0.42s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 7px rgba(255, 222, 135, 0.86));
+  animation: hand-summon-streak 0.44s ease-in-out infinite alternate;
 }
 
 .hand-summon-flow-particle {
   fill: rgba(255, 237, 185, 0.9);
   filter: drop-shadow(0 0 8px rgba(255, 225, 150, 0.9));
   animation: hand-summon-particle 0.56s ease-in-out infinite alternate;
-}
-
-@keyframes hand-summon-flow {
-  to {
-    stroke-dashoffset: -1;
-  }
 }
 
 .hand-black-hole {
@@ -905,14 +889,14 @@ button:disabled {
   filter: drop-shadow(0 0 10px rgba(255, 220, 132, 0.9));
 }
 
-@keyframes hand-summon-beam-breathe {
+@keyframes hand-summon-streak {
   from {
-    opacity: 0.55;
-    stroke-width: 3px;
+    opacity: 0.4;
+    transform: scale(0.82);
   }
   to {
     opacity: 1;
-    stroke-width: 7px;
+    transform: scale(1.12);
   }
 }
 

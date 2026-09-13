@@ -60,6 +60,7 @@ const createStarPoints = (center: ScreenPoint, outerRadius: number, innerRadius:
 
 type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | 'relation' | undefined
 type AppMode = 'universe' | 'transition-to-summon' | 'summon' | 'transition-to-universe'
+type TransitionTitle = 'summon' | 'universe' | null
 type SummonStage = 'setup' | 'deploying' | 'drawing'
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SETTINGS_KEY = 'j-space-settings'
@@ -258,14 +259,18 @@ function HandEnergyOverlay({
         )
       })}
       {summonEnergyHands.map((hand, handIndex) => {
-        const dx = summonEnergyTarget!.x - hand.point.x
-        const dy = summonEnergyTarget!.y - hand.point.y
+        const dx = hand.point.x - summonEnergyTarget!.x
+        const dy = hand.point.y - summonEnergyTarget!.y
         const length = Math.hypot(dx, dy)
         const nx = length ? -dy / length : 0
         const ny = length ? dx / length : 0
         const bend = 42 + handIndex * 18
         const midX = (hand.point.x + summonEnergyTarget!.x) / 2 + nx * bend
         const midY = (hand.point.y + summonEnergyTarget!.y) / 2 + ny * bend
+        const sample = (t: number) => ({
+          x: (1 - t) * (1 - t) * summonEnergyTarget!.x + 2 * (1 - t) * t * midX + t * t * hand.point.x,
+          y: (1 - t) * (1 - t) * summonEnergyTarget!.y + 2 * (1 - t) * t * midY + t * t * hand.point.y,
+        })
         return (
           <g key={`summon-flow-${hand.id}`} className="hand-summon-flow">
             <g className="hand-black-hole" transform={`translate(${hand.point.x} ${hand.point.y})`}>
@@ -286,12 +291,26 @@ function HandEnergyOverlay({
                 )
               })}
             </g>
-            <path className="hand-summon-flow-aura" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
-            <path className="hand-summon-flow-core" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
-            {[0.12, 0.24, 0.36, 0.48, 0.62, 0.76, 0.9].map((offset, index) => {
+            {Array.from({ length: 18 }).map((_, index) => {
+              const t = ((index * 0.055 + handIndex * 0.08) % 0.92) + 0.04
+              const point = sample(t)
+              const next = sample(Math.min(1, t + 0.035))
+              const pull = 0.55 + t * 0.75
+              return (
+                <line
+                  key={index}
+                  className="hand-summon-flow-streak"
+                  x1={point.x - (next.x - point.x) * pull}
+                  y1={point.y - (next.y - point.y) * pull}
+                  x2={next.x}
+                  y2={next.y}
+                  strokeWidth={Math.max(1.8, 6.4 - index * 0.18)}
+                />
+              )
+            })}
+            {[0.1, 0.18, 0.25, 0.33, 0.42, 0.5, 0.58, 0.68, 0.78, 0.88, 0.95].map((offset, index) => {
               const t = (offset + handIndex * 0.08) % 1
-              const x = (1 - t) * (1 - t) * summonEnergyTarget!.x + 2 * (1 - t) * t * midX + t * t * hand.point.x
-              const y = (1 - t) * (1 - t) * summonEnergyTarget!.y + 2 * (1 - t) * t * midY + t * t * hand.point.y
+              const { x, y } = sample(t)
               return <circle key={index} className="hand-summon-flow-particle" cx={x} cy={y} r={Math.max(2.4, 7.4 - index * 0.62)} />
             })}
           </g>
@@ -364,6 +383,8 @@ export default function App() {
   const [immersive, setImmersive] = useState(false)
   const [controlResetKey, setControlResetKey] = useState(0)
   const [appMode, setAppMode] = useState<AppMode>('universe')
+  const [transitionTitle, setTransitionTitle] = useState<TransitionTitle>(null)
+  const [pendingSummonTransition, setPendingSummonTransition] = useState(false)
   const [summonStage, setSummonStage] = useState<SummonStage>('setup')
   const [summonMaxNumber, setSummonMaxNumber] = useState(35)
   const [summonMaxNumberInput, setSummonMaxNumberInput] = useState('35')
@@ -396,8 +417,8 @@ export default function App() {
   const viewportOrientationRef = useRef(getViewportOrientation())
   const orientationResetTimerRef = useRef<number | undefined>(undefined)
   const summonTransitionTimerRef = useRef<number | undefined>(undefined)
+  const summonExitTimerRef = useRef<number | undefined>(undefined)
   const summonDeployTimerRef = useRef<number | undefined>(undefined)
-  const summonReturnGuardUntilRef = useRef(0)
   const universeUiSnapshotRef = useRef<{
     selectedId?: string
     focusId?: string
@@ -442,7 +463,7 @@ export default function App() {
     [node.title, node.category, node.description, ...(node.tags ?? [])].join(' ').toLowerCase().includes(query.toLowerCase()),
   ).slice(0, 8) : [], [renderedData.nodes, query])
   const isSummonActive = appMode === 'summon'
-  const isTransitioning = appMode === 'transition-to-summon' || appMode === 'transition-to-universe'
+  const isTransitioning = appMode === 'transition-to-summon' || appMode === 'transition-to-universe' || pendingSummonTransition
   const gesturePointerScreen = gestureStatus.activeGesture === 'pointer' && gestureStatus.pointerPoint
     ? normalizedToCoverViewport(gestureStatus.pointerPoint, videoSize, viewportSize, true)
     : undefined
@@ -532,7 +553,7 @@ export default function App() {
   }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
     if (isSystemNode(node)) {
-      if (performance.now() < summonReturnGuardUntilRef.current || appMode !== 'universe') {
+      if (appMode !== 'universe' || pendingSummonTransition) {
         return
       }
       if (selectedIdRef.current !== SUMMON_NODE_ID) {
@@ -558,11 +579,19 @@ export default function App() {
       if (summonTransitionTimerRef.current !== undefined) {
         window.clearTimeout(summonTransitionTimerRef.current)
       }
+      if (summonExitTimerRef.current !== undefined) {
+        window.clearTimeout(summonExitTimerRef.current)
+        summonExitTimerRef.current = undefined
+      }
+      setPendingSummonTransition(true)
+      setTransitionTitle('summon')
       setAppMode('transition-to-summon')
       summonTransitionTimerRef.current = window.setTimeout(() => {
         summonTransitionTimerRef.current = undefined
         setSummonStage('setup')
         setAppMode('summon')
+        setTransitionTitle(null)
+        setPendingSummonTransition(false)
         setControlResetKey((value) => value + 1)
       }, 920)
       return
@@ -574,7 +603,7 @@ export default function App() {
     setFocusId(node.id)
     setSelectionSource(source)
     setViewerNodeId(node.contentType === 'image' && !!node.imageUrl ? node.id : undefined)
-  }, [appMode])
+  }, [appMode, pendingSummonTransition])
 
   const commitSummonMaxNumber = useCallback(() => {
     const parsed = Number(summonMaxNumberInput)
@@ -653,20 +682,27 @@ export default function App() {
       window.clearTimeout(summonDeployTimerRef.current)
       summonDeployTimerRef.current = undefined
     }
-    summonReturnGuardUntilRef.current = performance.now() + 1800
+    if (summonExitTimerRef.current !== undefined) {
+      window.clearTimeout(summonExitTimerRef.current)
+    }
+    setPendingSummonTransition(false)
+    setTransitionTitle('universe')
     restoreUniverseUiSnapshot()
     setAppMode('transition-to-universe')
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
     setClearingResolved(false)
-    window.setTimeout(() => {
+    summonExitTimerRef.current = window.setTimeout(() => {
+      summonExitTimerRef.current = undefined
       setAppMode('universe')
       setSummonStage('setup')
       setSummonStars([])
       setSummonResult(undefined)
       setSummonResultOverlay(undefined)
       setSummonResultTarget(undefined)
+      setTransitionTitle(null)
+      setPendingSummonTransition(false)
     }, 820)
   }, [restoreUniverseUiSnapshot])
 
@@ -1191,10 +1227,10 @@ export default function App() {
         onSummonResultTargetChange={setSummonResultTarget}
       />
       <div
-        className={`summon-transition-title ${appMode === 'transition-to-summon' || appMode === 'transition-to-universe' ? 'visible' : ''}`}
-        aria-hidden={appMode !== 'transition-to-summon' && appMode !== 'transition-to-universe'}
+        className={`summon-transition-title ${transitionTitle ? 'visible' : ''}`}
+        aria-hidden={!transitionTitle}
       >
-        {appMode === 'transition-to-universe' ? 'J-Space' : '召喚'}
+        {transitionTitle === 'universe' ? 'J-Space' : transitionTitle === 'summon' ? '召喚' : ''}
       </div>
       {isSummonActive && summonResultOverlay ? (
         <div
