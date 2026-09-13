@@ -41,37 +41,41 @@ export default function SummonControls({
     <section className={`summon-panel summon-panel-${stage}`} data-gesture-block-3d="true" aria-label="召喚工具">
       {stage === 'setup' ? (
         <>
-          <strong>召喚</strong>
-          <label className="summon-range-field">
-            範圍
-            <span>
-              1 ～
+          <div className="summon-setup-row summon-setup-primary">
+            <strong>召喚</strong>
+            <label className="summon-range-field">
+              範圍
+              <span>
+                1 ～
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  value={maxNumberInput}
+                  onBlur={onMaxNumberCommit}
+                  onChange={(event) => onMaxNumberInputChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.currentTarget.blur()
+                      onMaxNumberCommit()
+                    }
+                  }}
+                />
+              </span>
+            </label>
+          </div>
+          <div className="summon-setup-row summon-setup-secondary">
+            <label className="summon-exclude-field">
+              排除
               <input
-                type="number"
-                min="1"
-                max="99"
-                value={maxNumberInput}
-                onBlur={onMaxNumberCommit}
-                onChange={(event) => onMaxNumberInputChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.currentTarget.blur()
-                    onMaxNumberCommit()
-                  }
-                }}
+                value={excludedInput}
+                placeholder="3,7,12 或 3-8"
+                onChange={(event) => onExcludedInputChange(event.target.value)}
               />
-            </span>
-          </label>
-          <label className="summon-exclude-field">
-            排除
-            <input
-              value={excludedInput}
-              placeholder="3,7,12 或 3-8"
-              onChange={(event) => onExcludedInputChange(event.target.value)}
-            />
-          </label>
-          <button type="button" data-gesture-clickable="true" onClick={onStart}>開始</button>
-          <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
+            </label>
+            <button type="button" data-gesture-clickable="true" onClick={onStart}>開始</button>
+            <button type="button" data-gesture-clickable="true" onClick={onExit}>返回星海</button>
+          </div>
         </>
       ) : stage === 'deploying' ? (
         <>

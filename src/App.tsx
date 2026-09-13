@@ -319,7 +319,7 @@ function HandEnergyOverlay({
       })}
       {summonEnergyHands.map((hand, handIndex) => {
         const target = summonEnergyTarget!
-        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320)) * 0.85
+        const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242)))
         const dx = hand.point.x - target.x
         const dy = hand.point.y - target.y
         const length = Math.hypot(dx, dy)
@@ -359,26 +359,12 @@ function HandEnergyOverlay({
               <path className="summon-accretion disk-thread warm" d="M -266 14 C -190 10, -118 12, -54 18 M 58 17 C 132 24, 196 18, 268 9" />
               <path className="summon-accretion lens-upper-hot" d="M -92 5 C -78 -48, -42 -79, 4 -81 C 52 -83, 84 -47, 96 5" />
               <path className="summon-accretion lens-lower-hot" d="M -86 9 C -70 51, -36 74, 8 75 C 54 76, 82 48, 92 9" />
+              <path className="summon-photon-flow flow-a" d="M -128 1 C -112 -72, -62 -118, -2 -121 C 68 -124, 117 -70, 135 1" />
+              <path className="summon-photon-flow flow-b" d="M -141 2 C -120 -83, -54 -137, 18 -132 C 87 -127, 130 -74, 149 -2" />
+              <path className="summon-photon-flow flow-c" d="M -124 10 C -101 76, -49 112, 12 111 C 73 110, 115 70, 130 9" />
+              <path className="summon-photon-flow flow-d" d="M -276 -5 C -190 -20, -102 -18, -36 -5 M 42 -4 C 118 11, 194 9, 276 -7" />
+              <path className="summon-photon-flow flow-e" d="M -268 7 C -192 2, -112 3, -42 11 M 48 11 C 120 20, 198 16, 270 3" />
               <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
-              {Array.from({ length: 96 }).map((_, index) => {
-                const side = index % 2 === 0 ? -1 : 1
-                const lane = (index % 7) - 3
-                const drift = (summonFlowTime * (18 + (index % 5) * 4.5) + index * 11) % 226
-                const x = side * (42 + drift)
-                const y = Math.sin(index * 1.7 + summonFlowTime * 5.2) * 8 + lane * 2.4
-                const len = 3.5 + (index % 5) * 1.6 + power * 3.5
-                return (
-                  <line
-                    key={index}
-                    className="summon-singularity-spark"
-                    x1={x}
-                    y1={y}
-                    x2={x + side * len}
-                    y2={y + Math.sin(index * 0.9) * 2.2}
-                    strokeWidth={0.45 + (index % 4) * 0.22 + power * 0.38}
-                  />
-                )
-              })}
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
               <path className="summon-source-tear tear-a" d={`M ${-18 + power * 4} -10 C 5 ${-28 - power * 8}, ${42 + power * 18} -14, ${72 + power * 22} -2 C ${41 + power * 13} ${14 + power * 5}, 8 ${19 + power * 7}, ${-18 + power * 4} 8 Z`} />
@@ -437,7 +423,7 @@ function HandEnergyOverlay({
         )
       })}
       {collapseHands.map((hand) => {
-        const singularityScale = Math.min(3.15, Math.max(1.85, Math.min(viewportSize.width, viewportSize.height) / 320)) * 0.85
+        const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242)))
         const dx = hand.point.x - hand.target.x
         const dy = hand.point.y - hand.target.y
         return (
