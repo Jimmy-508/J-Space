@@ -108,7 +108,7 @@ const DOUBLE_TAP_MS = 320
 const DOUBLE_TAP_DISTANCE = 28
 const VIEW_RESET_DURATION_MS = 520
 const FOCUS_TRANSITION_DURATION_MS = 360
-const POINTER_SUMMON_HOLD_MS = 560
+const SUMMON_CHARGE_VISUAL_MS = 900
 
 type CameraTransition = {
   startedAt: number
@@ -1192,21 +1192,19 @@ export default function KnowledgeGraph3D({
           }
         }
         if (armedSummonId) {
-          const fistActive = handsRef.current.some((hand) => hand.gesture === 'fist')
+          const fistActive = handsRef.current.some((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex')
           if (fistActive) {
             if (summonArmLockRef.current.holdingId !== armedSummonId) {
               summonArmLockRef.current.holdingId = armedSummonId
               summonArmLockRef.current.holdStartedAt = time
               summonCallbacksRef.current.onSummonStarHoldChange?.(armedSummonId)
             }
-            if (time - summonArmLockRef.current.holdStartedAt >= 0.52 && time - summonArmLockRef.current.triggeredAt > 1.05) {
-              summonArmLockRef.current.triggeredAt = time
-              summonArmLockRef.current.holdingId = undefined
-              summonArmLockRef.current.holdStartedAt = 0
-              summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
-              summonCallbacksRef.current.onSummonStarTrigger?.(armedSummonId)
-            }
           } else if (summonArmLockRef.current.holdingId) {
+            const releasedId = summonArmLockRef.current.holdingId
+            if (time - summonArmLockRef.current.triggeredAt > 0.35) {
+              summonArmLockRef.current.triggeredAt = time
+              summonCallbacksRef.current.onSummonStarTrigger?.(releasedId)
+            }
             summonArmLockRef.current.holdingId = undefined
             summonArmLockRef.current.holdStartedAt = 0
             summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
@@ -1419,7 +1417,7 @@ export default function KnowledgeGraph3D({
           : 0
         const gestureHoldStartedAt = summonArmLockRef.current.holdingId === objectId ? summonArmLockRef.current.holdStartedAt : 0
         const holdStartedAt = pointerHoldStartedAt || gestureHoldStartedAt
-        const holdProgress = holding && holdStartedAt ? THREE.MathUtils.clamp((time - holdStartedAt) / (POINTER_SUMMON_HOLD_MS / 1000), 0, 1) : 0
+        const holdProgress = holding && holdStartedAt ? THREE.MathUtils.clamp((time - holdStartedAt) / (SUMMON_CHARGE_VISUAL_MS / 1000), 0, 1) : 0
         if (object.userData.deploying) {
           const progress = THREE.MathUtils.clamp((time - (object.userData.createdAt ?? time)) / 1.08, 0, 1)
           const eased = 1 - (1 - progress) ** 3
@@ -1474,6 +1472,10 @@ export default function KnowledgeGraph3D({
             const base = child.userData.role === 'burstRay' ? 0.86 : 0.68
             const duration = child.userData.role === 'burstRay' ? 0.5 : 0.72
             ;(child.material as THREE.LineBasicMaterial).opacity = Math.max(0, base * (1 - age / duration))
+          }
+          if (child instanceof THREE.Line && child.userData.role === 'surfaceBand') {
+            const material = child.material as THREE.LineBasicMaterial
+            material.opacity = (child.userData.baseOpacity ?? 0.18) + Math.sin(time * 0.85 + phase + (child.userData.offset ?? 0)) * 0.045
           }
           if (child instanceof THREE.Line && child.userData.role === 'holdTendril') {
             const material = child.material as THREE.LineBasicMaterial
@@ -2011,6 +2013,26 @@ export default function KnowledgeGraph3D({
         surfaceShade.scale.set(size * 1.25, size * 1.05, 1)
         surfaceShade.userData = { role: 'surfaceShade', baseOpacity: inactive ? 0.16 : 0.12 }
         root.add(surfaceShade)
+      }
+      if (!inactive && (variant === 1 || variant === 3)) {
+        const bandTilt = phase * 0.18
+        ;[-0.12, 0.08].forEach((offset, bandIndex) => {
+          const bandGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-size * 0.7, offset * size, size * 0.16),
+            new THREE.Vector3(-size * 0.22, (offset + 0.12) * size, size * 0.21),
+            new THREE.Vector3(size * 0.68, (offset - 0.06) * size, size * 0.17),
+          ])
+          const band = new THREE.Line(bandGeometry, new THREE.LineBasicMaterial({
+            color: bandIndex === 0 ? 0xb8ecff : 0xf2d28b,
+            transparent: true,
+            opacity: selected || armed || holding ? 0.34 : 0.18,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }))
+          band.rotation.z = bandTilt + bandIndex * 0.22
+          band.userData = { role: 'surfaceBand', baseOpacity: selected || armed || holding ? 0.34 : 0.18, offset: bandIndex * 0.7 }
+          root.add(band)
+        })
       }
       if (variant === 0) {
         const corona = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -2727,22 +2749,7 @@ export default function KnowledgeGraph3D({
               startedAt: performance.now() * 0.001,
               startX: event.clientX,
               startY: event.clientY,
-              timeout: window.setTimeout(() => {
-                const hold = pointerSummonHoldRef.current
-                if (!hold.active || hold.pointerId !== event.pointerId || hold.summonId !== summonId) return
-                dragRef.current.pendingTap = false
-                summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
-                summonCallbacksRef.current.onSummonStarTrigger?.(summonId)
-                pointerSummonHoldRef.current = {
-                  active: false,
-                  pointerId: -1,
-                  summonId: undefined,
-                  startedAt: 0,
-                  startX: 0,
-                  startY: 0,
-                  timeout: undefined,
-                }
-              }, POINTER_SUMMON_HOLD_MS),
+              timeout: undefined,
             }
             summonCallbacksRef.current.onSummonStarArm?.(summonId)
             summonCallbacksRef.current.onSummonStarHoldChange?.(summonId)
@@ -2763,7 +2770,16 @@ export default function KnowledgeGraph3D({
           event.currentTarget.releasePointerCapture(event.pointerId)
         }
         if (pointerSummonHoldRef.current.pointerId === event.pointerId) {
+          const hold = pointerSummonHoldRef.current
+          const releasedId = hold.active ? hold.summonId : undefined
           cancelPointerSummonHold()
+          if (releasedId) {
+            dragRef.current.pendingTap = false
+            summonCallbacksRef.current.onSummonStarTrigger?.(releasedId)
+            dragRef.current.active = false
+            dragRef.current.dragging = false
+            return
+          }
         }
         const beforeRelease = Number(mountRef.current?.dataset.activeTouches ?? '1')
         const activeTouches = Math.max(0, beforeRelease - 1)

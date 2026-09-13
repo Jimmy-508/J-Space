@@ -266,6 +266,24 @@ function HandEnergyOverlay({
         const midY = (hand.point.y + summonEnergyTarget!.y) / 2 + ny * bend
         return (
           <g key={`summon-flow-${hand.id}`} className="hand-summon-flow">
+            <g className="hand-black-hole" transform={`translate(${hand.point.x} ${hand.point.y})`}>
+              <circle className="hand-black-hole-gravity" r="58" />
+              <ellipse className="hand-black-hole-disc disc-a" rx="54" ry="18" />
+              <ellipse className="hand-black-hole-disc disc-b" rx="42" ry="13" />
+              <circle className="hand-black-hole-core" r="20" />
+              {[0, 1, 2, 3, 4, 5].map((index) => {
+                const angle = index * 1.047 + handIndex * 0.3
+                return (
+                  <circle
+                    key={index}
+                    className="hand-black-hole-particle"
+                    cx={Math.cos(angle) * (36 + (index % 3) * 8)}
+                    cy={Math.sin(angle) * (12 + (index % 2) * 5)}
+                    r={2.8 + (index % 3) * 0.8}
+                  />
+                )
+              })}
+            </g>
             <path className="hand-summon-flow-aura" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
             <path className="hand-summon-flow-core" d={`M ${hand.point.x} ${hand.point.y} Q ${midX} ${midY} ${summonEnergyTarget!.x} ${summonEnergyTarget!.y}`} pathLength="1" />
             {[0.12, 0.24, 0.36, 0.48, 0.62, 0.76, 0.9].map((offset, index) => {
@@ -375,6 +393,7 @@ export default function App() {
   const nodeHudExpandedRef = useRef(false)
   const viewportOrientationRef = useRef(getViewportOrientation())
   const orientationResetTimerRef = useRef<number | undefined>(undefined)
+  const summonTransitionTimerRef = useRef<number | undefined>(undefined)
   const summonDeployTimerRef = useRef<number | undefined>(undefined)
   const universeUiSnapshotRef = useRef<{
     selectedId?: string
@@ -527,8 +546,12 @@ export default function App() {
       if ((source === 'touch' || source === 'mouse') && selectedIdRef.current !== node.id) {
         return
       }
+      if (summonTransitionTimerRef.current !== undefined) {
+        window.clearTimeout(summonTransitionTimerRef.current)
+      }
       setAppMode('transition-to-summon')
-      window.setTimeout(() => {
+      summonTransitionTimerRef.current = window.setTimeout(() => {
+        summonTransitionTimerRef.current = undefined
         setSummonStage('setup')
         setAppMode('summon')
         setControlResetKey((value) => value + 1)
@@ -613,6 +636,10 @@ export default function App() {
   }, [commitSummonMaxNumber])
 
   const exitSummon = useCallback(() => {
+    if (summonTransitionTimerRef.current !== undefined) {
+      window.clearTimeout(summonTransitionTimerRef.current)
+      summonTransitionTimerRef.current = undefined
+    }
     if (summonDeployTimerRef.current !== undefined) {
       window.clearTimeout(summonDeployTimerRef.current)
       summonDeployTimerRef.current = undefined
