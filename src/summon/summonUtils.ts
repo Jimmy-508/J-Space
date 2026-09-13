@@ -4,6 +4,7 @@ export type SummonStar = {
   id: string
   number: number
   position: [number, number, number]
+  visualSeed: number
   status: 'available' | 'selected' | 'armed' | 'summoned'
 }
 
@@ -41,6 +42,7 @@ export const createSummonStars = (maxNumber: number, excludedInput: string): Sum
     return {
       id: `summon:${number}`,
       number,
+      visualSeed: Math.random(),
       position: [
         Math.cos(angle) * radius,
         Math.sin(angle) * radius * 0.72,

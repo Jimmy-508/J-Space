@@ -59,6 +59,22 @@ const summonNodeColors = {
   outerGlow: 0x8a6728,
 }
 
+const summonStarPalettes = [
+  { core: 0x6f8fd8, glow: 0xa9cfff, halo: 0xd5ecff, particle: 0xf4fbff },
+  { core: 0x55d4ca, glow: 0x93f2e8, halo: 0xbdf8ef, particle: 0xe9fffb },
+  { core: 0x8a78d8, glow: 0xc2a7ff, halo: 0xe3d6ff, particle: 0xf4efff },
+  { core: 0xd5a554, glow: 0xf2c96d, halo: 0xffe5aa, particle: 0xfff6d9 },
+  { core: 0xb879d7, glow: 0xf0b7ff, halo: 0xf8d9ff, particle: 0xfff0ff },
+  { core: 0x8ddff2, glow: 0xc9f7ff, halo: 0xedfdff, particle: 0xffffff },
+  { core: 0xc18852, glow: 0xffc37a, halo: 0xffddb3, particle: 0xfff1dc },
+  { core: 0xc9c9b8, glow: 0xf0ead0, halo: 0xfff7dc, particle: 0xffffff },
+]
+
+const getNodeColor = (node?: KnowledgeNode) => {
+  if (node?.id === SUMMON_NODE_ID) return summonNodeColors.core
+  return typeColors[node?.type ?? 'topic'] ?? typeColors.topic
+}
+
 const clusterPositions: Record<string, THREE.Vector3> = {
   '核心群集': new THREE.Vector3(0, 0, 0),
   '資訊科技': new THREE.Vector3(-12, 4, 0),
@@ -349,6 +365,46 @@ const createComet = (texture: THREE.Texture) => {
   return group
 }
 
+const createWarpStreaks = () => {
+  const count = 220
+  const positions = new Float32Array(count * 2 * 3)
+  const colors = new Float32Array(count * 2 * 3)
+  const base = new Float32Array(count * 4)
+  for (let i = 0; i < count; i += 1) {
+    const angle = Math.random() * Math.PI * 2
+    const radius = Math.sqrt(Math.random()) * 34
+    const x = Math.cos(angle) * radius
+    const y = Math.sin(angle) * radius * 0.58
+    const z = -18 - Math.random() * 122
+    const speed = 36 + Math.random() * 64
+    base[i * 4] = x
+    base[i * 4 + 1] = y
+    base[i * 4 + 2] = z
+    base[i * 4 + 3] = speed
+    const warmth = Math.random()
+    const r = 0.62 + warmth * 0.34
+    const g = 0.78 + warmth * 0.22
+    const b = 1.08 + warmth * 0.18
+    colors.set([r, g, b, r * 0.35, g * 0.42, b * 0.55], i * 6)
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  geometry.userData.base = base
+  const material = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  })
+  const lines = new THREE.LineSegments(geometry, material)
+  lines.visible = false
+  lines.renderOrder = 12
+  return lines
+}
+
 const disposeComet = (comet: THREE.Object3D) => {
   comet.traverse((child) => {
     if (child instanceof THREE.Line) {
@@ -458,6 +514,8 @@ export default function KnowledgeGraph3D({
   const nebulaRef = useRef<THREE.Sprite[]>([])
   const atmosphereNebulaRef = useRef<THREE.Sprite[]>([])
   const backgroundFlaresRef = useRef<THREE.Sprite[]>([])
+  const warpStreaksRef = useRef<THREE.LineSegments | null>(null)
+  const warpTransitionRef = useRef({ active: false, startedAt: 0, direction: 1 })
   const selectedEffectsRef = useRef<THREE.Object3D[]>([])
   const contentMarkersRef = useRef<THREE.Object3D[]>([])
   const coreEffectsRef = useRef<THREE.Object3D[]>([])
@@ -637,8 +695,12 @@ export default function KnowledgeGraph3D({
     starfieldsRef.current = [deepDust, galaxyBand, farStars, visibleStars, midStars, brightStars, nearDust]
     starfieldsRef.current.forEach((field) => {
       field.userData.initialRotationY = field.rotation.y
+      field.userData.baseSize = (field.material as THREE.PointsMaterial).size
       scene.add(field)
     })
+    const warpStreaks = createWarpStreaks()
+    scene.add(warpStreaks)
+    warpStreaksRef.current = warpStreaks
     const nebulaLayer = [
       { color: 0x27456f, opacity: 0.16, position: [-30, 12, -72], scale: [60, 32, 1] },
       { color: 0x3b527d, opacity: 0.12, position: [34, -8, -84], scale: [54, 28, 1] },
@@ -896,6 +958,52 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
+      const warp = warpTransitionRef.current
+      const transitionDuration = appModeRef.current === 'transition-to-universe' ? 820 : 920
+      if (transitionActive && !warp.active) {
+        warp.active = true
+        warp.startedAt = nowMs
+        warp.direction = appModeRef.current === 'transition-to-universe' ? -1 : 1
+        mount.classList.remove('is-warp-transitioning')
+        void mount.offsetWidth
+        mount.classList.add('is-warp-transitioning')
+      } else if (!transitionActive && warp.active) {
+        warp.active = false
+        mount.classList.remove('is-warp-transitioning')
+      }
+      const warpProgress = warp.active ? THREE.MathUtils.clamp((nowMs - warp.startedAt) / transitionDuration, 0, 1) : 0
+      const warpPeak = warp.active ? Math.sin(warpProgress * Math.PI) : 0
+      const warpStreaks = warpStreaksRef.current
+      if (warpStreaks) {
+        warpStreaks.visible = warpPeak > 0.02
+        warpStreaks.position.copy(camera.position)
+        warpStreaks.quaternion.copy(camera.quaternion)
+        const material = warpStreaks.material as THREE.LineBasicMaterial
+        material.opacity = 0.72 * warpPeak
+        const geometry = warpStreaks.geometry
+        const positions = geometry.getAttribute('position') as THREE.BufferAttribute
+        const values = positions.array as Float32Array
+        const base = geometry.userData.base as Float32Array
+        for (let i = 0; i < base.length / 4; i += 1) {
+          const baseX = base[i * 4]
+          const baseY = base[i * 4 + 1]
+          const baseDepth = -base[i * 4 + 2]
+          const speed = base[i * 4 + 3]
+          const depth = 18 + ((baseDepth + (nowMs - warp.startedAt) * 0.001 * speed) % 128)
+          const z = -depth
+          const stretch = 5 + warpPeak * (26 + speed * 0.08)
+          const spread = 1 + warpPeak * 0.42
+          const pull = 1 - warpPeak * 0.48
+          const direction = warp.direction
+          values[i * 6] = baseX * spread
+          values[i * 6 + 1] = baseY * spread
+          values[i * 6 + 2] = z
+          values[i * 6 + 3] = baseX * pull
+          values[i * 6 + 4] = baseY * pull
+          values[i * 6 + 5] = z - stretch * direction
+        }
+        positions.needsUpdate = true
+      }
       const pointerOverUi = !!activeGesture?.pointerScreen && !!isGesturePointerOverUiRef.current?.(activeGesture.pointerScreen)
       if (summonActive && summonStage === 'drawing' && !viewerActive && activeGesture?.activeGesture === 'pointer' && activeGesture.pointerScreen && !gesturePointerBlockedRef.current && !pointerOverUi) {
         const hitId = getScreenSummonHit(activeGesture.pointerScreen, summonMeshesRef.current, camera, renderer)
@@ -942,7 +1050,7 @@ export default function KnowledgeGraph3D({
           const isSelected = hit.id === selectedIdRef.current
           const dwellDuration = isSelected ? DWELL_DESELECT_MS : DWELL_SELECT_MS
           const progress = dwellRef.current.armed ? THREE.MathUtils.clamp(dwellMs / dwellDuration, 0, 1) : 0
-          const nodeColor = typeColors[hit.node?.type ?? 'topic']
+          const nodeColor = getNodeColor(hit.node)
           const feedback = dwellFeedbackRef.current
           if (feedback) {
             const material = feedback.material as THREE.MeshBasicMaterial
@@ -1004,6 +1112,9 @@ export default function KnowledgeGraph3D({
       const backgroundDim = viewerActive ? 0.32 : 1
       starfieldsRef.current.forEach((field) => {
         if (!resettingBackground) field.rotation.y += field.userData.drift * (viewerActive ? 0.18 : 1)
+        const material = field.material as THREE.PointsMaterial
+        material.size = (field.userData.baseSize ?? material.size) * (1 + warpPeak * 1.35)
+        material.opacity = (field.userData.baseOpacity ?? material.opacity) * (1 + warpPeak * 0.2)
         const colorAttribute = field.geometry.getAttribute('color') as THREE.BufferAttribute
         const colors = colorAttribute.array as Float32Array
         const baseColors = field.geometry.userData.baseColors as Float32Array
@@ -1202,9 +1313,20 @@ export default function KnowledgeGraph3D({
             child.quaternion.copy(camera.quaternion)
             if (child.userData.role === 'ring') child.scale.setScalar(1 + Math.sin(time * 1.8 + phase) * 0.08)
             if (child.userData.role === 'innerRing') child.scale.setScalar(1 + Math.sin(time * 2.4 + phase) * 0.055)
+            if (child.userData.role === 'focusWave') child.scale.setScalar(1.04 + Math.sin(time * 1.4 + phase) * 0.18)
             if (child.userData.role === 'shockwave') child.scale.setScalar(1.2 + Math.sin(time * 1.2 + phase) * 0.18)
             const material = child.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
             if ('opacity' in material && child.userData.role === 'shockwave') material.opacity = 0.28 + Math.sin(time * 1.5 + phase) * 0.08
+            if ('opacity' in material && child.userData.role === 'focusWave') material.opacity = 0.28 + Math.sin(time * 1.6 + phase) * 0.08
+          }
+          if (child instanceof THREE.Line && child.userData.role === 'deployTrail') {
+            const progress = object.userData.deploying
+              ? THREE.MathUtils.clamp((time - (object.userData.createdAt ?? time)) / 1.08, 0, 1)
+              : 1
+            ;(child.material as THREE.LineBasicMaterial).opacity = 0.56 * Math.max(0, 1 - progress)
+          }
+          if (child.userData.role === 'summonOrbit') {
+            child.rotation.z += child.userData.speed ?? 0.002
           }
           if (child instanceof THREE.Sprite) {
             child.quaternion.copy(camera.quaternion)
@@ -1242,6 +1364,11 @@ export default function KnowledgeGraph3D({
       imageViewerRef.current = null
       renderer.dispose()
       cometsRef.current.forEach(disposeComet)
+      if (warpStreaksRef.current) {
+        warpStreaksRef.current.geometry.dispose()
+        ;(warpStreaksRef.current.material as THREE.Material).dispose()
+        warpStreaksRef.current = null
+      }
       mount.removeChild(renderer.domElement)
     }
   }, [])
@@ -1407,6 +1534,51 @@ export default function KnowledgeGraph3D({
         flare.userData = { nodeId: node.id, markerKind: 'content-flare', baseOpacity: selectedId ? 0.07 : 0.09, opacityRange: 0.04, baseScale: 0.96, scaleRange: 0.08, faceCamera: true }
         contentMarkersRef.current.push(flare)
         group.add(flare)
+        if (isSummonNode) {
+          const sealedGlow = new THREE.Mesh(
+            new THREE.SphereGeometry(1.22, 26, 16),
+            makeHaloMaterial(summonNodeColors.midGlow, 0.12),
+          )
+          sealedGlow.position.copy(mesh.position)
+          sealedGlow.userData = { baseOpacity: 0.095, opacityRange: 0.045, speed: 0.38, distanceAware: true }
+          coreEffectsRef.current.push(sealedGlow)
+          group.add(sealedGlow)
+          ;[
+            { radius: 0.84, width: 0.024, rotation: [0.95, 0.26, 0.32], speed: 0.0014, opacity: 0.28 },
+            { radius: 1.03, width: 0.018, rotation: [1.2, -0.42, 0.78], speed: -0.001, opacity: 0.17 },
+          ].forEach((ringConfig) => {
+            const sealRing = new THREE.Mesh(
+              new THREE.RingGeometry(ringConfig.radius, ringConfig.radius + ringConfig.width, 88),
+              makeHaloMaterial(summonNodeColors.core, ringConfig.opacity),
+            )
+            sealRing.position.copy(mesh.position)
+            sealRing.rotation.set(ringConfig.rotation[0], ringConfig.rotation[1], ringConfig.rotation[2])
+            sealRing.userData = { baseOpacity: ringConfig.opacity * 0.5, opacityRange: ringConfig.opacity * 0.2, speed: 0.32, spin: ringConfig.speed }
+            coreEffectsRef.current.push(sealRing)
+            group.add(sealRing)
+          })
+          const sealOrbit = new THREE.Object3D()
+          sealOrbit.position.copy(mesh.position)
+          sealOrbit.rotation.set(0.82, -0.28, 0.2)
+          sealOrbit.userData = { orbit: true, speed: 0.0024, tiltDrift: 0.00012 }
+          Array.from({ length: 5 }).forEach((_, dotIndex) => {
+            const dot = new THREE.Mesh(
+              new THREE.SphereGeometry(0.026 + (dotIndex % 2) * 0.008, 8, 6),
+              new THREE.MeshBasicMaterial({
+                color: dotIndex % 2 === 0 ? summonNodeColors.core : summonNodeColors.midGlow,
+                transparent: true,
+                opacity: 0.48,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+              }),
+            )
+            const angle = (dotIndex / 5) * Math.PI * 2
+            dot.position.set(Math.cos(angle) * 1.12, Math.sin(angle) * 1.12, 0)
+            sealOrbit.add(dot)
+          })
+          coreEffectsRef.current.push(sealOrbit)
+          group.add(sealOrbit)
+        }
       } else if (isCluster) {
         const clusterGlow = new THREE.Mesh(new THREE.SphereGeometry(1.04, 22, 14), makeHaloMaterial(typeColors[node.type], 0.08))
         clusterGlow.position.copy(mesh.position)
@@ -1473,7 +1645,7 @@ export default function KnowledgeGraph3D({
         group.add(coreFlare)
       }
       if (selectedId && node.id === selectedId) {
-        const color = typeColors[node.type]
+        const color = getNodeColor(node)
         const halo = new THREE.Mesh(new THREE.SphereGeometry(isCluster ? 1.42 : 1.02, 28, 18), makeHaloMaterial(color, 0.24))
         halo.position.copy(mesh.position)
         halo.userData = { baseOpacity: 0.26, baseScale: 1, scaleRange: 0.2, speed: 0.75, fade: 0.25 }
@@ -1588,15 +1760,21 @@ export default function KnowledgeGraph3D({
       const targetPosition = toVector3(star.position)
       const startPosition = new THREE.Vector3(targetPosition.x * 0.12, targetPosition.y * 0.12, -9)
       root.position.copy(deploying ? startPosition : targetPosition)
-      root.userData = { id: star.id, number: star.number, phase: star.number * 0.41, startPosition, targetPosition, createdAt, deploying }
+      const visualSeed = star.visualSeed ?? 0.5
+      const palette = summonStarPalettes[Math.floor(visualSeed * summonStarPalettes.length) % summonStarPalettes.length]
+      const phase = visualSeed * Math.PI * 12.8
+      root.userData = { id: star.id, number: star.number, phase, startPosition, targetPosition, createdAt, deploying }
       const selected = star.id === selectedSummonStarId
       const armed = star.id === armedSummonStarId || star.status === 'armed'
+      const coreColor = armed ? 0xffe0a3 : selected ? 0xd8f4ff : palette.core
+      const glowColor = armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
+      const haloColor = armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const core = new THREE.Mesh(
         new THREE.SphereGeometry(0.42, 24, 16),
         new THREE.MeshStandardMaterial({
-          color: armed ? 0xffe0a3 : selected ? 0xd8f4ff : 0x596f93,
-          emissive: armed ? 0xffba5d : selected ? 0x9be8ff : 0x6f9ed8,
-          emissiveIntensity: armed ? 1.95 : selected ? 1.16 : 0.48,
+          color: coreColor,
+          emissive: glowColor,
+          emissiveIntensity: armed ? 2.15 : selected ? 1.34 : 0.56,
           roughness: 0.38,
           transparent: true,
           opacity: 0.96,
@@ -1606,45 +1784,123 @@ export default function KnowledgeGraph3D({
       root.add(core)
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.66, 0.74, 64),
-        makeHaloMaterial(armed ? 0xffd48a : selected ? 0xc8f4ff : 0xa9cfff, armed ? 0.58 : selected ? 0.42 : 0.22),
+        makeHaloMaterial(haloColor, armed ? 0.64 : selected ? 0.52 : 0.2),
       )
       ring.userData = { role: 'ring' }
-      ring.rotation.z = star.number * 0.19
+      ring.rotation.z = phase
       root.add(ring)
       const innerRing = new THREE.Mesh(
-        new THREE.RingGeometry(0.49, 0.515, 56),
-        makeHaloMaterial(armed ? 0xffefc2 : selected ? 0xe0fbff : 0x86aee4, armed ? 0.46 : selected ? 0.28 : 0.13),
+        new THREE.RingGeometry(armed ? 0.43 : 0.49, armed ? 0.462 : 0.515, 56),
+        makeHaloMaterial(armed ? 0xffefc2 : selected ? 0xe0fbff : glowColor, armed ? 0.52 : selected ? 0.34 : 0.12),
       )
       innerRing.userData = { role: 'innerRing' }
-      innerRing.rotation.z = star.number * 0.37
+      innerRing.rotation.z = phase * 0.7
       root.add(innerRing)
       const flare = new THREE.Sprite(new THREE.SpriteMaterial({
         map: starFlareTexture,
-        color: armed ? 0xffd48a : selected ? 0xc8f4ff : 0xa9cfff,
-        opacity: armed ? 0.54 : selected ? 0.38 : 0.2,
+        color: haloColor,
+        opacity: armed ? 0.62 : selected ? 0.48 : 0.2,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      flare.scale.setScalar(armed ? 2.8 : selected ? 2.2 : 1.62)
+      flare.scale.setScalar((armed ? 2.95 : selected ? 2.34 : 1.5) + visualSeed * 0.22)
       root.add(flare)
       const companion = new THREE.Sprite(new THREE.SpriteMaterial({
         map: starFlareTexture,
-        color: 0xcde4ff,
-        opacity: 0.16,
+        color: palette.particle,
+        opacity: selected || armed ? 0.26 : 0.14,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      companion.position.set(Math.sin(star.number) * 0.72, Math.cos(star.number * 1.7) * 0.52, 0)
-      companion.scale.setScalar(0.34)
+      companion.position.set(Math.sin(phase) * 0.72, Math.cos(phase * 1.7) * 0.52, 0)
+      companion.scale.setScalar(selected || armed ? 0.46 : 0.32)
       companion.userData = { role: 'companion' }
       root.add(companion)
+      const orbit = new THREE.Object3D()
+      orbit.rotation.set(0.72 + visualSeed * 0.48, -0.36 + visualSeed * 0.72, phase * 0.12)
+      orbit.userData = { role: 'summonOrbit', speed: armed ? 0.006 : selected ? 0.004 : 0.0022 }
+      Array.from({ length: selected || armed ? 3 : 2 }).forEach((_, dotIndex) => {
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.018 + dotIndex * 0.004, 6, 4),
+          new THREE.MeshBasicMaterial({
+            color: dotIndex % 2 === 0 ? palette.particle : glowColor,
+            transparent: true,
+            opacity: armed ? 0.54 : selected ? 0.42 : 0.22,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }),
+        )
+        const angle = phase + (dotIndex / (selected || armed ? 3 : 2)) * Math.PI * 2
+        dot.position.set(Math.cos(angle) * (armed ? 0.68 : selected ? 0.86 : 0.95), Math.sin(angle) * (armed ? 0.68 : selected ? 0.86 : 0.95), 0)
+        orbit.add(dot)
+      })
+      root.add(orbit)
+      if (selected || armed) {
+        const focusWave = new THREE.Mesh(
+          new THREE.RingGeometry(selected ? 0.86 : 0.72, selected ? 0.91 : 0.77, 80),
+          makeHaloMaterial(armed ? 0xffefc2 : 0xdbfaff, armed ? 0.38 : 0.3),
+        )
+        focusWave.userData = { role: 'focusWave' }
+        root.add(focusWave)
+      }
+      if (deploying) {
+        const direction = targetPosition.clone().sub(startPosition).normalize()
+        const trailGeometry = new THREE.BufferGeometry().setFromPoints([
+          direction.clone().multiplyScalar(-0.18),
+          direction.clone().multiplyScalar(-2.5 - visualSeed * 1.7),
+        ])
+        const trail = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({
+          color: haloColor,
+          transparent: true,
+          opacity: 0.46,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        trail.userData = { role: 'deployTrail' }
+        root.add(trail)
+      }
       group.add(root)
       summonEffectsRef.current.push(root)
       summonMeshesRef.current.set(star.id, core)
     })
   }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, starFlareTexture])
+
+  useEffect(() => {
+    if (appMode !== 'summon' || summonStage !== 'drawing' || !selectedSummonStarId) return
+    const mesh = summonMeshesRef.current.get(selectedSummonStarId)
+    const camera = cameraRef.current
+    const mount = mountRef.current
+    if (!mesh || !camera || !mount) return
+    const world = new THREE.Vector3()
+    mesh.getWorldPosition(world)
+    const travelDistance = cameraTargetRef.current.distanceTo(world)
+    viewResetRef.current = null
+    focusTransitionRef.current = {
+      startedAt: performance.now(),
+      duration: FOCUS_TRANSITION_DURATION_MS,
+      fromPosition: camera.position.clone(),
+      toPosition: new THREE.Vector3(world.x, world.y + 1.35, world.z + 13.5),
+      fromTarget: cameraTargetRef.current.clone(),
+      toTarget: world,
+      fromRotation: summonGroupRef.current?.rotation.clone() ?? new THREE.Euler(),
+      resetRotation: false,
+    }
+
+    const blur = THREE.MathUtils.clamp(1.4 + travelDistance * 0.14, 1.8, 4.2)
+    const scale = THREE.MathUtils.clamp(1.004 + travelDistance * 0.0004, 1.004, 1.012)
+    mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
+    mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
+    mount.classList.remove('is-focus-transitioning')
+    void mount.offsetWidth
+    mount.classList.add('is-focus-transitioning')
+    if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
+    focusBlurTimerRef.current = window.setTimeout(() => {
+      mount.classList.remove('is-focus-transitioning')
+      focusBlurTimerRef.current = undefined
+    }, FOCUS_TRANSITION_DURATION_MS + 40)
+  }, [appMode, summonStage, selectedSummonStarId])
 
   useEffect(() => {
     const related = new Set<string>()
@@ -1907,15 +2163,16 @@ export default function KnowledgeGraph3D({
             dragRef.current.dragging = true
             dragRef.current.pendingTap = false
           }
-          if (dragRef.current.dragging && groupRef.current) {
+          const dragGroup = appModeRef.current === 'summon' ? summonGroupRef.current : groupRef.current
+          if (dragRef.current.dragging && dragGroup) {
             const viewer = imageViewerRef.current
             if (viewer?.ready) {
               viewer.rotateBy(event.clientX - dragRef.current.lastX, event.clientY - dragRef.current.lastY)
               dragRef.current.lastX = event.clientX
               dragRef.current.lastY = event.clientY
             } else {
-              groupRef.current.rotation.y = dragRef.current.rotY + dx * 0.006
-              groupRef.current.rotation.x = dragRef.current.rotX + dy * 0.004
+              dragGroup.rotation.y = dragRef.current.rotY + dx * 0.006
+              dragGroup.rotation.x = dragRef.current.rotX + dy * 0.004
             }
           }
         } else hoverAtPointer()
@@ -1932,6 +2189,7 @@ export default function KnowledgeGraph3D({
         event.currentTarget.setPointerCapture(event.pointerId)
         const activeTouches = Number(event.currentTarget.dataset.activeTouches ?? '0') + 1
         event.currentTarget.dataset.activeTouches = String(activeTouches)
+        const dragGroup = appModeRef.current === 'summon' ? summonGroupRef.current : groupRef.current
         dragRef.current = {
           active: true,
           dragging: false,
@@ -1942,8 +2200,8 @@ export default function KnowledgeGraph3D({
           startY: event.clientY,
           lastX: event.clientX,
           lastY: event.clientY,
-          rotX: groupRef.current?.rotation.x ?? 0,
-          rotY: groupRef.current?.rotation.y ?? 0,
+          rotX: dragGroup?.rotation.x ?? 0,
+          rotY: dragGroup?.rotation.y ?? 0,
         }
       }}
       onPointerUp={(event) => {

@@ -444,6 +444,9 @@ export default function App() {
       setViewerLoadState('idle')
       setEditing(undefined)
       setRelationOpen(false)
+      if ((source === 'touch' || source === 'mouse') && selectedIdRef.current !== node.id) {
+        return
+      }
       setAppMode('transition-to-summon')
       window.setTimeout(() => {
         setSummonStage('setup')
