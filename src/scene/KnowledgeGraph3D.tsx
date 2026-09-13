@@ -1477,6 +1477,10 @@ export default function KnowledgeGraph3D({
     dragRef.current.pendingTap = false
   }
 
+  useEffect(() => {
+    if (controlResetKey > 0) resetView()
+  }, [controlResetKey])
+
   const cancelViewReset = () => {
     imageViewerRef.current?.cancelReset()
     viewResetRef.current = null

@@ -95,6 +95,16 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const getRangePercent = (value: number, min: number, max: number) =>
   `${((value - min) / (max - min)) * 100}%`
 
+const getViewportOrientation = () => {
+  if (typeof window === 'undefined') return 'portrait'
+  return window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+}
+
+const isTouchOrientationResetDevice = () => {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(hover: none) and (pointer: coarse)').matches
+}
+
 const loadSettings = (): AppSettings => {
   const defaults = defaultSettings()
   if (typeof localStorage === 'undefined') return defaults
@@ -305,6 +315,8 @@ export default function App() {
   const idleTimerRef = useRef<number | undefined>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
   const viewerNodeIdRef = useRef<string | undefined>(undefined)
+  const viewportOrientationRef = useRef(getViewportOrientation())
+  const orientationResetTimerRef = useRef<number | undefined>(undefined)
   const audioManagerRef = useRef<AudioManager | undefined>(undefined)
   const gestureUiDwellRef = useRef<{
     element?: HTMLElement
@@ -660,6 +672,33 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const handleOrientationSignal = () => {
+      if (orientationResetTimerRef.current !== undefined) {
+        window.clearTimeout(orientationResetTimerRef.current)
+      }
+      orientationResetTimerRef.current = window.setTimeout(() => {
+        orientationResetTimerRef.current = undefined
+        const nextOrientation = getViewportOrientation()
+        if (nextOrientation === viewportOrientationRef.current) return
+        viewportOrientationRef.current = nextOrientation
+        if (!isTouchOrientationResetDevice()) return
+        setControlResetKey((value) => value + 1)
+      }, 260)
+    }
+
+    window.addEventListener('orientationchange', handleOrientationSignal)
+    window.screen.orientation?.addEventListener('change', handleOrientationSignal)
+    return () => {
+      window.removeEventListener('orientationchange', handleOrientationSignal)
+      window.screen.orientation?.removeEventListener('change', handleOrientationSignal)
+      if (orientationResetTimerRef.current !== undefined) {
+        window.clearTimeout(orientationResetTimerRef.current)
+        orientationResetTimerRef.current = undefined
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     resetIdle()
     const handleKeyDown = () => {
       resetIdle()
@@ -948,7 +987,10 @@ export default function App() {
               className="custom-nebula-toggle"
               type="button"
               aria-expanded={customNebulaOpen}
-              onClick={() => setCustomNebulaOpen((value) => !value)}
+              onClick={() => {
+                setSettings((current) => ({ ...current, selectedNebulaPreset: 'custom' }))
+                setCustomNebulaOpen((value) => !value)
+              }}
             >
               自訂 {customNebulaOpen ? '▴' : '▾'}
             </button>
