@@ -38,10 +38,12 @@ type Props = {
   summonStars?: SummonStar[]
   selectedSummonStarId?: string
   armedSummonStarId?: string
+  holdingSummonStarId?: string
   summonedResult?: number
   hands?: TrackedHand[]
   onSummonStarSelect?: (id: string) => void
   onSummonStarArm?: (id: string) => void
+  onSummonStarHoldChange?: (id?: string) => void
   onSummonStarTrigger?: (id: string) => void
 }
 
@@ -60,14 +62,12 @@ const summonNodeColors = {
 }
 
 const summonStarPalettes = [
-  { core: 0x6f8fd8, glow: 0xa9cfff, halo: 0xd5ecff, particle: 0xf4fbff },
-  { core: 0x55d4ca, glow: 0x93f2e8, halo: 0xbdf8ef, particle: 0xe9fffb },
-  { core: 0x8a78d8, glow: 0xc2a7ff, halo: 0xe3d6ff, particle: 0xf4efff },
-  { core: 0xd5a554, glow: 0xf2c96d, halo: 0xffe5aa, particle: 0xfff6d9 },
-  { core: 0xb879d7, glow: 0xf0b7ff, halo: 0xf8d9ff, particle: 0xfff0ff },
-  { core: 0x8ddff2, glow: 0xc9f7ff, halo: 0xedfdff, particle: 0xffffff },
-  { core: 0xc18852, glow: 0xffc37a, halo: 0xffddb3, particle: 0xfff1dc },
-  { core: 0xc9c9b8, glow: 0xf0ead0, halo: 0xfff7dc, particle: 0xffffff },
+  { core: 0x4f648f, glow: 0x9eb9e8, halo: 0xd5e7ff, particle: 0xf4fbff },
+  { core: 0x3e817d, glow: 0x8fd2ca, halo: 0xc8efe9, particle: 0xe9fffb },
+  { core: 0x5d5688, glow: 0xa99bd8, halo: 0xded7ff, particle: 0xf4efff },
+  { core: 0xa47d3d, glow: 0xd6b15a, halo: 0xf3d695, particle: 0xfff3d2 },
+  { core: 0x7a5a83, glow: 0xc69bce, halo: 0xead4f0, particle: 0xfff0ff },
+  { core: 0x6a858f, glow: 0xb7dde8, halo: 0xedfdff, particle: 0xffffff },
 ]
 
 const getNodeColor = (node?: KnowledgeNode) => {
@@ -125,6 +125,19 @@ type InitialView = {
 }
 
 type BackgroundResetAnimation = {
+  starfieldRotationY: number[]
+  nebulaPositions: THREE.Vector3[]
+  nebulaMaterialRotations: number[]
+  atmospherePositions: THREE.Vector3[]
+  atmosphereMaterialRotations: number[]
+  flareMaterialRotations: number[]
+  flareScales: THREE.Vector3[]
+}
+
+type UniverseSnapshot = {
+  cameraPosition: THREE.Vector3
+  cameraTarget: THREE.Vector3
+  groupRotation: THREE.Euler
   starfieldRotationY: number[]
   nebulaPositions: THREE.Vector3[]
   nebulaMaterialRotations: number[]
@@ -494,10 +507,12 @@ export default function KnowledgeGraph3D({
   summonStars = [],
   selectedSummonStarId,
   armedSummonStarId,
+  holdingSummonStarId,
   summonedResult,
   hands = [],
   onSummonStarSelect,
   onSummonStarArm,
+  onSummonStarHoldChange,
   onSummonStarTrigger,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -569,6 +584,7 @@ export default function KnowledgeGraph3D({
   const viewResetRef = useRef<CameraTransition | null>(null)
   const focusTransitionRef = useRef<CameraTransition | null>(null)
   const initialViewRef = useRef<InitialView | null>(null)
+  const universeSnapshotRef = useRef<UniverseSnapshot | null>(null)
   const backgroundResetRef = useRef<BackgroundResetAnimation | null>(null)
   const backgroundTimeOriginRef = useRef(0)
   const focusBlurTimerRef = useRef<number | undefined>(undefined)
@@ -582,9 +598,10 @@ export default function KnowledgeGraph3D({
   const summonStageRef = useRef(summonStage)
   const selectedSummonStarIdRef = useRef<string | undefined>(selectedSummonStarId)
   const armedSummonStarIdRef = useRef<string | undefined>(armedSummonStarId)
+  const holdingSummonStarIdRef = useRef<string | undefined>(holdingSummonStarId)
   const handsRef = useRef<TrackedHand[]>(hands)
-  const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarArm, onSummonStarTrigger })
-  const summonArmLockRef = useRef({ armedAt: 0, triggeredAt: 0 })
+  const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger })
+  const summonArmLockRef = useRef({ armedAt: 0, triggeredAt: 0, holdStartedAt: 0, holdingId: undefined as string | undefined })
   const nebulaThemeRef = useRef(nebulaTheme)
   const cometsRef = useRef<THREE.Object3D[]>([])
   const nextCometAtRef = useRef(0)
@@ -641,13 +658,60 @@ export default function KnowledgeGraph3D({
   }, [immersive])
 
   useEffect(() => {
+    const previousMode = appModeRef.current
+    if (appMode === 'transition-to-summon' && previousMode === 'universe') {
+      const camera = cameraRef.current
+      const group = groupRef.current
+      if (camera && group) {
+        universeSnapshotRef.current = {
+          cameraPosition: camera.position.clone(),
+          cameraTarget: cameraTargetRef.current.clone(),
+          groupRotation: group.rotation.clone(),
+          starfieldRotationY: starfieldsRef.current.map((field) => field.rotation.y),
+          nebulaPositions: nebulaRef.current.map((sprite) => sprite.position.clone()),
+          nebulaMaterialRotations: nebulaRef.current.map((sprite) => sprite.material.rotation),
+          atmospherePositions: atmosphereNebulaRef.current.map((sprite) => sprite.position.clone()),
+          atmosphereMaterialRotations: atmosphereNebulaRef.current.map((sprite) => sprite.material.rotation),
+          flareMaterialRotations: backgroundFlaresRef.current.map((sprite) => sprite.material.rotation),
+          flareScales: backgroundFlaresRef.current.map((sprite) => sprite.scale.clone()),
+        }
+      }
+    } else if (appMode === 'universe' && previousMode === 'transition-to-universe' && universeSnapshotRef.current) {
+      const snapshot = universeSnapshotRef.current
+      const camera = cameraRef.current
+      const group = groupRef.current
+      if (camera && group) {
+        focusTransitionRef.current = null
+        viewResetRef.current = null
+        backgroundResetRef.current = null
+        camera.position.copy(snapshot.cameraPosition)
+        cameraTargetRef.current.copy(snapshot.cameraTarget)
+        group.rotation.copy(snapshot.groupRotation)
+        starfieldsRef.current.forEach((field, index) => {
+          field.rotation.y = snapshot.starfieldRotationY[index] ?? field.rotation.y
+        })
+        nebulaRef.current.forEach((sprite, index) => {
+          sprite.position.copy(snapshot.nebulaPositions[index] ?? sprite.position)
+          sprite.material.rotation = snapshot.nebulaMaterialRotations[index] ?? sprite.material.rotation
+        })
+        atmosphereNebulaRef.current.forEach((sprite, index) => {
+          sprite.position.copy(snapshot.atmospherePositions[index] ?? sprite.position)
+          sprite.material.rotation = snapshot.atmosphereMaterialRotations[index] ?? sprite.material.rotation
+        })
+        backgroundFlaresRef.current.forEach((sprite, index) => {
+          sprite.material.rotation = snapshot.flareMaterialRotations[index] ?? sprite.material.rotation
+          sprite.scale.copy(snapshot.flareScales[index] ?? sprite.scale)
+        })
+      }
+    }
     appModeRef.current = appMode
     summonStageRef.current = summonStage
     selectedSummonStarIdRef.current = selectedSummonStarId
     armedSummonStarIdRef.current = armedSummonStarId
+    holdingSummonStarIdRef.current = holdingSummonStarId
     handsRef.current = hands
-    summonCallbacksRef.current = { onSummonStarSelect, onSummonStarArm, onSummonStarTrigger }
-  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarTrigger])
+    summonCallbacksRef.current = { onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger }
+  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger])
 
   useEffect(() => {
     dragRef.current.active = false
@@ -1103,9 +1167,30 @@ export default function KnowledgeGraph3D({
             summonCallbacksRef.current.onSummonStarArm?.(selectedSummonId)
           }
         }
-        if (armedSummonId && handsRef.current.some((hand) => hand.gesture === 'fist') && time - summonArmLockRef.current.triggeredAt > 1.05) {
-          summonArmLockRef.current.triggeredAt = time
-          summonCallbacksRef.current.onSummonStarTrigger?.(armedSummonId)
+        if (armedSummonId) {
+          const fistActive = handsRef.current.some((hand) => hand.gesture === 'fist')
+          if (fistActive) {
+            if (summonArmLockRef.current.holdingId !== armedSummonId) {
+              summonArmLockRef.current.holdingId = armedSummonId
+              summonArmLockRef.current.holdStartedAt = time
+              summonCallbacksRef.current.onSummonStarHoldChange?.(armedSummonId)
+            }
+            if (time - summonArmLockRef.current.holdStartedAt >= 0.52 && time - summonArmLockRef.current.triggeredAt > 1.05) {
+              summonArmLockRef.current.triggeredAt = time
+              summonArmLockRef.current.holdingId = undefined
+              summonArmLockRef.current.holdStartedAt = 0
+              summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
+              summonCallbacksRef.current.onSummonStarTrigger?.(armedSummonId)
+            }
+          } else if (summonArmLockRef.current.holdingId) {
+            summonArmLockRef.current.holdingId = undefined
+            summonArmLockRef.current.holdStartedAt = 0
+            summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
+          }
+        } else if (summonArmLockRef.current.holdingId) {
+          summonArmLockRef.current.holdingId = undefined
+          summonArmLockRef.current.holdStartedAt = 0
+          summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
         }
       }
       camera.lookAt(cameraTargetRef.current)
@@ -1300,6 +1385,8 @@ export default function KnowledgeGraph3D({
       })
       summonEffectsRef.current.forEach((object) => {
         const phase = object.userData.phase ?? 0
+        const holding = object.userData.holding === true
+        const resolved = object.userData.resolved === true
         if (object.userData.deploying) {
           const progress = THREE.MathUtils.clamp((time - (object.userData.createdAt ?? time)) / 1.08, 0, 1)
           const eased = 1 - (1 - progress) ** 3
@@ -1307,17 +1394,26 @@ export default function KnowledgeGraph3D({
           const target = object.userData.targetPosition as THREE.Vector3
           object.position.lerpVectors(start, target, eased)
           object.scale.setScalar(0.58 + eased * 0.48 + Math.sin(progress * Math.PI) * 0.18)
+        } else if (holding) {
+          object.scale.setScalar(0.92 + Math.sin(time * 22 + phase) * 0.035)
+        } else if (resolved) {
+          object.scale.setScalar(0.94 + Math.sin(time * 0.9 + phase) * 0.012)
         }
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
             child.quaternion.copy(camera.quaternion)
-            if (child.userData.role === 'ring') child.scale.setScalar(1 + Math.sin(time * 1.8 + phase) * 0.08)
-            if (child.userData.role === 'innerRing') child.scale.setScalar(1 + Math.sin(time * 2.4 + phase) * 0.055)
-            if (child.userData.role === 'focusWave') child.scale.setScalar(1.04 + Math.sin(time * 1.4 + phase) * 0.18)
+            if (child.userData.role === 'ring') child.scale.setScalar(holding ? 0.72 + Math.sin(time * 15 + phase) * 0.035 : 1 + Math.sin(time * 1.8 + phase) * 0.08)
+            if (child.userData.role === 'innerRing') child.scale.setScalar(holding ? 0.68 + Math.sin(time * 17 + phase) * 0.025 : 1 + Math.sin(time * 2.4 + phase) * 0.055)
+            if (child.userData.role === 'focusWave') child.scale.setScalar(holding ? 0.82 + Math.sin(time * 18 + phase) * 0.09 : 1.04 + Math.sin(time * 1.4 + phase) * 0.18)
+            if (child.userData.role === 'resolvedRing') child.scale.setScalar(1 + Math.sin(time * 0.8 + phase) * 0.03)
             if (child.userData.role === 'shockwave') child.scale.setScalar(1.2 + Math.sin(time * 1.2 + phase) * 0.18)
             const material = child.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
-            if ('opacity' in material && child.userData.role === 'shockwave') material.opacity = 0.28 + Math.sin(time * 1.5 + phase) * 0.08
-            if ('opacity' in material && child.userData.role === 'focusWave') material.opacity = 0.28 + Math.sin(time * 1.6 + phase) * 0.08
+            if ('opacity' in material && child.userData.role === 'shockwave') {
+              const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
+              material.opacity = Math.max(0, (0.44 + Math.sin(time * 1.5 + phase) * 0.08) * (1 - age / 1.1))
+            }
+            if ('opacity' in material && child.userData.role === 'focusWave') material.opacity = (holding ? 0.4 : 0.28) + Math.sin(time * (holding ? 10 : 1.6) + phase) * 0.08
+            if ('emissiveIntensity' in material && child.userData.role === 'core' && holding) material.emissiveIntensity = 2.6 + Math.sin(time * 18 + phase) * 0.35
           }
           if (child instanceof THREE.Line && child.userData.role === 'deployTrail') {
             const progress = object.userData.deploying
@@ -1332,8 +1428,14 @@ export default function KnowledgeGraph3D({
             child.quaternion.copy(camera.quaternion)
             const material = child.material as THREE.SpriteMaterial
             if (child.userData.role === 'result') {
-              child.position.y = 0.2 + Math.sin(time * 0.9 + phase) * 0.08
-              material.opacity = 0.82 + Math.sin(time * 1.4 + phase) * 0.08
+              const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
+              child.position.y = 0.26 + Math.sin(time * 0.9 + phase) * 0.08
+              const labelPulse = 1 + Math.sin(Math.min(1, age) * Math.PI) * 0.18
+              child.scale.set((child.userData.baseWidth ?? 3.1) * labelPulse, (child.userData.baseHeight ?? 1.55) * labelPulse, 1)
+              material.opacity = Math.max(0, (age < 1.55 ? 0.9 : 0.9 * (1 - (age - 1.55) / 0.85)) + Math.sin(time * 1.4 + phase) * 0.04)
+            } else if (child.userData.role === 'holdingParticle') {
+              child.position.multiplyScalar(0.985)
+              material.opacity = 0.26 + Math.sin(time * 14 + phase) * 0.08
             } else {
               material.opacity = Math.max(material.opacity, 0.16 + Math.sin(time * 1.6 + phase) * 0.05)
             }
@@ -1721,41 +1823,6 @@ export default function KnowledgeGraph3D({
     const deploying = summonStage === 'deploying'
     const createdAt = performance.now() * 0.001
     summonStars.forEach((star) => {
-      if (star.status === 'summoned') {
-        const burst = new THREE.Group()
-        burst.position.copy(toVector3(star.position))
-        burst.userData = { summoned: true, phase: star.number * 0.3 }
-        const shockwave = new THREE.Mesh(
-          new THREE.RingGeometry(0.72, 0.92, 80),
-          makeHaloMaterial(0xffdc92, 0.55),
-        )
-        shockwave.userData = { role: 'shockwave' }
-        burst.add(shockwave)
-        const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
-          color: 0xffd48a,
-          opacity: 0.72,
-          transparent: true,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }))
-        glow.scale.setScalar(4.8)
-        burst.add(glow)
-        const label = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: createNodeLabelTexture(String(star.number)),
-          transparent: true,
-          opacity: 0.95,
-          depthWrite: false,
-          depthTest: false,
-        }))
-        label.position.set(0, 0, 0.35)
-        label.scale.set(3.2, 1.6, 1)
-        label.userData = { role: 'result' }
-        burst.add(label)
-        group.add(burst)
-        summonEffectsRef.current.push(burst)
-        return
-      }
       const root = new THREE.Group()
       const targetPosition = toVector3(star.position)
       const startPosition = new THREE.Vector3(targetPosition.x * 0.12, targetPosition.y * 0.12, -9)
@@ -1763,87 +1830,129 @@ export default function KnowledgeGraph3D({
       const visualSeed = star.visualSeed ?? 0.5
       const palette = summonStarPalettes[Math.floor(visualSeed * summonStarPalettes.length) % summonStarPalettes.length]
       const phase = visualSeed * Math.PI * 12.8
-      root.userData = { id: star.id, number: star.number, phase, startPosition, targetPosition, createdAt, deploying }
+      const variant = Math.floor(visualSeed * 11) % 5
+      const size = 0.37 + visualSeed * 0.08
       const selected = star.id === selectedSummonStarId
       const armed = star.id === armedSummonStarId || star.status === 'armed'
-      const coreColor = armed ? 0xffe0a3 : selected ? 0xd8f4ff : palette.core
-      const glowColor = armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
-      const haloColor = armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
+      const holding = star.id === holdingSummonStarId
+      const resolved = star.status === 'resolved'
+      const resolvedAge = star.resolvedAt ? Math.max(0, (performance.now() - star.resolvedAt) / 1000) : 99
+      root.userData = { id: star.id, number: star.number, phase, startPosition, targetPosition, createdAt, deploying, holding, resolved, resolvedAge }
+      const coreColor = resolved ? 0x7f7f88 : holding ? 0xfff1bf : armed ? 0xffe0a3 : selected ? 0xd8f4ff : palette.core
+      const glowColor = resolved ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
+      const haloColor = resolved ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(0.42, 24, 16),
+        new THREE.SphereGeometry(size, 22, 14),
         new THREE.MeshStandardMaterial({
           color: coreColor,
           emissive: glowColor,
-          emissiveIntensity: armed ? 2.15 : selected ? 1.34 : 0.56,
+          emissiveIntensity: resolved ? 0.34 : holding ? 2.65 : armed ? 1.92 : selected ? 1.22 : 0.44,
           roughness: 0.38,
           transparent: true,
-          opacity: 0.96,
+          opacity: resolved ? 0.68 : 0.95,
         }),
       )
       core.userData = { summonId: star.id, role: 'core' }
       root.add(core)
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.66, 0.74, 64),
-        makeHaloMaterial(haloColor, armed ? 0.64 : selected ? 0.52 : 0.2),
-      )
-      ring.userData = { role: 'ring' }
-      ring.rotation.z = phase
-      root.add(ring)
-      const innerRing = new THREE.Mesh(
-        new THREE.RingGeometry(armed ? 0.43 : 0.49, armed ? 0.462 : 0.515, 56),
-        makeHaloMaterial(armed ? 0xffefc2 : selected ? 0xe0fbff : glowColor, armed ? 0.52 : selected ? 0.34 : 0.12),
-      )
-      innerRing.userData = { role: 'innerRing' }
-      innerRing.rotation.z = phase * 0.7
-      root.add(innerRing)
+      if (variant !== 0 || selected || armed || holding || resolved) {
+        const ringRadius = resolved ? size + 0.18 : holding ? size + 0.1 : size + 0.24
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(ringRadius, ringRadius + (resolved ? 0.025 : 0.055), 64),
+          makeHaloMaterial(haloColor, resolved ? 0.16 : holding ? 0.7 : armed ? 0.55 : selected ? 0.42 : 0.16),
+        )
+        ring.userData = { role: resolved ? 'resolvedRing' : 'ring' }
+        ring.rotation.z = phase
+        root.add(ring)
+      }
+      if (variant === 2 || selected || armed || holding) {
+        const innerRing = new THREE.Mesh(
+          new THREE.RingGeometry(holding ? size + 0.035 : armed ? size + 0.08 : size + 0.16, holding ? size + 0.064 : armed ? size + 0.11 : size + 0.185, 52),
+          makeHaloMaterial(holding ? 0xfff0c8 : armed ? 0xffefc2 : selected ? 0xe0fbff : glowColor, holding ? 0.64 : armed ? 0.45 : selected ? 0.28 : 0.09),
+        )
+        innerRing.userData = { role: 'innerRing' }
+        innerRing.rotation.z = phase * 0.7
+        root.add(innerRing)
+      }
       const flare = new THREE.Sprite(new THREE.SpriteMaterial({
         map: starFlareTexture,
         color: haloColor,
-        opacity: armed ? 0.62 : selected ? 0.48 : 0.2,
+        opacity: resolved ? 0.12 : holding ? 0.74 : armed ? 0.54 : selected ? 0.38 : 0.16,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      flare.scale.setScalar((armed ? 2.95 : selected ? 2.34 : 1.5) + visualSeed * 0.22)
+      flare.scale.setScalar((resolved ? 1.15 : holding ? 2.35 : armed ? 2.5 : selected ? 2.08 : 1.24) + visualSeed * 0.18)
       root.add(flare)
-      const companion = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: starFlareTexture,
-        color: palette.particle,
-        opacity: selected || armed ? 0.26 : 0.14,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }))
-      companion.position.set(Math.sin(phase) * 0.72, Math.cos(phase * 1.7) * 0.52, 0)
-      companion.scale.setScalar(selected || armed ? 0.46 : 0.32)
-      companion.userData = { role: 'companion' }
-      root.add(companion)
-      const orbit = new THREE.Object3D()
-      orbit.rotation.set(0.72 + visualSeed * 0.48, -0.36 + visualSeed * 0.72, phase * 0.12)
-      orbit.userData = { role: 'summonOrbit', speed: armed ? 0.006 : selected ? 0.004 : 0.0022 }
-      Array.from({ length: selected || armed ? 3 : 2 }).forEach((_, dotIndex) => {
-        const dot = new THREE.Mesh(
-          new THREE.SphereGeometry(0.018 + dotIndex * 0.004, 6, 4),
-          new THREE.MeshBasicMaterial({
-            color: dotIndex % 2 === 0 ? palette.particle : glowColor,
-            transparent: true,
-            opacity: armed ? 0.54 : selected ? 0.42 : 0.22,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          }),
-        )
-        const angle = phase + (dotIndex / (selected || armed ? 3 : 2)) * Math.PI * 2
-        dot.position.set(Math.cos(angle) * (armed ? 0.68 : selected ? 0.86 : 0.95), Math.sin(angle) * (armed ? 0.68 : selected ? 0.86 : 0.95), 0)
-        orbit.add(dot)
-      })
-      root.add(orbit)
-      if (selected || armed) {
+      if (variant === 3 || selected || armed || holding || resolved) {
+        const companion = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: starFlareTexture,
+          color: resolved ? 0xd8ceb3 : palette.particle,
+          opacity: resolved ? 0.1 : selected || armed || holding ? 0.24 : 0.11,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        companion.position.set(Math.sin(phase) * 0.58, Math.cos(phase * 1.7) * 0.42, 0)
+        companion.scale.setScalar(resolved ? 0.24 : selected || armed || holding ? 0.42 : 0.28)
+        companion.userData = { role: holding ? 'holdingParticle' : 'companion' }
+        root.add(companion)
+      }
+      if (variant === 4 || selected || armed || holding) {
+        const orbit = new THREE.Object3D()
+        orbit.rotation.set(0.72 + visualSeed * 0.48, -0.36 + visualSeed * 0.72, phase * 0.12)
+        orbit.userData = { role: 'summonOrbit', speed: holding ? 0.008 : armed ? 0.005 : selected ? 0.0035 : 0.0018 }
+        Array.from({ length: selected || armed || holding ? 3 : 2 }).forEach((_, dotIndex) => {
+          const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.016 + dotIndex * 0.003, 6, 4),
+            new THREE.MeshBasicMaterial({
+              color: dotIndex % 2 === 0 ? palette.particle : glowColor,
+              transparent: true,
+              opacity: holding ? 0.6 : armed ? 0.46 : selected ? 0.36 : 0.18,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            }),
+          )
+          const angle = phase + (dotIndex / (selected || armed || holding ? 3 : 2)) * Math.PI * 2
+          dot.position.set(Math.cos(angle) * (holding ? 0.48 : armed ? 0.62 : selected ? 0.78 : 0.88), Math.sin(angle) * (holding ? 0.48 : armed ? 0.62 : selected ? 0.78 : 0.88), 0)
+          orbit.add(dot)
+        })
+        root.add(orbit)
+      }
+      if (selected || armed || holding) {
         const focusWave = new THREE.Mesh(
-          new THREE.RingGeometry(selected ? 0.86 : 0.72, selected ? 0.91 : 0.77, 80),
-          makeHaloMaterial(armed ? 0xffefc2 : 0xdbfaff, armed ? 0.38 : 0.3),
+          new THREE.RingGeometry(holding ? 0.58 : selected ? 0.82 : 0.68, holding ? 0.62 : selected ? 0.87 : 0.73, 80),
+          makeHaloMaterial(holding ? 0xfff0c8 : armed ? 0xffefc2 : 0xdbfaff, holding ? 0.46 : armed ? 0.36 : 0.26),
         )
         focusWave.userData = { role: 'focusWave' }
         root.add(focusWave)
+      }
+      if (resolved) {
+        const emberRing = new THREE.Mesh(
+          new THREE.RingGeometry(size + 0.32, size + 0.345, 48),
+          makeHaloMaterial(0xd6c49d, 0.12),
+        )
+        emberRing.userData = { role: 'resolvedRing' }
+        emberRing.rotation.z = -phase * 0.4
+        root.add(emberRing)
+        if (resolvedAge < 2.4) {
+          const shockwave = new THREE.Mesh(
+            new THREE.RingGeometry(0.68, 0.88, 80),
+            makeHaloMaterial(0xffdc92, 0.58),
+          )
+          shockwave.userData = { role: 'shockwave', createdAt: star.resolvedAt }
+          root.add(shockwave)
+          const label = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: createNodeLabelTexture(String(star.number)),
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+            depthTest: false,
+          }))
+          label.position.set(0, 0.24, 0.35)
+          label.scale.set(3.1, 1.55, 1)
+          label.userData = { role: 'result', createdAt: star.resolvedAt, baseWidth: 3.1, baseHeight: 1.55 }
+          root.add(label)
+        }
       }
       if (deploying) {
         const direction = targetPosition.clone().sub(startPosition).normalize()
@@ -1863,9 +1972,9 @@ export default function KnowledgeGraph3D({
       }
       group.add(root)
       summonEffectsRef.current.push(root)
-      summonMeshesRef.current.set(star.id, core)
+      if (!resolved) summonMeshesRef.current.set(star.id, core)
     })
-  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, starFlareTexture])
+  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, starFlareTexture])
 
   useEffect(() => {
     if (appMode !== 'summon' || summonStage !== 'drawing' || !selectedSummonStarId) return
@@ -2261,7 +2370,7 @@ export default function KnowledgeGraph3D({
             if (viewerActive) {
               onHover(undefined)
             } else if (hitNode) {
-              if (!repeatedNodeTap) onSelect(hitNode, dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
+              if (!repeatedNodeTap || hitNode.id === SUMMON_NODE_ID) onSelect(hitNode, dragRef.current.pointerType === 'touch' ? 'touch' : 'mouse')
               onHover(hitNode.id)
             } else {
               onHover(undefined)

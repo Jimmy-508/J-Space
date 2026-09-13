@@ -314,6 +314,7 @@ export default function App() {
   const [summonStars, setSummonStars] = useState<SummonStar[]>([])
   const [selectedSummonStarId, setSelectedSummonStarId] = useState<string>()
   const [armedSummonStarId, setArmedSummonStarId] = useState<string>()
+  const [holdingSummonStarId, setHoldingSummonStarId] = useState<string>()
   const [summonResult, setSummonResult] = useState<number>()
   const [videoSize, setVideoSize] = useState({ width: 640, height: 480 })
   const [viewportSize, setViewportSize] = useState(() => ({
@@ -483,6 +484,7 @@ export default function App() {
     setSummonStars(stars)
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
     setSummonStage('deploying')
     audioManagerRef.current?.playSelect()
@@ -501,6 +503,7 @@ export default function App() {
     setSummonStars(createSummonStars(summonMaxNumber, summonExcludedInput))
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
@@ -516,6 +519,7 @@ export default function App() {
     setSummonStars([])
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
     setSummonResult(undefined)
     audioManagerRef.current?.playSelect()
   }, [commitSummonMaxNumber])
@@ -528,23 +532,23 @@ export default function App() {
     setAppMode('transition-to-universe')
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
     window.setTimeout(() => {
       setAppMode('universe')
       setSummonStage('setup')
       setSummonStars([])
       setSummonResult(undefined)
-      clearSelection()
-      setControlResetKey((value) => value + 1)
     }, 820)
-  }, [clearSelection])
+  }, [])
 
   const selectSummonStar = useCallback((id: string) => {
     if (isTransitioning || summonStage !== 'drawing') return
     const deselecting = selectedSummonStarId === id
     setSelectedSummonStarId(deselecting ? undefined : id)
     setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
     setSummonStars((current) => current.map((star) => {
-      if (star.status === 'summoned') return star
+      if (star.status === 'resolved') return star
       if (star.id === id) return { ...star, status: deselecting ? 'available' : 'selected' }
       return { ...star, status: 'available' }
     }))
@@ -554,21 +558,27 @@ export default function App() {
   const armSummonStar = useCallback((id: string) => {
     if (id !== selectedSummonStarId || armedSummonStarId === id) return
     setArmedSummonStarId(id)
+    setHoldingSummonStarId(undefined)
     setSummonStars((current) => current.map((star) => (
-      star.id === id && star.status !== 'summoned' ? { ...star, status: 'armed' } : star
+      star.id === id && star.status !== 'resolved' ? { ...star, status: 'armed' } : star
     )))
     audioManagerRef.current?.playSelect()
   }, [armedSummonStarId, selectedSummonStarId])
 
+  const holdSummonStar = useCallback((id?: string) => {
+    setHoldingSummonStarId(id)
+  }, [])
+
   const triggerSummonStar = useCallback((id: string) => {
     if (id !== armedSummonStarId) return
-    const star = summonStars.find((item) => item.id === id && item.status !== 'summoned')
+    const star = summonStars.find((item) => item.id === id && item.status !== 'resolved')
     if (!star) return
     setSummonResult(star.number)
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
     setSummonStars((current) => current.map((item) => (
-      item.id === id ? { ...item, status: 'summoned' } : item
+      item.id === id ? { ...item, status: 'resolved', resolvedAt: performance.now() } : item
     )))
     audioManagerRef.current?.playSelect()
   }, [armedSummonStarId, summonStars])
@@ -1003,10 +1013,12 @@ export default function App() {
         summonStars={summonStars}
         selectedSummonStarId={selectedSummonStarId}
         armedSummonStarId={armedSummonStarId}
+        holdingSummonStarId={holdingSummonStarId}
         summonedResult={summonResult}
         hands={hands}
         onSummonStarSelect={selectSummonStar}
         onSummonStarArm={armSummonStar}
+        onSummonStarHoldChange={holdSummonStar}
         onSummonStarTrigger={triggerSummonStar}
       />
       <div className={`summon-transition-title ${isTransitioning ? 'visible' : ''}`} aria-hidden={!isTransitioning}>
@@ -1269,7 +1281,7 @@ export default function App() {
         stage={summonStage}
         maxNumberInput={summonMaxNumberInput}
         excludedInput={summonExcludedInput}
-        remaining={summonStars.filter((star) => star.status !== 'summoned').length}
+        remaining={summonStars.filter((star) => star.status !== 'resolved').length}
         result={summonResult}
         selectedStar={summonStars.find((star) => star.id === selectedSummonStarId)}
         armedStar={summonStars.find((star) => star.id === armedSummonStarId)}
