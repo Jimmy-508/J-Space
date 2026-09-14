@@ -955,7 +955,6 @@ button:disabled {
 .summon-accretion,
 .summon-event-rim,
 .summon-horizon-flow,
-.summon-central-glow,
 .summon-central-flow {
   fill: none;
   stroke-linecap: round;
@@ -1055,17 +1054,17 @@ button:disabled {
 }
 
 .summon-event-rim {
-  stroke: rgba(255, 237, 186, 0.68);
-  stroke-width: 1.05px;
-  filter: blur(0.32px) drop-shadow(0 0 14px rgba(255, 216, 128, 0.68));
+  stroke: rgba(255, 237, 186, 0.74);
+  stroke-width: 0.78px;
+  filter: drop-shadow(0 0 8px rgba(255, 216, 128, 0.66)) drop-shadow(0 0 18px rgba(255, 194, 88, 0.34));
   mix-blend-mode: screen;
   animation: summon-event-rim-flow 9.5s linear infinite, summon-event-halo-breathe 3.2s ease-in-out infinite alternate;
 }
 
 .summon-event-rim.rim-warm {
-  stroke: rgba(255, 196, 91, 0.5);
-  stroke-width: 2.2px;
-  filter: blur(2.1px) drop-shadow(0 0 28px rgba(255, 198, 88, 0.54));
+  stroke: rgba(255, 196, 91, 0.48);
+  stroke-width: 1.28px;
+  filter: blur(0.5px) drop-shadow(0 0 12px rgba(255, 198, 88, 0.48)) drop-shadow(0 0 24px rgba(255, 174, 64, 0.24));
 }
 
 .summon-horizon-streams {
@@ -1075,10 +1074,10 @@ button:disabled {
 
 .summon-horizon-flow {
   stroke: rgba(255, 244, 214, 0.5);
-  stroke-width: 0.5px;
-  stroke-dasharray: 260 18;
+  stroke-width: 0.44px;
+  stroke-dasharray: 420 14;
   stroke-dashoffset: 0;
-  filter: blur(0.02px) drop-shadow(0 0 8px rgba(255, 224, 156, 0.52));
+  filter: drop-shadow(0 0 6px rgba(255, 224, 156, 0.5)) drop-shadow(0 0 14px rgba(255, 190, 98, 0.22));
   mix-blend-mode: screen;
   opacity: 0.74;
   animation: summon-horizon-flow 11s linear infinite, summon-horizon-shimmer 4.8s ease-in-out infinite alternate;
@@ -1089,8 +1088,8 @@ button:disabled {
 .summon-horizon-flow.flow-i,
 .summon-horizon-flow.flow-m {
   stroke: rgba(255, 198, 101, 0.42);
-  stroke-width: 0.42px;
-  stroke-dasharray: 232 16;
+  stroke-width: 0.36px;
+  stroke-dasharray: 380 12;
   animation-delay: -0.7s;
 }
 
@@ -1099,8 +1098,8 @@ button:disabled {
 .summon-horizon-flow.flow-k,
 .summon-horizon-flow.flow-o {
   stroke: rgba(174, 227, 255, 0.3);
-  stroke-width: 0.36px;
-  stroke-dasharray: 210 14;
+  stroke-width: 0.3px;
+  stroke-dasharray: 340 10;
   animation-duration: 13.5s, 5.6s;
   animation-delay: -2.2s;
 }
@@ -1109,8 +1108,8 @@ button:disabled {
 .summon-horizon-flow.flow-h,
 .summon-horizon-flow.flow-l {
   stroke: rgba(255, 238, 202, 0.44);
-  stroke-width: 0.32px;
-  stroke-dasharray: 196 12;
+  stroke-width: 0.28px;
+  stroke-dasharray: 320 10;
   animation-duration: 12.2s, 6.2s;
   animation-delay: -3.5s;
 }
@@ -1119,8 +1118,8 @@ button:disabled {
 .summon-horizon-flow.flow-j,
 .summon-horizon-flow.flow-n {
   stroke: rgba(255, 225, 158, 0.36);
-  stroke-width: 0.28px;
-  stroke-dasharray: 178 10;
+  stroke-width: 0.24px;
+  stroke-dasharray: 300 8;
   animation-duration: 14.2s, 7s;
   animation-delay: -5s;
 }
@@ -1130,41 +1129,41 @@ button:disabled {
   animation: summon-central-flow-warp 4.6s ease-in-out infinite alternate;
 }
 
-.summon-central-glow {
-  stroke: rgba(255, 218, 127, 0.42);
-  stroke-width: 13px;
-  filter: blur(8px) drop-shadow(0 0 30px rgba(255, 203, 105, 0.5));
-  opacity: 0.72;
-  animation: summon-central-glow-breathe 2.6s ease-in-out infinite alternate;
-}
-
 .summon-central-flow {
-  stroke: rgba(255, 248, 224, 0.72);
-  stroke-width: 1.35px;
-  stroke-dasharray: 112 20;
+  stroke: rgba(255, 248, 224, 0.68);
+  stroke-width: 0.78px;
+  stroke-dasharray: 190 18;
   stroke-dashoffset: 0;
-  filter: blur(0.12px) drop-shadow(0 0 11px rgba(255, 226, 156, 0.66));
-  opacity: 0.86;
-  animation: summon-central-flow 5.2s linear infinite, summon-central-shimmer 2.8s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 7px rgba(255, 226, 156, 0.58)) drop-shadow(0 0 16px rgba(255, 188, 92, 0.26));
+  opacity: 0.78;
+  animation: summon-central-flow 7.6s linear infinite, summon-central-shimmer 3.8s ease-in-out infinite alternate;
 }
 
 .summon-central-flow.flow-b,
 .summon-central-flow.flow-d,
-.summon-central-flow.flow-f {
+.summon-central-flow.flow-f,
+.summon-central-flow.flow-h {
   stroke: rgba(255, 190, 96, 0.54);
-  stroke-width: 0.82px;
-  stroke-dasharray: 92 18;
-  animation-duration: 6.4s, 3.4s;
+  stroke-width: 0.52px;
+  stroke-dasharray: 170 14;
+  animation-duration: 8.8s, 4.4s;
   animation-delay: -1.2s;
 }
 
 .summon-central-flow.flow-c,
-.summon-central-flow.flow-e {
+.summon-central-flow.flow-e,
+.summon-central-flow.flow-i {
   stroke: rgba(176, 226, 255, 0.34);
-  stroke-width: 0.58px;
-  stroke-dasharray: 80 16;
-  animation-duration: 7.2s, 4.2s;
+  stroke-width: 0.38px;
+  stroke-dasharray: 150 12;
+  animation-duration: 9.6s, 5.2s;
   animation-delay: -2.1s;
+}
+
+.summon-central-flow.flow-g {
+  stroke-width: 0.44px;
+  opacity: 0.5;
+  animation-delay: -3s;
 }
 
 
@@ -1309,17 +1308,6 @@ button:disabled {
   }
   to {
     transform: scaleX(1.004) scaleY(0.996) skewX(0.8deg);
-  }
-}
-
-@keyframes summon-central-glow-breathe {
-  from {
-    opacity: 0.52;
-    transform: scaleX(0.986) translateY(-0.6px);
-  }
-  to {
-    opacity: 0.8;
-    transform: scaleX(1.012) translateY(0.5px);
   }
 }
 

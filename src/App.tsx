@@ -374,13 +374,15 @@ function HandEnergyOverlay({
                 <path className="summon-horizon-flow flow-o" d="M -68 70 C -32 82, 14 78, 51 54 C 74 39, 86 15, 88 -10" />
               </g>
               <g className="summon-central-flow-field">
-                <path className="summon-central-glow" d="M -176 3 C -120 -8, -66 -7, -20 -2 M 21 0 C 72 9, 124 7, 178 -4" />
                 <path className="summon-central-flow flow-a" d="M -174 -3 C -122 -15, -65 -13, -22 -4 M 24 -2 C 74 9, 126 9, 176 -2" />
                 <path className="summon-central-flow flow-b" d="M -164 5 C -110 -2, -61 0, -24 6 M 27 6 C 76 14, 120 10, 166 2" />
                 <path className="summon-central-flow flow-c" d="M -151 -11 C -104 -20, -60 -17, -27 -9 M 29 -7 C 76 0, 115 -2, 153 -10" />
                 <path className="summon-central-flow flow-d" d="M -146 13 C -96 9, -57 11, -27 16 M 31 16 C 75 21, 112 17, 148 10" />
                 <path className="summon-central-flow flow-e" d="M -118 -20 C -82 -27, -49 -23, -28 -16 M 34 -13 C 72 -6, 101 -8, 120 -17" />
                 <path className="summon-central-flow flow-f" d="M -116 22 C -78 19, -49 21, -27 26 M 34 25 C 72 30, 101 24, 118 17" />
+                <path className="summon-central-flow flow-g" d="M -139 -1 C -95 -8, -55 -7, -25 -1 M 28 0 C 67 7, 101 6, 140 -2" />
+                <path className="summon-central-flow flow-h" d="M -132 9 C -92 5, -54 6, -26 10 M 29 11 C 66 16, 99 13, 134 7" />
+                <path className="summon-central-flow flow-i" d="M -126 -14 C -86 -20, -52 -18, -28 -12 M 32 -10 C 67 -4, 96 -6, 128 -13" />
               </g>
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
