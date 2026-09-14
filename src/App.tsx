@@ -357,29 +357,30 @@ function HandEnergyOverlay({
                 <path className="summon-event-rim rim-cold" d="M -58 -39 C -39 -59, -7 -66, 22 -57 C 50 -48, 63 -21, 57 9 C 49 40, 22 57, -8 54 C -40 51, -61 29, -62 -4 C -63 -18, -60 -30, -58 -39 Z" />
               </g>
               <g className="summon-horizon-streams">
-                <path className="summon-horizon-flow flow-a" d="M -71 -3 C -64 -38, -35 -63, -2 -65 C 35 -67, 64 -38, 72 -2" />
-                <path className="summon-horizon-flow flow-b" d="M -77 0 C -69 -44, -32 -72, 8 -71 C 46 -69, 72 -41, 79 -1" />
-                <path className="summon-horizon-flow flow-c" d="M -71 8 C -58 41, -29 61, 7 61 C 42 61, 65 40, 72 8" />
-                <path className="summon-horizon-flow flow-d" d="M -78 -9 C -63 -36, -36 -55, -3 -56 C 31 -57, 58 -36, 73 -9" />
-                <path className="summon-horizon-flow flow-e" d="M -77 15 C -60 41, -28 57, 9 56 C 43 55, 64 36, 76 14" />
-                <path className="summon-horizon-flow flow-f" d="M -65 -16 C -47 -36, -21 -48, 10 -46 C 39 -45, 59 -28, 69 -11" />
-                <path className="summon-horizon-flow flow-g" d="M -66 22 C -47 41, -18 50, 13 48 C 40 46, 59 31, 68 17" />
-                <path className="summon-horizon-flow flow-h" d="M -58 -22 C -39 -39, -12 -45, 15 -41 C 40 -37, 55 -22, 61 -6" />
-                <path className="summon-horizon-flow flow-i" d="M -58 27 C -38 41, -10 44, 18 39 C 41 35, 55 20, 60 6" />
-                <path className="summon-horizon-flow flow-j" d="M -70 3 C -52 -1, -35 -1, -18 2 M 19 2 C 39 6, 55 5, 71 1" />
-                <path className="summon-horizon-flow flow-k" d="M -67 11 C -50 8, -33 8, -17 11 M 18 11 C 37 14, 53 13, 68 8" />
-                <path className="summon-horizon-flow flow-l" d="M -66 -27 C -42 -42, -8 -48, 25 -39 C 48 -33, 61 -17, 67 0" />
-                <path className="summon-horizon-flow flow-m" d="M -66 30 C -40 43, -6 45, 24 35 C 47 27, 60 11, 65 -5" />
-                <path className="summon-horizon-flow flow-n" d="M -62 -34 C -36 -49, 2 -51, 34 -35 C 53 -26, 64 -10, 68 9" />
-                <path className="summon-horizon-flow flow-o" d="M -63 36 C -34 48, 4 47, 35 29 C 54 18, 63 2, 66 -13" />
+                <path className="summon-horizon-flow flow-a" d="M -86 -7 C -78 -51, -40 -82, 0 -83 C 44 -84, 78 -48, 87 -6" />
+                <path className="summon-horizon-flow flow-b" d="M -92 -1 C -83 -58, -37 -91, 10 -89 C 58 -87, 88 -51, 94 -2" />
+                <path className="summon-horizon-flow flow-c" d="M -86 10 C -70 53, -35 78, 8 78 C 50 78, 78 51, 87 10" />
+                <path className="summon-horizon-flow flow-d" d="M -91 -17 C -72 -49, -40 -71, -2 -72 C 38 -72, 70 -47, 87 -16" />
+                <path className="summon-horizon-flow flow-e" d="M -90 22 C -69 53, -33 72, 10 70 C 49 69, 77 46, 89 20" />
+                <path className="summon-horizon-flow flow-f" d="M -80 -27 C -57 -55, -25 -69, 12 -67 C 49 -65, 75 -42, 87 -22" />
+                <path className="summon-horizon-flow flow-g" d="M -80 32 C -56 58, -20 70, 16 67 C 51 64, 76 42, 86 25" />
+                <path className="summon-horizon-flow flow-h" d="M -72 -38 C -47 -60, -13 -70, 23 -64 C 55 -59, 76 -36, 84 -14" />
+                <path className="summon-horizon-flow flow-i" d="M -73 43 C -46 62, -10 70, 25 63 C 56 57, 76 35, 83 13" />
+                <path className="summon-horizon-flow flow-j" d="M -88 -2 C -67 -8, -43 -7, -22 -2 M 24 -2 C 49 4, 68 3, 89 -3" />
+                <path className="summon-horizon-flow flow-k" d="M -84 12 C -63 8, -42 9, -21 13 M 23 13 C 46 17, 67 15, 85 10" />
+                <path className="summon-horizon-flow flow-l" d="M -78 -50 C -48 -67, -6 -73, 32 -60 C 60 -51, 80 -29, 88 -3" />
+                <path className="summon-horizon-flow flow-m" d="M -79 55 C -47 70, -4 71, 34 55 C 62 43, 80 21, 87 -4" />
+                <path className="summon-horizon-flow flow-n" d="M -66 -66 C -32 -82, 14 -82, 50 -60 C 73 -46, 86 -22, 90 5" />
+                <path className="summon-horizon-flow flow-o" d="M -68 70 C -32 82, 14 78, 51 54 C 74 39, 86 15, 88 -10" />
               </g>
-              <g className="summon-central-disk" transform="scale(0.49)">
-                <path className="summon-disk-haze" d="M -270 2 C -178 -20, -82 -11, -26 -2 M 26 -2 C 94 8, 178 11, 270 -9" />
-                <path className="summon-accretion disk-main" d="M -282 0 C -204 -10, -126 -9, -48 -2 M 48 1 C 128 8, 204 6, 284 -7" />
-                <path className="summon-accretion disk-hot" d="M -238 -4 C -164 -15, -92 -13, -34 -3 M 38 0 C 106 12, 178 11, 244 -1" />
-                <path className="summon-accretion disk-filament" d="M -258 8 C -176 1, -94 4, -46 10 M 56 9 C 124 17, 188 13, 256 4" />
-                <path className="summon-accretion disk-thread" d="M -252 -12 C -178 -19, -104 -15, -40 -7 M 52 -6 C 122 0, 184 -2, 252 -14" />
-                <path className="summon-accretion disk-thread warm" d="M -266 14 C -190 10, -118 12, -54 18 M 58 17 C 132 24, 196 18, 268 9" />
+              <g className="summon-central-flow-field">
+                <path className="summon-central-glow" d="M -176 3 C -120 -8, -66 -7, -20 -2 M 21 0 C 72 9, 124 7, 178 -4" />
+                <path className="summon-central-flow flow-a" d="M -174 -3 C -122 -15, -65 -13, -22 -4 M 24 -2 C 74 9, 126 9, 176 -2" />
+                <path className="summon-central-flow flow-b" d="M -164 5 C -110 -2, -61 0, -24 6 M 27 6 C 76 14, 120 10, 166 2" />
+                <path className="summon-central-flow flow-c" d="M -151 -11 C -104 -20, -60 -17, -27 -9 M 29 -7 C 76 0, 115 -2, 153 -10" />
+                <path className="summon-central-flow flow-d" d="M -146 13 C -96 9, -57 11, -27 16 M 31 16 C 75 21, 112 17, 148 10" />
+                <path className="summon-central-flow flow-e" d="M -118 -20 C -82 -27, -49 -23, -28 -16 M 34 -13 C 72 -6, 101 -8, 120 -17" />
+                <path className="summon-central-flow flow-f" d="M -116 22 C -78 19, -49 21, -27 26 M 34 25 C 72 30, 101 24, 118 17" />
               </g>
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>

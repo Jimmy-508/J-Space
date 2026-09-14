@@ -954,7 +954,9 @@ button:disabled {
 .summon-lensed-disk,
 .summon-accretion,
 .summon-event-rim,
-.summon-horizon-flow {
+.summon-horizon-flow,
+.summon-central-glow,
+.summon-central-flow {
   fill: none;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
@@ -1123,6 +1125,48 @@ button:disabled {
   animation-delay: -5s;
 }
 
+.summon-central-flow-field {
+  mix-blend-mode: screen;
+  animation: summon-central-flow-warp 4.6s ease-in-out infinite alternate;
+}
+
+.summon-central-glow {
+  stroke: rgba(255, 218, 127, 0.42);
+  stroke-width: 13px;
+  filter: blur(8px) drop-shadow(0 0 30px rgba(255, 203, 105, 0.5));
+  opacity: 0.72;
+  animation: summon-central-glow-breathe 2.6s ease-in-out infinite alternate;
+}
+
+.summon-central-flow {
+  stroke: rgba(255, 248, 224, 0.72);
+  stroke-width: 1.35px;
+  stroke-dasharray: 112 20;
+  stroke-dashoffset: 0;
+  filter: blur(0.12px) drop-shadow(0 0 11px rgba(255, 226, 156, 0.66));
+  opacity: 0.86;
+  animation: summon-central-flow 5.2s linear infinite, summon-central-shimmer 2.8s ease-in-out infinite alternate;
+}
+
+.summon-central-flow.flow-b,
+.summon-central-flow.flow-d,
+.summon-central-flow.flow-f {
+  stroke: rgba(255, 190, 96, 0.54);
+  stroke-width: 0.82px;
+  stroke-dasharray: 92 18;
+  animation-duration: 6.4s, 3.4s;
+  animation-delay: -1.2s;
+}
+
+.summon-central-flow.flow-c,
+.summon-central-flow.flow-e {
+  stroke: rgba(176, 226, 255, 0.34);
+  stroke-width: 0.58px;
+  stroke-dasharray: 80 16;
+  animation-duration: 7.2s, 4.2s;
+  animation-delay: -2.1s;
+}
+
 
 .summon-absorption.collapse {
   animation: summon-collapse-fade 0.42s ease-out forwards;
@@ -1265,6 +1309,44 @@ button:disabled {
   }
   to {
     transform: scaleX(1.004) scaleY(0.996) skewX(0.8deg);
+  }
+}
+
+@keyframes summon-central-glow-breathe {
+  from {
+    opacity: 0.52;
+    transform: scaleX(0.986) translateY(-0.6px);
+  }
+  to {
+    opacity: 0.8;
+    transform: scaleX(1.012) translateY(0.5px);
+  }
+}
+
+@keyframes summon-central-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -286;
+  }
+}
+
+@keyframes summon-central-shimmer {
+  from {
+    opacity: 0.58;
+  }
+  to {
+    opacity: 0.94;
+  }
+}
+
+@keyframes summon-central-flow-warp {
+  from {
+    transform: scaleX(0.985) skewX(-0.9deg);
+  }
+  to {
+    transform: scaleX(1.015) skewX(1deg);
   }
 }
 
