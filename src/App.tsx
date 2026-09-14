@@ -350,7 +350,30 @@ function HandEnergyOverlay({
         return (
           <g key={`summon-absorption-${hand.id}`} className="summon-absorption">
             <g className="summon-singularity" transform={`translate(${hand.point.x} ${hand.point.y}) scale(${singularityScale})`}>
-              <g className="summon-central-disk" transform="scale(0.7)">
+              <g className="summon-event-core">
+                <path className="summon-core-gravity" d="M -74 -56 C -53 -89, -7 -101, 38 -86 C 82 -71, 101 -30, 88 17 C 75 67, 32 94, -18 84 C -68 74, -96 35, -91 -15 C -89 -32, -84 -47, -74 -56 Z" />
+                <path className="summon-singularity-core" d="M -64 -49 C -45 -78, -6 -88, 31 -75 C 69 -62, 86 -26, 75 14 C 63 57, 27 80, -16 72 C -60 64, -84 31, -80 -12 C -78 -27, -73 -41, -64 -49 Z" />
+                <path className="summon-event-rim rim-warm" d="M -65 -45 C -45 -69, -8 -76, 26 -65 C 58 -55, 73 -24, 66 11 C 58 47, 26 67, -10 64 C -47 60, -71 34, -73 -4 C -74 -21, -70 -35, -65 -45 Z" />
+                <path className="summon-event-rim rim-cold" d="M -58 -39 C -39 -59, -7 -66, 22 -57 C 50 -48, 63 -21, 57 9 C 49 40, 22 57, -8 54 C -40 51, -61 29, -62 -4 C -63 -18, -60 -30, -58 -39 Z" />
+              </g>
+              <g className="summon-horizon-streams">
+                <path className="summon-horizon-flow flow-a" d="M -71 -3 C -64 -38, -35 -63, -2 -65 C 35 -67, 64 -38, 72 -2" />
+                <path className="summon-horizon-flow flow-b" d="M -77 0 C -69 -44, -32 -72, 8 -71 C 46 -69, 72 -41, 79 -1" />
+                <path className="summon-horizon-flow flow-c" d="M -71 8 C -58 41, -29 61, 7 61 C 42 61, 65 40, 72 8" />
+                <path className="summon-horizon-flow flow-d" d="M -78 -9 C -63 -36, -36 -55, -3 -56 C 31 -57, 58 -36, 73 -9" />
+                <path className="summon-horizon-flow flow-e" d="M -77 15 C -60 41, -28 57, 9 56 C 43 55, 64 36, 76 14" />
+                <path className="summon-horizon-flow flow-f" d="M -65 -16 C -47 -36, -21 -48, 10 -46 C 39 -45, 59 -28, 69 -11" />
+                <path className="summon-horizon-flow flow-g" d="M -66 22 C -47 41, -18 50, 13 48 C 40 46, 59 31, 68 17" />
+                <path className="summon-horizon-flow flow-h" d="M -58 -22 C -39 -39, -12 -45, 15 -41 C 40 -37, 55 -22, 61 -6" />
+                <path className="summon-horizon-flow flow-i" d="M -58 27 C -38 41, -10 44, 18 39 C 41 35, 55 20, 60 6" />
+                <path className="summon-horizon-flow flow-j" d="M -70 3 C -52 -1, -35 -1, -18 2 M 19 2 C 39 6, 55 5, 71 1" />
+                <path className="summon-horizon-flow flow-k" d="M -67 11 C -50 8, -33 8, -17 11 M 18 11 C 37 14, 53 13, 68 8" />
+                <path className="summon-horizon-flow flow-l" d="M -66 -27 C -42 -42, -8 -48, 25 -39 C 48 -33, 61 -17, 67 0" />
+                <path className="summon-horizon-flow flow-m" d="M -66 30 C -40 43, -6 45, 24 35 C 47 27, 60 11, 65 -5" />
+                <path className="summon-horizon-flow flow-n" d="M -62 -34 C -36 -49, 2 -51, 34 -35 C 53 -26, 64 -10, 68 9" />
+                <path className="summon-horizon-flow flow-o" d="M -63 36 C -34 48, 4 47, 35 29 C 54 18, 63 2, 66 -13" />
+              </g>
+              <g className="summon-central-disk" transform="scale(0.49)">
                 <path className="summon-disk-haze" d="M -270 2 C -178 -20, -82 -11, -26 -2 M 26 -2 C 94 8, 178 11, 270 -9" />
                 <path className="summon-accretion disk-main" d="M -282 0 C -204 -10, -126 -9, -48 -2 M 48 1 C 128 8, 204 6, 284 -7" />
                 <path className="summon-accretion disk-hot" d="M -238 -4 C -164 -15, -92 -13, -34 -3 M 38 0 C 106 12, 178 11, 244 -1" />
@@ -358,26 +381,6 @@ function HandEnergyOverlay({
                 <path className="summon-accretion disk-thread" d="M -252 -12 C -178 -19, -104 -15, -40 -7 M 52 -6 C 122 0, 184 -2, 252 -14" />
                 <path className="summon-accretion disk-thread warm" d="M -266 14 C -190 10, -118 12, -54 18 M 58 17 C 132 24, 196 18, 268 9" />
               </g>
-              <path className="summon-lensed-disk lens-upper" d="M -118 1 C -104 -61, -61 -105, -4 -108 C 62 -111, 107 -62, 124 2" />
-              <path className="summon-lensed-disk lens-lower" d="M -112 8 C -91 72, -50 102, 2 103 C 61 104, 100 70, 116 8" />
-              <path className="summon-accretion lens-upper-hot" d="M -92 5 C -78 -48, -42 -79, 4 -81 C 52 -83, 84 -47, 96 5" />
-              <path className="summon-accretion lens-lower-hot" d="M -86 9 C -70 51, -36 74, 8 75 C 54 76, 82 48, 92 9" />
-              <path className="summon-event-halo halo-a" d="M -72 -50 C -51 -76, -12 -84, 28 -72 C 64 -61, 80 -27, 73 13 C 64 54, 29 76, -12 72 C -53 68, -80 38, -82 -4 C -83 -23, -79 -39, -72 -50 Z" />
-              <path className="summon-event-halo halo-b" d="M -65 -45 C -45 -68, -9 -75, 25 -65 C 57 -55, 72 -24, 65 10 C 56 46, 25 66, -9 63 C -46 59, -70 34, -72 -4 C -73 -20, -70 -35, -65 -45 Z" />
-              <path className="summon-photon-flow flow-a" d="M -74 -1 C -68 -42, -36 -68, -2 -70 C 38 -72, 68 -41, 76 -1" />
-              <path className="summon-photon-flow flow-b" d="M -80 0 C -72 -47, -33 -76, 9 -75 C 49 -73, 75 -44, 82 -1" />
-              <path className="summon-photon-flow flow-c" d="M -74 7 C -61 44, -31 65, 7 66 C 44 66, 68 43, 76 7" />
-              <path className="summon-photon-flow flow-d" d="M -83 -6 C -68 -36, -40 -58, -4 -60 C 34 -61, 62 -38, 77 -7" />
-              <path className="summon-photon-flow flow-e" d="M -82 14 C -64 43, -32 61, 8 60 C 45 59, 68 38, 80 13" />
-              <path className="summon-photon-flow flow-f" d="M -66 -6 C -57 -34, -29 -56, 4 -57 C 37 -58, 59 -37, 68 -6" />
-              <path className="summon-photon-flow flow-g" d="M -67 13 C -55 35, -27 54, 6 55 C 38 55, 60 37, 69 13" />
-              <path className="summon-photon-flow flow-h" d="M -72 -14 C -53 -36, -25 -49, 9 -48 C 40 -47, 62 -29, 73 -10" />
-              <path className="summon-photon-flow flow-i" d="M -72 21 C -52 43, -21 53, 12 51 C 42 49, 62 32, 72 16" />
-              <path className="summon-photon-flow flow-j" d="M -60 -19 C -41 -38, -15 -46, 14 -42 C 41 -38, 57 -21, 64 -4" />
-              <path className="summon-photon-flow flow-k" d="M -61 24 C -40 40, -12 45, 18 40 C 43 36, 58 20, 63 5" />
-              <path className="summon-photon-flow flow-l" d="M -80 3 C -59 -2, -38 -2, -20 2 M 21 2 C 43 7, 61 6, 81 1" />
-              <path className="summon-photon-flow flow-m" d="M -76 10 C -57 7, -37 8, -19 11 M 21 11 C 42 15, 59 13, 77 8" />
-              <path className="summon-singularity-core" d="M -66 -58 C -46 -86, -7 -94, 35 -80 C 75 -66, 91 -23, 78 19 C 64 65, 24 88, -21 78 C -66 68, -91 31, -86 -14 C -83 -33, -77 -48, -66 -58 Z" />
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
               <path className="summon-source-tear tear-a" d={`M ${-18 + power * 4} -10 C 5 ${-28 - power * 8}, ${42 + power * 18} -14, ${72 + power * 22} -2 C ${41 + power * 13} ${14 + power * 5}, 8 ${19 + power * 7}, ${-18 + power * 4} 8 Z`} />
