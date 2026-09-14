@@ -353,6 +353,8 @@ function HandEnergyOverlay({
               <g className="summon-event-core">
                 <path className="summon-core-gravity" d="M -74 -56 C -53 -89, -7 -101, 38 -86 C 82 -71, 101 -30, 88 17 C 75 67, 32 94, -18 84 C -68 74, -96 35, -91 -15 C -89 -32, -84 -47, -74 -56 Z" />
                 <path className="summon-singularity-core" d="M -64 -49 C -45 -78, -6 -88, 31 -75 C 69 -62, 86 -26, 75 14 C 63 57, 27 80, -16 72 C -60 64, -84 31, -80 -12 C -78 -27, -73 -41, -64 -49 Z" />
+              </g>
+              <g className="summon-event-rims">
                 <path className="summon-event-rim rim-warm" d="M -65 -45 C -45 -69, -8 -76, 26 -65 C 58 -55, 73 -24, 66 11 C 58 47, 26 67, -10 64 C -47 60, -71 34, -73 -4 C -74 -21, -70 -35, -65 -45 Z" />
                 <path className="summon-event-rim rim-cold" d="M -58 -39 C -39 -59, -7 -66, 22 -57 C 50 -48, 63 -21, 57 9 C 49 40, 22 57, -8 54 C -40 51, -61 29, -62 -4 C -63 -18, -60 -30, -58 -39 Z" />
               </g>

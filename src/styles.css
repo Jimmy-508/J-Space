@@ -1037,7 +1037,7 @@ button:disabled {
 }
 
 .summon-core-gravity {
-  fill: rgba(0, 0, 0, 0.98);
+  fill: rgba(0, 0, 0, 0.85);
   stroke: none;
   filter:
     drop-shadow(0 0 8px rgba(255, 226, 160, 0.16))
@@ -1048,7 +1048,7 @@ button:disabled {
 }
 
 .summon-singularity-core {
-  fill: #000;
+  fill: rgba(0, 0, 0, 0.85);
   stroke: none;
   filter:
     drop-shadow(0 0 5px rgba(255, 238, 194, 0.08))
@@ -1057,18 +1057,30 @@ button:disabled {
     drop-shadow(0 0 58px rgba(0, 0, 0, 0.86));
 }
 
+.summon-event-rims {
+  mix-blend-mode: screen;
+  animation: summon-event-halo-breathe 3.2s ease-in-out infinite alternate;
+}
+
 .summon-event-rim {
   stroke: rgba(255, 237, 186, 0.82);
   stroke-width: 0.86px;
-  filter: drop-shadow(0 0 10px rgba(255, 216, 128, 0.72)) drop-shadow(0 0 20px rgba(255, 194, 88, 0.42));
+  filter:
+    drop-shadow(0 0 6px rgba(255, 235, 188, 0.7))
+    drop-shadow(0 0 16px rgba(255, 207, 116, 0.48))
+    drop-shadow(0 0 30px rgba(255, 177, 75, 0.24));
   mix-blend-mode: screen;
-  animation: summon-event-rim-flow 9.5s linear infinite, summon-event-halo-breathe 3.2s ease-in-out infinite alternate;
+  animation: summon-event-rim-flow 9.5s linear infinite;
 }
 
 .summon-event-rim.rim-warm {
   stroke: rgba(255, 196, 91, 0.58);
   stroke-width: 1.36px;
-  filter: blur(0.48px) drop-shadow(0 0 14px rgba(255, 198, 88, 0.58)) drop-shadow(0 0 28px rgba(255, 174, 64, 0.32));
+  filter:
+    blur(0.3px)
+    drop-shadow(0 0 8px rgba(255, 218, 142, 0.5))
+    drop-shadow(0 0 20px rgba(255, 186, 80, 0.38))
+    drop-shadow(0 0 34px rgba(255, 158, 53, 0.2));
 }
 
 .summon-horizon-streams {
@@ -1081,7 +1093,10 @@ button:disabled {
   stroke-width: 0.44px;
   stroke-dasharray: 500 10;
   stroke-dashoffset: 0;
-  filter: drop-shadow(0 0 7px rgba(255, 224, 156, 0.62)) drop-shadow(0 0 17px rgba(255, 190, 98, 0.3));
+  filter:
+    drop-shadow(0 0 3px rgba(255, 246, 218, 0.62))
+    drop-shadow(0 0 9px rgba(255, 221, 145, 0.5))
+    drop-shadow(0 0 20px rgba(255, 184, 84, 0.24));
   mix-blend-mode: screen;
   opacity: 0.74;
   animation: summon-horizon-flow 11s linear infinite, summon-horizon-shimmer 4.8s ease-in-out infinite alternate;
@@ -1142,7 +1157,10 @@ button:disabled {
   stroke-width: 0.78px;
   stroke-dasharray: 250 12;
   stroke-dashoffset: 0;
-  filter: drop-shadow(0 0 8px rgba(255, 226, 156, 0.68)) drop-shadow(0 0 18px rgba(255, 188, 92, 0.34));
+  filter:
+    drop-shadow(0 0 4px rgba(255, 248, 222, 0.68))
+    drop-shadow(0 0 11px rgba(255, 224, 145, 0.54))
+    drop-shadow(0 0 24px rgba(255, 184, 82, 0.28));
   opacity: 0.84;
   animation: summon-central-flow 7.6s linear infinite, summon-central-shimmer 3.8s ease-in-out infinite alternate;
 }
