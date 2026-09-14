@@ -360,36 +360,36 @@ function HandEnergyOverlay({
                 <path className="summon-horizon-flow flow-a" d="M -86 -7 C -78 -51, -40 -82, 0 -83 C 44 -84, 78 -48, 87 -6" />
                 <path className="summon-horizon-flow flow-b" d="M -92 -1 C -83 -58, -37 -91, 10 -89 C 58 -87, 88 -51, 94 -2" />
                 <path className="summon-horizon-flow flow-c" d="M -86 10 C -70 53, -35 78, 8 78 C 50 78, 78 51, 87 10" />
-                <path className="summon-horizon-flow flow-d" d="M -91 -17 C -72 -49, -40 -71, -2 -72 C 38 -72, 70 -47, 87 -16" />
-                <path className="summon-horizon-flow flow-e" d="M -90 22 C -69 53, -33 72, 10 70 C 49 69, 77 46, 89 20" />
-                <path className="summon-horizon-flow flow-f" d="M -80 -27 C -57 -55, -25 -69, 12 -67 C 49 -65, 75 -42, 87 -22" />
-                <path className="summon-horizon-flow flow-g" d="M -80 32 C -56 58, -20 70, 16 67 C 51 64, 76 42, 86 25" />
-                <path className="summon-horizon-flow flow-h" d="M -72 -38 C -47 -60, -13 -70, 23 -64 C 55 -59, 76 -36, 84 -14" />
-                <path className="summon-horizon-flow flow-i" d="M -73 43 C -46 62, -10 70, 25 63 C 56 57, 76 35, 83 13" />
+                <path className="summon-horizon-flow flow-d" d="M -89 -12 C -72 -53, -38 -76, -1 -77 C 40 -77, 72 -51, 88 -12" />
+                <path className="summon-horizon-flow flow-e" d="M -88 17 C -68 56, -32 76, 9 75 C 50 74, 77 50, 88 17" />
+                <path className="summon-horizon-flow flow-f" d="M -84 -18 C -62 -55, -28 -77, 12 -76 C 51 -74, 78 -50, 89 -18" />
+                <path className="summon-horizon-flow flow-g" d="M -83 23 C -60 58, -23 76, 16 74 C 52 72, 78 48, 88 23" />
+                <path className="summon-horizon-flow flow-h" d="M -80 -25 C -57 -57, -21 -76, 20 -73 C 57 -70, 80 -48, 88 -23" />
+                <path className="summon-horizon-flow flow-i" d="M -80 30 C -55 60, -18 76, 22 72 C 58 69, 80 46, 87 25" />
                 <path className="summon-horizon-flow flow-j" d="M -88 -2 C -67 -8, -43 -7, -22 -2 M 24 -2 C 49 4, 68 3, 89 -3" />
                 <path className="summon-horizon-flow flow-k" d="M -84 12 C -63 8, -42 9, -21 13 M 23 13 C 46 17, 67 15, 85 10" />
-                <path className="summon-horizon-flow flow-l" d="M -78 -50 C -48 -67, -6 -73, 32 -60 C 60 -51, 80 -29, 88 -3" />
-                <path className="summon-horizon-flow flow-m" d="M -79 55 C -47 70, -4 71, 34 55 C 62 43, 80 21, 87 -4" />
-                <path className="summon-horizon-flow flow-n" d="M -66 -66 C -32 -82, 14 -82, 50 -60 C 73 -46, 86 -22, 90 5" />
-                <path className="summon-horizon-flow flow-o" d="M -68 70 C -32 82, 14 78, 51 54 C 74 39, 86 15, 88 -10" />
-                <path className="summon-horizon-flow flow-p" d="M -88 -25 C -65 -61, -27 -82, 15 -79 C 56 -76, 82 -47, 91 -18" />
-                <path className="summon-horizon-flow flow-q" d="M -88 30 C -62 63, -24 80, 19 76 C 57 72, 82 46, 90 19" />
+                <path className="summon-horizon-flow flow-l" d="M -86 -31 C -59 -61, -16 -78, 28 -70 C 62 -64, 82 -43, 90 -18" />
+                <path className="summon-horizon-flow flow-m" d="M -86 36 C -57 64, -14 77, 30 67 C 63 60, 82 39, 89 15" />
+                <path className="summon-horizon-flow flow-n" d="M -78 -39 C -45 -66, 3 -79, 44 -64 C 70 -55, 87 -33, 92 -8" />
+                <path className="summon-horizon-flow flow-o" d="M -79 44 C -45 68, 3 77, 45 60 C 72 49, 86 28, 90 5" />
+                <path className="summon-horizon-flow flow-p" d="M -90 -20 C -66 -57, -27 -80, 15 -78 C 57 -75, 83 -49, 92 -19" />
+                <path className="summon-horizon-flow flow-q" d="M -90 25 C -63 60, -25 78, 19 75 C 58 72, 83 48, 91 20" />
                 <path className="summon-horizon-flow flow-r" d="M -96 5 C -72 -2, -46 -2, -23 4 M 25 4 C 52 10, 73 9, 98 2" />
                 <path className="summon-horizon-flow flow-s" d="M -94 17 C -70 13, -45 14, -23 19 M 25 19 C 50 24, 72 21, 95 14" />
               </g>
               <g className="summon-central-flow-field">
-                <path className="summon-central-flow flow-a" d="M -174 -3 C -122 -15, -65 -13, -22 -4 M 24 -2 C 74 9, 126 9, 176 -2" />
-                <path className="summon-central-flow flow-b" d="M -164 5 C -110 -2, -61 0, -24 6 M 27 6 C 76 14, 120 10, 166 2" />
-                <path className="summon-central-flow flow-c" d="M -151 -11 C -104 -20, -60 -17, -27 -9 M 29 -7 C 76 0, 115 -2, 153 -10" />
-                <path className="summon-central-flow flow-d" d="M -146 13 C -96 9, -57 11, -27 16 M 31 16 C 75 21, 112 17, 148 10" />
-                <path className="summon-central-flow flow-e" d="M -118 -20 C -82 -27, -49 -23, -28 -16 M 34 -13 C 72 -6, 101 -8, 120 -17" />
-                <path className="summon-central-flow flow-f" d="M -116 22 C -78 19, -49 21, -27 26 M 34 25 C 72 30, 101 24, 118 17" />
-                <path className="summon-central-flow flow-g" d="M -139 -1 C -95 -8, -55 -7, -25 -1 M 28 0 C 67 7, 101 6, 140 -2" />
-                <path className="summon-central-flow flow-h" d="M -132 9 C -92 5, -54 6, -26 10 M 29 11 C 66 16, 99 13, 134 7" />
-                <path className="summon-central-flow flow-i" d="M -126 -14 C -86 -20, -52 -18, -28 -12 M 32 -10 C 67 -4, 96 -6, 128 -13" />
+                <path className="summon-central-flow flow-a" d="M -174 -2 C -122 -10, -65 -9, -22 -3 M 24 -2 C 74 5, 126 5, 176 -2" />
+                <path className="summon-central-flow flow-b" d="M -164 3 C -110 -2, -61 -1, -24 4 M 27 4 C 76 9, 120 7, 166 2" />
+                <path className="summon-central-flow flow-c" d="M -151 -6 C -104 -12, -60 -11, -27 -6 M 29 -5 C 76 0, 115 -1, 153 -6" />
+                <path className="summon-central-flow flow-d" d="M -146 7 C -96 5, -57 6, -27 9 M 31 9 C 75 12, 112 10, 148 6" />
+                <path className="summon-central-flow flow-e" d="M -118 -10 C -82 -14, -49 -12, -28 -9 M 34 -8 C 72 -4, 101 -5, 120 -10" />
+                <path className="summon-central-flow flow-f" d="M -116 11 C -78 9, -49 10, -27 13 M 34 13 C 72 16, 101 13, 118 9" />
+                <path className="summon-central-flow flow-g" d="M -139 -1 C -95 -5, -55 -4, -25 -1 M 28 0 C 67 4, 101 4, 140 -2" />
+                <path className="summon-central-flow flow-h" d="M -132 5 C -92 3, -54 4, -26 6 M 29 7 C 66 10, 99 8, 134 5" />
+                <path className="summon-central-flow flow-i" d="M -126 -8 C -86 -11, -52 -10, -28 -7 M 32 -6 C 67 -2, 96 -3, 128 -8" />
                 <path className="summon-central-flow flow-j" d="M -154 0 C -108 -5, -64 -5, -24 1 M 27 2 C 72 8, 111 7, 156 0" />
                 <path className="summon-central-flow flow-k" d="M -145 -7 C -101 -12, -61 -11, -27 -6 M 31 -5 C 72 1, 105 0, 146 -6" />
-                <path className="summon-central-flow flow-l" d="M -144 16 C -100 13, -61 14, -26 18 M 30 18 C 70 22, 104 19, 146 13" />
+                <path className="summon-central-flow flow-l" d="M -144 8 C -100 7, -61 7, -26 10 M 30 10 C 70 12, 104 10, 146 7" />
               </g>
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
