@@ -955,10 +955,182 @@ button:disabled {
 .summon-accretion,
 .summon-event-rim,
 .summon-horizon-flow,
-.summon-central-flow {
+.summon-central-flow,
+.summon-photon-flow,
+.summon-equatorial-haze,
+.summon-equatorial-flow,
+.summon-equatorial-grain {
   fill: none;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+}
+
+.summon-black-depth {
+  animation: summon-black-depth-drift 7.5s ease-in-out infinite alternate;
+}
+
+.summon-space-well {
+  stroke: none;
+  mix-blend-mode: multiply;
+}
+
+.summon-space-well.well-a {
+  fill: rgba(0, 0, 0, 0.24);
+  filter: blur(18px) drop-shadow(0 0 78px rgba(0, 0, 0, 0.82));
+}
+
+.summon-space-well.well-b {
+  fill: rgba(5, 8, 12, 0.36);
+  filter: blur(11px) drop-shadow(0 0 54px rgba(0, 0, 0, 0.72));
+}
+
+.summon-event-horizon {
+  animation: summon-event-core-breathe 4.8s ease-in-out infinite alternate;
+}
+
+.summon-horizon-shadow,
+.summon-horizon-depth,
+.summon-horizon-mouth {
+  stroke: none;
+}
+
+.summon-horizon-shadow {
+  fill: rgba(0, 0, 0, 0.42);
+  filter:
+    blur(8px)
+    drop-shadow(0 0 36px rgba(0, 0, 0, 0.92))
+    drop-shadow(0 0 86px rgba(0, 0, 0, 0.76));
+}
+
+.summon-horizon-depth {
+  fill: rgba(0, 0, 0, 0.72);
+  filter:
+    blur(2.8px)
+    drop-shadow(0 0 22px rgba(0, 0, 0, 0.96))
+    drop-shadow(0 0 46px rgba(0, 0, 0, 0.82));
+}
+
+.summon-horizon-mouth {
+  fill: rgba(0, 0, 0, 0.86);
+  filter:
+    blur(0.8px)
+    drop-shadow(0 0 15px rgba(0, 0, 0, 0.98))
+    drop-shadow(0 0 34px rgba(0, 0, 0, 0.86));
+}
+
+.summon-photon-ring {
+  mix-blend-mode: screen;
+  animation: summon-photon-lensing 8.8s ease-in-out infinite alternate;
+}
+
+.summon-photon-flow {
+  stroke: rgba(255, 239, 196, 0.7);
+  stroke-width: 0.68px;
+  stroke-dasharray: 120 14 90 18 180 12;
+  stroke-dashoffset: 0;
+  opacity: 0.78;
+  filter:
+    drop-shadow(0 0 4px rgba(255, 243, 212, 0.7))
+    drop-shadow(0 0 12px rgba(255, 210, 125, 0.48))
+    drop-shadow(0 0 26px rgba(255, 160, 68, 0.23));
+  animation: summon-photon-flow 16s linear infinite, summon-photon-breathe 5.4s ease-in-out infinite alternate;
+}
+
+.summon-photon-flow.flow-b,
+.summon-photon-flow.flow-e {
+  stroke: rgba(255, 190, 92, 0.58);
+  stroke-width: 0.44px;
+  stroke-dasharray: 92 11 150 15 70 10;
+  animation-duration: 18s, 6.1s;
+  animation-delay: -3.2s;
+}
+
+.summon-photon-flow.flow-c,
+.summon-photon-flow.flow-f {
+  stroke: rgba(179, 226, 255, 0.42);
+  stroke-width: 0.34px;
+  stroke-dasharray: 84 12 132 15 118 12;
+  animation-duration: 21s, 6.8s;
+  animation-delay: -6s;
+}
+
+.summon-photon-flow.flow-d,
+.summon-photon-flow.flow-g,
+.summon-photon-flow.flow-h {
+  stroke: rgba(255, 225, 156, 0.48);
+  stroke-width: 0.3px;
+  stroke-dasharray: 72 10 116 14 96 10;
+  animation-duration: 23s, 7.4s;
+  animation-delay: -9s;
+}
+
+.summon-equatorial-field {
+  mix-blend-mode: screen;
+  animation: summon-equatorial-warp 6.2s ease-in-out infinite alternate;
+}
+
+.summon-equatorial-haze {
+  stroke: rgba(255, 210, 124, 0.2);
+  stroke-width: 6px;
+  opacity: 0.54;
+  filter: blur(8px) drop-shadow(0 0 30px rgba(255, 184, 82, 0.26));
+  animation: summon-equatorial-flow 13.5s linear infinite, summon-equatorial-haze 5.8s ease-in-out infinite alternate;
+}
+
+.summon-equatorial-haze.haze-b {
+  stroke: rgba(255, 244, 210, 0.16);
+  stroke-width: 4px;
+  animation-delay: -3.8s;
+}
+
+.summon-equatorial-flow {
+  stroke: rgba(255, 245, 214, 0.76);
+  stroke-width: 0.82px;
+  stroke-dasharray: 120 16 190 18 82 14;
+  stroke-dashoffset: 0;
+  opacity: 0.86;
+  filter:
+    drop-shadow(0 0 4px rgba(255, 246, 220, 0.68))
+    drop-shadow(0 0 12px rgba(255, 219, 138, 0.48))
+    drop-shadow(0 0 28px rgba(255, 178, 78, 0.24));
+  animation: summon-equatorial-flow 10.5s linear infinite, summon-equatorial-shimmer 4.5s ease-in-out infinite alternate;
+}
+
+.summon-equatorial-flow.flow-b,
+.summon-equatorial-flow.flow-e {
+  stroke: rgba(255, 187, 90, 0.58);
+  stroke-width: 0.56px;
+  stroke-dasharray: 94 13 150 16 74 12;
+  animation-duration: 12.8s, 5.2s;
+  animation-delay: -2.6s;
+}
+
+.summon-equatorial-flow.flow-c,
+.summon-equatorial-flow.flow-f {
+  stroke: rgba(174, 226, 255, 0.38);
+  stroke-width: 0.44px;
+  stroke-dasharray: 86 12 136 16 82 12;
+  animation-duration: 14.2s, 5.7s;
+  animation-delay: -5.1s;
+}
+
+.summon-equatorial-grain {
+  stroke: rgba(255, 236, 184, 0.44);
+  stroke-width: 0.28px;
+  stroke-dasharray: 26 18 38 22 18 16;
+  opacity: 0.62;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 230, 165, 0.46))
+    drop-shadow(0 0 14px rgba(255, 178, 82, 0.2));
+  animation: summon-equatorial-flow 16s linear infinite, summon-equatorial-shimmer 6s ease-in-out infinite alternate;
+}
+
+.summon-equatorial-grain.grain-b {
+  animation-delay: -4.5s;
+}
+
+.summon-equatorial-grain.grain-c {
+  animation-delay: -8s;
 }
 
 .summon-disk-haze {
@@ -1290,6 +1462,80 @@ button:disabled {
   to {
     opacity: 1;
     transform: scale(1.006);
+  }
+}
+
+@keyframes summon-black-depth-drift {
+  from {
+    opacity: 0.76;
+    transform: scaleX(0.986) scaleY(1.01);
+  }
+  to {
+    opacity: 0.96;
+    transform: scaleX(1.014) scaleY(0.992);
+  }
+}
+
+@keyframes summon-photon-lensing {
+  from {
+    transform: scaleX(0.994) scaleY(1.004) skewX(-0.35deg);
+  }
+  to {
+    transform: scaleX(1.006) scaleY(0.996) skewX(0.42deg);
+  }
+}
+
+@keyframes summon-photon-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -420;
+  }
+}
+
+@keyframes summon-photon-breathe {
+  from {
+    opacity: 0.58;
+  }
+  to {
+    opacity: 0.88;
+  }
+}
+
+@keyframes summon-equatorial-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -360;
+  }
+}
+
+@keyframes summon-equatorial-warp {
+  from {
+    transform: scaleX(0.988) scaleY(1.012) skewX(-0.55deg);
+  }
+  to {
+    transform: scaleX(1.012) scaleY(0.988) skewX(0.62deg);
+  }
+}
+
+@keyframes summon-equatorial-shimmer {
+  from {
+    opacity: 0.62;
+  }
+  to {
+    opacity: 0.92;
+  }
+}
+
+@keyframes summon-equatorial-haze {
+  from {
+    opacity: 0.36;
+  }
+  to {
+    opacity: 0.62;
   }
 }
 
