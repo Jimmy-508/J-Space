@@ -77,7 +77,7 @@ button:disabled {
 }
 
 .graph-canvas {
-  z-index: 0;
+  z-index: 2;
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
@@ -867,6 +867,7 @@ button:disabled {
   }
 }
 
+.summon-black-hole-layer,
 .hand-energy-layer {
   position: fixed;
   left: 0;
@@ -879,6 +880,20 @@ button:disabled {
   overflow: hidden;
   contain: strict;
   shape-rendering: geometricPrecision;
+}
+
+.summon-black-hole-layer {
+  z-index: 1;
+}
+
+.summon-black-hole-layer .summon-singularity {
+  filter:
+    drop-shadow(0 0 16px rgba(255, 218, 126, 0.72))
+    drop-shadow(0 0 34px rgba(122, 215, 255, 0.34));
+}
+
+.hand-energy-layer {
+  z-index: 100;
 }
 
 .hand-energy line {
