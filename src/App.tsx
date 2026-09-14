@@ -319,7 +319,7 @@ function HandEnergyOverlay({
       })}
       {summonEnergyHands.map((hand, handIndex) => {
         const target = summonEnergyTarget!
-        const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 1.2 : 1
+        const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 1.8 : 1
         const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
         const dx = hand.point.x - target.x
         const dy = hand.point.y - target.y
@@ -372,6 +372,10 @@ function HandEnergyOverlay({
                 <path className="summon-horizon-flow flow-m" d="M -79 55 C -47 70, -4 71, 34 55 C 62 43, 80 21, 87 -4" />
                 <path className="summon-horizon-flow flow-n" d="M -66 -66 C -32 -82, 14 -82, 50 -60 C 73 -46, 86 -22, 90 5" />
                 <path className="summon-horizon-flow flow-o" d="M -68 70 C -32 82, 14 78, 51 54 C 74 39, 86 15, 88 -10" />
+                <path className="summon-horizon-flow flow-p" d="M -88 -25 C -65 -61, -27 -82, 15 -79 C 56 -76, 82 -47, 91 -18" />
+                <path className="summon-horizon-flow flow-q" d="M -88 30 C -62 63, -24 80, 19 76 C 57 72, 82 46, 90 19" />
+                <path className="summon-horizon-flow flow-r" d="M -96 5 C -72 -2, -46 -2, -23 4 M 25 4 C 52 10, 73 9, 98 2" />
+                <path className="summon-horizon-flow flow-s" d="M -94 17 C -70 13, -45 14, -23 19 M 25 19 C 50 24, 72 21, 95 14" />
               </g>
               <g className="summon-central-flow-field">
                 <path className="summon-central-flow flow-a" d="M -174 -3 C -122 -15, -65 -13, -22 -4 M 24 -2 C 74 9, 126 9, 176 -2" />
@@ -383,6 +387,9 @@ function HandEnergyOverlay({
                 <path className="summon-central-flow flow-g" d="M -139 -1 C -95 -8, -55 -7, -25 -1 M 28 0 C 67 7, 101 6, 140 -2" />
                 <path className="summon-central-flow flow-h" d="M -132 9 C -92 5, -54 6, -26 10 M 29 11 C 66 16, 99 13, 134 7" />
                 <path className="summon-central-flow flow-i" d="M -126 -14 C -86 -20, -52 -18, -28 -12 M 32 -10 C 67 -4, 96 -6, 128 -13" />
+                <path className="summon-central-flow flow-j" d="M -154 0 C -108 -5, -64 -5, -24 1 M 27 2 C 72 8, 111 7, 156 0" />
+                <path className="summon-central-flow flow-k" d="M -145 -7 C -101 -12, -61 -11, -27 -6 M 31 -5 C 72 1, 105 0, 146 -6" />
+                <path className="summon-central-flow flow-l" d="M -144 16 C -100 13, -61 14, -26 18 M 30 18 C 70 22, 104 19, 146 13" />
               </g>
             </g>
             <g className="summon-source-drain" transform={`translate(${target.x} ${target.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI})`}>
@@ -442,7 +449,7 @@ function HandEnergyOverlay({
         )
       })}
       {collapseHands.map((hand) => {
-        const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 1.2 : 1
+        const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 1.8 : 1
         const singularityScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
         const dx = hand.point.x - hand.target.x
         const dy = hand.point.y - hand.target.y
