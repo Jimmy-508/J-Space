@@ -1619,13 +1619,6 @@ export default function KnowledgeGraph3D({
               const breath = 1 + Math.sin(time * (child.userData.speed ?? 0.8) + phase) * (holding ? 0.1 : 0.04)
               child.scale.set(baseScaleX * breath * (holding ? 1 - holdProgress * 0.18 : 1), baseScaleY * breath * (holding ? 1 - holdProgress * 0.18 : 1), 1)
               material.opacity = Math.max(0.04, baseOpacity + (holding ? holdProgress * 0.22 : 0) + Math.sin(time * 1.1 + phase) * 0.025)
-            } else if (child.userData.role === 'summonCelestialBody') {
-              const baseOpacity = child.userData.baseOpacity ?? 0.72
-              const baseScaleX = child.userData.baseScaleX ?? child.scale.x
-              const baseScaleY = child.userData.baseScaleY ?? child.scale.y
-              const pulse = 1 + Math.sin(time * (holding ? 6.8 : 1.45) + phase) * (holding ? 0.055 : 0.018)
-              child.scale.set(baseScaleX * pulse, baseScaleY * pulse, 1)
-              material.opacity = Math.min(1, baseOpacity + (holding ? holdProgress * 0.08 : 0) + Math.sin(time * 1.8 + phase) * 0.018)
             } else if (child.userData.role === 'celestialMote') {
               const speed = child.userData.speed ?? 0.4
               const angle = (child.userData.angle ?? 0) + time * speed * (holding ? 2.2 : 1)
@@ -2069,6 +2062,7 @@ export default function KnowledgeGraph3D({
       const core = new THREE.Mesh(
         new THREE.IcosahedronGeometry(size * 0.88, 2),
         new THREE.MeshPhysicalMaterial({
+          map: summonCelestialTextures[paletteIndex],
           color: coreColor,
           emissive: glowColor,
           emissiveIntensity: inactive ? 0.26 : holding ? 2.45 : armed ? 1.72 : selected ? 1.08 : 0.34,
@@ -2083,25 +2077,8 @@ export default function KnowledgeGraph3D({
       core.userData = { summonId: star.id, role: 'core' }
       core.scale.set(0.92 + (variant % 3) * 0.055, 0.94 + ((variant + 1) % 3) * 0.045, 1)
       root.add(core)
-      const celestialBody = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: summonCelestialTextures[paletteIndex],
-        color: 0xffffff,
-        opacity: inactive ? 0.42 : holding ? 1 : armed ? 0.94 : selected ? 0.88 : 0.74,
-        transparent: true,
-        depthWrite: false,
-      }))
-      const celestialScale = size * (inactive ? 1.82 : holding ? 2.28 : selected || armed ? 2.13 : 1.96)
-      celestialBody.position.set(0, 0, size * 1.06)
-      celestialBody.scale.set(celestialScale * (0.92 + (variant % 3) * 0.06), celestialScale * (0.95 + ((variant + 1) % 3) * 0.045), 1)
-      celestialBody.userData = {
-        role: 'summonCelestialBody',
-        baseOpacity: inactive ? 0.42 : holding ? 1 : armed ? 0.94 : selected ? 0.88 : 0.74,
-        baseScaleX: celestialBody.scale.x,
-        baseScaleY: celestialBody.scale.y,
-      }
-      root.add(celestialBody)
       const shell = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(size * 1.04, 2),
+        new THREE.IcosahedronGeometry(size * 0.91, 2),
         new THREE.MeshBasicMaterial({
           color: haloColor,
           transparent: true,
