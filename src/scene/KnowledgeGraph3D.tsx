@@ -258,6 +258,19 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
   body.addColorStop(1, new THREE.Color(palette.core).multiplyScalar(0.16).getStyle())
   ctx.fillStyle = body
   ctx.fillRect(0, 0, 512, 256)
+  for (let index = 0; index < 9; index += 1) {
+    const x = random() * 540 - 14
+    const y = 18 + random() * 216
+    const width = 38 + random() * 96
+    const height = 14 + random() * 42
+    ctx.beginPath()
+    ctx.moveTo(x - width * 0.55, y)
+    ctx.bezierCurveTo(x - width * 0.25, y - height, x + width * 0.1, y - height * 0.72, x + width * 0.44, y - height * 0.16)
+    ctx.bezierCurveTo(x + width * 0.62, y + height * 0.28, x + width * 0.2, y + height, x - width * 0.18, y + height * 0.52)
+    ctx.bezierCurveTo(x - width * 0.5, y + height * 0.3, x - width * 0.72, y + height * 0.08, x - width * 0.55, y)
+    ctx.fillStyle = index % 3 === 0 ? 'rgba(3,10,25,0.42)' : index % 3 === 1 ? 'rgba(8,20,42,0.28)' : 'rgba(245,228,182,0.1)'
+    ctx.fill()
+  }
   for (let index = 0; index < 32; index += 1) {
     const x = random() * 512
     const y = 18 + random() * 220
@@ -291,6 +304,15 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
     ctx.bezierCurveTo(136, y - 34 + random() * 26, 354, y + 36 - random() * 28, 524, y + (random() - 0.5) * 18)
     ctx.strokeStyle = ribbon
     ctx.lineWidth = 6 + random() * 5
+    ctx.stroke()
+  }
+  for (let index = 0; index < 8; index += 1) {
+    const y = 28 + random() * 198
+    ctx.beginPath()
+    ctx.moveTo(-10, y)
+    ctx.bezierCurveTo(128, y + (random() - 0.5) * 42, 342, y + (random() - 0.5) * 36, 522, y + (random() - 0.5) * 28)
+    ctx.strokeStyle = index % 2 === 0 ? 'rgba(255,239,190,0.26)' : 'rgba(145,215,255,0.22)'
+    ctx.lineWidth = 0.55 + random() * 0.85
     ctx.stroke()
   }
   for (let index = 0; index < 54; index += 1) {
@@ -2095,22 +2117,32 @@ export default function KnowledgeGraph3D({
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const surfaceTexture = summonCelestialTextures[paletteIndex]
+      const coreMaterial = new THREE.MeshPhysicalMaterial({
+        map: surfaceTexture,
+        bumpMap: surfaceTexture,
+        bumpScale: 0.055,
+        color: inactive ? coreColor : 0xffffff,
+        emissive: glowColor,
+        emissiveIntensity: inactive ? 0.16 : holding ? 1.35 : armed ? 0.86 : selected ? 0.56 : 0.16,
+        roughness: 0.5,
+        metalness: 0.06,
+        clearcoat: 0.18,
+        clearcoatRoughness: 0.4,
+        transparent: false,
+        opacity: 1,
+      })
+      const rimColor = new THREE.Color(haloColor)
+      coreMaterial.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          float summonRim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
+          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.22;`,
+        )
+      }
       const core = new THREE.Mesh(
         createSummonCelestialGeometry(size, visualSeed),
-        new THREE.MeshPhysicalMaterial({
-          map: surfaceTexture,
-          bumpMap: surfaceTexture,
-          bumpScale: 0.035,
-          color: inactive ? coreColor : 0xffffff,
-          emissive: glowColor,
-          emissiveIntensity: inactive ? 0.16 : holding ? 1.35 : armed ? 0.86 : selected ? 0.56 : 0.16,
-          roughness: 0.5,
-          metalness: 0.06,
-          clearcoat: 0.18,
-          clearcoatRoughness: 0.4,
-          transparent: false,
-          opacity: 1,
-        }),
+        coreMaterial,
       )
       core.userData = { summonId: star.id, role: 'core' }
       core.rotation.set(phase * 0.11, phase * 0.17, phase * 0.06)

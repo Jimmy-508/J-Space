@@ -1387,7 +1387,7 @@ export default function App() {
             '--return-y': `${summonResultTarget?.y ?? viewportSize.height / 2}px`,
           } as CSSProperties}
         >
-          {summonResultOverlay.value}
+          <span>{summonResultOverlay.value}</span>
         </div>
       ) : null}
       {viewerNode && viewerLoadState !== 'ready' ? (
