@@ -293,37 +293,29 @@ function HandEnergyOverlay({
   }
   const renderSummonBlackHole = (key: string, point: ScreenPoint, state = '') => (
     <g key={key} className={`summon-singularity ${state}`} transform={`translate(${point.x} ${point.y}) scale(${getSingularityScale()})`}>
-      <g className="summon-black-depth">
-        <ellipse className="summon-space-well well-a" cx="0" cy="0" rx="154" ry="104" />
-        <ellipse className="summon-space-well well-b" cx="0" cy="1" rx="124" ry="86" />
+      <g className="summon-black-depth-field">
+        <circle className="summon-depth-falloff" r="118" />
+        <ellipse className="summon-depth-lens" rx="104" ry="82" />
       </g>
-      <g className="summon-event-horizon">
-        <path className="summon-horizon-shadow" d="M -74 -54 C -52 -89, -5 -102, 40 -86 C 83 -69, 101 -28, 89 17 C 76 66, 31 95, -19 85 C -68 75, -98 36, -92 -14 C -90 -31, -84 -47, -74 -54 Z" />
-        <path className="summon-horizon-depth" d="M -66 -48 C -46 -78, -6 -90, 32 -77 C 70 -64, 87 -27, 77 13 C 66 57, 28 81, -17 73 C -61 65, -85 31, -81 -12 C -79 -27, -74 -41, -66 -48 Z" />
-        <path className="summon-horizon-mouth" d="M -56 -40 C -39 -62, -7 -70, 24 -60 C 53 -50, 66 -22, 59 8 C 52 40, 23 59, -8 56 C -42 53, -63 30, -65 -4 C -65 -18, -61 -31, -56 -40 Z" />
+      <g className="summon-event-horizon-new">
+        <circle className="summon-horizon-penumbra" r="78" />
+        <circle className="summon-horizon-core-new" r="65" />
+        <circle className="summon-horizon-abyss" r="53" />
       </g>
-      <g className="summon-photon-ring">
-        <path className="summon-photon-flow flow-a" d="M -70 -43 C -47 -70, -6 -78, 30 -66 C 62 -55, 78 -24, 70 12 C 61 47, 29 69, -10 66 C -49 62, -74 35, -75 -4 C -76 -20, -74 -34, -70 -43 Z" />
-        <path className="summon-photon-flow flow-b" d="M -72 -39 C -48 -68, -5 -76, 33 -63 C 64 -52, 77 -21, 68 13 C 58 47, 27 67, -11 63 C -48 60, -72 33, -73 -4 C -74 -19, -74 -31, -72 -39 Z" />
-        <path className="summon-photon-flow flow-c" d="M -67 -45 C -45 -71, -7 -80, 29 -69 C 61 -59, 80 -27, 73 9 C 66 46, 31 70, -8 68 C -47 66, -77 39, -78 -1 C -78 -19, -73 -35, -67 -45 Z" />
-        <path className="summon-photon-flow flow-d" d="M -64 -47 C -42 -72, -3 -82, 34 -68 C 66 -56, 80 -24, 72 11 C 63 49, 27 72, -13 67 C -50 63, -75 34, -74 -5 C -74 -22, -70 -37, -64 -47 Z" />
-        <path className="summon-photon-flow flow-e" d="M -76 -35 C -52 -65, -9 -75, 28 -65 C 61 -56, 79 -27, 75 7 C 70 45, 34 70, -7 70 C -47 69, -78 42, -81 3 C -82 -13, -81 -27, -76 -35 Z" />
-        <path className="summon-photon-flow flow-f" d="M -69 -38 C -44 -65, -2 -72, 34 -59 C 64 -48, 75 -18, 64 15 C 53 47, 24 63, -12 59 C -47 55, -68 30, -69 -4 C -70 -18, -72 -30, -69 -38 Z" />
-        <path className="summon-photon-flow flow-g" d="M -74 -49 C -50 -76, -5 -87, 36 -72 C 72 -59, 91 -25, 82 14 C 72 55, 34 82, -12 77 C -57 72, -88 42, -89 -5 C -89 -23, -82 -39, -74 -49 Z" />
-        <path className="summon-photon-flow flow-h" d="M -60 -35 C -39 -58, -5 -65, 27 -55 C 54 -46, 67 -20, 60 9 C 52 38, 25 55, -8 53 C -39 50, -60 28, -61 -4 C -62 -16, -63 -27, -60 -35 Z" />
+      <g className="summon-photon-shear">
+        {Array.from({ length: 12 }, (_, index) => {
+          const rx = 68 + (index % 4) * 2.2
+          const ry = 64 + ((index * 3) % 5) * 1.6
+          const skew = (index - 5.5) * 1.1
+          return <path key={`rim-${index}`} className={`summon-photon-shear-line flow-${index % 4}`} d={`M 0 ${-ry} C ${rx * 0.72} ${-ry - skew}, ${rx + skew} ${-ry * 0.38}, ${rx} 0 C ${rx - skew} ${ry * 0.52}, ${rx * 0.58} ${ry + skew}, 0 ${ry} C ${-rx * 0.64} ${ry - skew}, ${-rx - skew} ${ry * 0.42}, ${-rx} 0 C ${-rx + skew} ${-ry * 0.48}, ${-rx * 0.62} ${-ry + skew}, 0 ${-ry} Z`} />
+        })}
       </g>
-      <g className="summon-equatorial-field">
-        <path className="summon-equatorial-haze haze-a" d="M -176 -7 C -124 -18, -66 -16, -22 -7 M 24 -6 C 76 3, 130 3, 178 -6" />
-        <path className="summon-equatorial-haze haze-b" d="M -170 8 C -118 0, -62 1, -23 8 M 26 8 C 76 16, 128 13, 171 5" />
-        <path className="summon-equatorial-flow flow-a" d="M -182 -4 C -126 -11, -67 -10, -23 -4 M 25 -4 C 78 4, 132 4, 184 -4" />
-        <path className="summon-equatorial-flow flow-b" d="M -174 0 C -119 -5, -65 -5, -24 0 M 26 1 C 77 7, 126 7, 176 0" />
-        <path className="summon-equatorial-flow flow-c" d="M -168 4 C -114 1, -64 1, -24 5 M 27 5 C 76 10, 123 9, 169 3" />
-        <path className="summon-equatorial-flow flow-d" d="M -160 -8 C -108 -14, -62 -13, -26 -8 M 30 -7 C 75 -1, 118 -2, 162 -8" />
-        <path className="summon-equatorial-flow flow-e" d="M -154 9 C -103 6, -60 7, -26 10 M 30 10 C 75 13, 116 11, 156 7" />
-        <path className="summon-equatorial-flow flow-f" d="M -132 -2 C -90 -6, -54 -5, -27 -2 M 32 -1 C 70 4, 104 3, 134 -2" />
-        <path className="summon-equatorial-grain grain-a" d="M -146 2 C -99 -2, -59 -1, -26 3 M 28 3 C 68 8, 108 6, 148 1" />
-        <path className="summon-equatorial-grain grain-b" d="M -136 -6 C -92 -10, -56 -9, -27 -6 M 32 -5 C 70 0, 101 -1, 138 -6" />
-        <path className="summon-equatorial-grain grain-c" d="M -126 7 C -85 5, -53 5, -27 8 M 32 8 C 70 12, 96 10, 128 6" />
+      <g className="summon-central-accretion-new">
+        {Array.from({ length: 13 }, (_, index) => {
+          const y = -15 + index * 2.5
+          const amplitude = 3.6 + (index % 4) * 1.2
+          return <path key={`stream-${index}`} className={`summon-central-stream flow-${index % 4}`} d={`M -150 ${y} C -106 ${y - amplitude}, -55 ${y + amplitude * 0.56}, 0 ${y - amplitude * 0.18} C 54 ${y - amplitude * 0.7}, 108 ${y + amplitude * 0.68}, 150 ${y - amplitude * 0.3}`} />
+        })}
       </g>
     </g>
   )
@@ -338,10 +330,21 @@ function HandEnergyOverlay({
         aria-hidden="true"
       >
         <defs>
-          <radialGradient id="summon-horizon-mouth-gradient" cx="50%" cy="50%" r="58%">
-            <stop offset="0%" stopColor="rgba(0, 0, 0, 0.95)" />
-            <stop offset="58%" stopColor="rgba(0, 0, 0, 0.93)" />
-            <stop offset="100%" stopColor="rgba(0, 0, 0, 0.9)" />
+          <radialGradient id="summon-horizon-core-gradient" cx="42%" cy="38%" r="68%">
+            <stop offset="0%" stopColor="rgba(0, 0, 0, 0.98)" />
+            <stop offset="54%" stopColor="rgba(0, 0, 0, 0.95)" />
+            <stop offset="82%" stopColor="rgba(0, 0, 0, 0.9)" />
+            <stop offset="100%" stopColor="rgba(5, 8, 14, 0.16)" />
+          </radialGradient>
+          <radialGradient id="summon-horizon-abyss-gradient" cx="45%" cy="42%" r="62%">
+            <stop offset="0%" stopColor="rgba(0, 0, 0, 1)" />
+            <stop offset="70%" stopColor="rgba(0, 0, 0, 0.98)" />
+            <stop offset="100%" stopColor="rgba(0, 0, 0, 0.72)" />
+          </radialGradient>
+          <radialGradient id="summon-depth-gradient" cx="50%" cy="50%" r="52%">
+            <stop offset="20%" stopColor="rgba(0, 0, 0, 0.56)" />
+            <stop offset="66%" stopColor="rgba(0, 0, 0, 0.22)" />
+            <stop offset="100%" stopColor="rgba(0, 0, 0, 0)" />
           </radialGradient>
         </defs>
         {summonEnergyHands.map((hand) => renderSummonBlackHole(`summon-black-hole-${hand.id}`, hand.point))}

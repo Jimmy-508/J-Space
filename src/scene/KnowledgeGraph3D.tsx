@@ -1544,13 +1544,18 @@ export default function KnowledgeGraph3D({
             } else if (child.userData.role === 'rimHaze' || child.userData.role === 'dustHaze' || child.userData.role === 'iceShard') {
               const baseOpacity = child.userData.baseOpacity ?? 0.11
               material.opacity = Math.max(0.04, baseOpacity + Math.sin(time * 1.4 + phase) * 0.015)
-            } else if (child.userData.role === 'coreGlow' || child.userData.role === 'localHalo') {
+            } else if (child.userData.role === 'coreGlow' || child.userData.role === 'localHalo' || child.userData.role === 'atmosphere') {
               const baseOpacity = child.userData.baseOpacity ?? 0.16
               const baseScaleX = child.userData.baseScaleX ?? child.scale.x
               const baseScaleY = child.userData.baseScaleY ?? child.scale.y
               const breath = 1 + Math.sin(time * (child.userData.speed ?? 0.8) + phase) * (holding ? 0.1 : 0.04)
               child.scale.set(baseScaleX * breath * (holding ? 1 - holdProgress * 0.18 : 1), baseScaleY * breath * (holding ? 1 - holdProgress * 0.18 : 1), 1)
               material.opacity = Math.max(0.04, baseOpacity + (holding ? holdProgress * 0.22 : 0) + Math.sin(time * 1.1 + phase) * 0.025)
+            } else if (child.userData.role === 'surfaceGlow') {
+              const baseOpacity = child.userData.baseOpacity ?? 0.08
+              child.position.x = (child.userData.baseX ?? child.position.x) + Math.sin(time * 0.72 + phase) * 0.035
+              child.position.y = (child.userData.baseY ?? child.position.y) + Math.cos(time * 0.58 + phase) * 0.028
+              material.opacity = Math.max(0.02, baseOpacity + (holding ? holdProgress * 0.2 : 0) + Math.sin(time * 2.2 + phase) * 0.028)
             } else if (child.userData.role === 'surfaceShade') {
               material.opacity = child.userData.baseOpacity ?? 0.1
             } else {
@@ -1979,18 +1984,68 @@ export default function KnowledgeGraph3D({
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(size, variant === 1 ? 28 : 22, variant === 1 ? 18 : 14),
-        new THREE.MeshStandardMaterial({
+        new THREE.SphereGeometry(size, 36, 24),
+        new THREE.MeshPhysicalMaterial({
           color: coreColor,
           emissive: glowColor,
-          emissiveIntensity: inactive ? 0.34 : holding ? 2.65 : armed ? 1.92 : selected ? 1.22 : 0.44,
-          roughness: 0.38,
+          emissiveIntensity: inactive ? 0.26 : holding ? 2.45 : armed ? 1.72 : selected ? 1.08 : 0.34,
+          roughness: 0.3 + (variant % 3) * 0.08,
+          metalness: 0.08 + (variant % 2) * 0.1,
+          clearcoat: 0.38,
+          clearcoatRoughness: 0.24,
           transparent: true,
           opacity: inactive ? 0.68 : 0.95,
         }),
       )
       core.userData = { summonId: star.id, role: 'core' }
+      core.scale.set(0.92 + (variant % 3) * 0.055, 0.94 + ((variant + 1) % 3) * 0.045, 1)
       root.add(core)
+      const atmosphere = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softDiscTexture,
+        color: haloColor,
+        opacity: inactive ? 0.06 : holding ? 0.56 : armed ? 0.34 : selected ? 0.26 : 0.13,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }))
+      const atmosphereScale = size * (inactive ? 2.25 : holding ? 4.4 : selected || armed ? 3.4 : 2.72)
+      atmosphere.scale.set(atmosphereScale * (1.06 + variant * 0.03), atmosphereScale * (0.8 + (variant % 3) * 0.08), 1)
+      atmosphere.userData = {
+        role: 'atmosphere',
+        baseOpacity: inactive ? 0.06 : holding ? 0.56 : armed ? 0.34 : selected ? 0.26 : 0.13,
+        baseScaleX: atmosphere.scale.x,
+        baseScaleY: atmosphere.scale.y,
+        speed: 0.62 + visualSeed * 0.32,
+      }
+      root.add(atmosphere)
+      const terminator = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softDiscTexture,
+        color: 0x020711,
+        opacity: inactive ? 0.2 : 0.34,
+        transparent: true,
+        depthWrite: false,
+      }))
+      terminator.position.set(-size * 0.3, -size * 0.1, size * 0.12)
+      terminator.scale.set(size * 1.52, size * 1.3, 1)
+      terminator.userData = { role: 'surfaceShade', baseOpacity: inactive ? 0.2 : 0.34 }
+      root.add(terminator)
+      const surfaceGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softDiscTexture,
+        color: palette.particle,
+        opacity: inactive ? 0.04 : holding ? 0.44 : armed ? 0.25 : selected ? 0.18 : 0.08,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }))
+      surfaceGlow.position.set(size * 0.26, size * 0.22, size * 0.2)
+      surfaceGlow.scale.set(size * 1.02, size * 0.68, 1)
+      surfaceGlow.userData = {
+        role: 'surfaceGlow',
+        baseOpacity: inactive ? 0.04 : holding ? 0.44 : armed ? 0.25 : selected ? 0.18 : 0.08,
+        baseX: surfaceGlow.position.x,
+        baseY: surfaceGlow.position.y,
+      }
+      root.add(surfaceGlow)
       const localHalo = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
@@ -2005,36 +2060,23 @@ export default function KnowledgeGraph3D({
       localHalo.scale.set(localHaloWidth, localHaloHeight, 1)
       localHalo.userData = { role: 'localHalo', baseOpacity: inactive ? 0.08 : holding ? 0.42 : selected || armed ? 0.24 : 0.12, baseScaleX: localHaloWidth, baseScaleY: localHaloHeight, speed: 0.56 + visualSeed * 0.34 }
       root.add(localHalo)
-      if (variant === 1 || variant === 3 || selected || armed || holding) {
-        const surfaceShade = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: softDiscTexture,
-          color: 0x071329,
-          opacity: inactive ? 0.16 : 0.12,
-          transparent: true,
-          depthWrite: false,
-        }))
-        surfaceShade.position.set(-size * 0.28, -size * 0.08, size * 0.08)
-        surfaceShade.scale.set(size * 1.25, size * 1.05, 1)
-        surfaceShade.userData = { role: 'surfaceShade', baseOpacity: inactive ? 0.16 : 0.12 }
-        root.add(surfaceShade)
-      }
-      if (!inactive && (variant === 1 || variant === 3)) {
+      if (!inactive) {
         const bandTilt = phase * 0.18
-        ;[-0.12, 0.08].forEach((offset, bandIndex) => {
+        ;[-0.18, -0.04, 0.11].forEach((offset, bandIndex) => {
           const bandGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-size * 0.7, offset * size, size * 0.16),
-            new THREE.Vector3(-size * 0.22, (offset + 0.12) * size, size * 0.21),
-            new THREE.Vector3(size * 0.68, (offset - 0.06) * size, size * 0.17),
+            new THREE.Vector3(-size * 0.74, offset * size, size * 0.16),
+            new THREE.Vector3(-size * 0.18, (offset + 0.13) * size, size * 0.23),
+            new THREE.Vector3(size * 0.7, (offset - 0.07) * size, size * 0.17),
           ])
           const band = new THREE.Line(bandGeometry, new THREE.LineBasicMaterial({
-            color: bandIndex === 0 ? 0xb8ecff : 0xf2d28b,
+            color: bandIndex === 1 ? palette.particle : bandIndex === 2 ? 0xf2d28b : 0xb8ecff,
             transparent: true,
-            opacity: selected || armed || holding ? 0.34 : 0.18,
+            opacity: holding ? 0.42 : selected || armed ? 0.27 : 0.12,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
           }))
           band.rotation.z = bandTilt + bandIndex * 0.22
-          band.userData = { role: 'surfaceBand', baseOpacity: selected || armed || holding ? 0.34 : 0.18, offset: bandIndex * 0.7 }
+          band.userData = { role: 'surfaceBand', baseOpacity: holding ? 0.42 : selected || armed ? 0.27 : 0.12, offset: bandIndex * 0.7 }
           root.add(band)
         })
       }
