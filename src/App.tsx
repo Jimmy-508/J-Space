@@ -337,6 +337,13 @@ function HandEnergyOverlay({
         viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
         aria-hidden="true"
       >
+        <defs>
+          <radialGradient id="summon-horizon-mouth-gradient" cx="50%" cy="50%" r="58%">
+            <stop offset="0%" stopColor="rgba(0, 0, 0, 0.95)" />
+            <stop offset="58%" stopColor="rgba(0, 0, 0, 0.93)" />
+            <stop offset="100%" stopColor="rgba(0, 0, 0, 0.9)" />
+          </radialGradient>
+        </defs>
         {summonEnergyHands.map((hand) => renderSummonBlackHole(`summon-black-hole-${hand.id}`, hand.point))}
         {collapseHands.map((hand) => renderSummonBlackHole(`summon-black-hole-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
       </svg>

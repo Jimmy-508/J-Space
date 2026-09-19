@@ -1026,7 +1026,7 @@ button:disabled {
 }
 
 .summon-horizon-mouth {
-  fill: rgba(0, 0, 0, 0.9);
+  fill: url("#summon-horizon-mouth-gradient");
   filter:
     blur(0.8px)
     drop-shadow(0 0 15px rgba(0, 0, 0, 0.98))
