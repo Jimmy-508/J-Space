@@ -291,13 +291,32 @@ function HandEnergyOverlay({
     const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 2.7 : 1
     return Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
   }
-  const renderSummonBlackHole = (key: string, point: ScreenPoint, state = '') => (
+  const singularityTransform = (point: ScreenPoint) => `translate(${point.x} ${point.y}) scale(${getSingularityScale()})`
+  const renderSummonBlackHoleDepth = (key: string, point: ScreenPoint, state = '') => (
     <g key={key} className={`summon-singularity ${state}`} transform={`translate(${point.x} ${point.y}) scale(${getSingularityScale()})`}>
       <g className="summon-black-depth-field">
         <circle className="summon-depth-falloff" r="124" />
         <circle className="summon-depth-lens" r="101" />
       </g>
-      <g className="summon-accretion-field">
+    </g>
+  )
+  const renderSummonBlackHoleCore = (key: string, point: ScreenPoint, state = '') => (
+    <g key={key} className={`summon-singularity ${state}`} transform={singularityTransform(point)}>
+      <g className="summon-void-core">
+        <circle className="summon-void-feather" r="86" />
+        <circle className="summon-void-occlusion" r="82" />
+      </g>
+    </g>
+  )
+  const renderSummonBlackHoleAccretion = (key: string, point: ScreenPoint, state = '') => (
+    <g key={key} className={`summon-singularity ${state}`} transform={singularityTransform(point)}>
+      <defs>
+        <mask id={`${key}-accretion-mask`} maskUnits="userSpaceOnUse" x="-132" y="-132" width="264" height="264">
+          <rect x="-132" y="-132" width="264" height="264" fill="#fff" />
+          <circle r="82" fill="#000" />
+        </mask>
+      </defs>
+      <g className="summon-accretion-field" mask={`url(#${key}-accretion-mask)`}>
         {Array.from({ length: 22 }, (_, index) => {
           const radius = 78 + (index % 7) * 1.55
           const vertical = radius * (0.92 + ((index * 5) % 4) * 0.017)
@@ -305,11 +324,6 @@ function HandEnergyOverlay({
           const phase = (index % 5) * 0.16
           return <path key={`accretion-${index}`} className={`summon-accretion-thread thread-${index % 5}`} style={{ animationDelay: `${-index * 0.72}s` }} d={`M 0 ${-vertical} C ${radius * 0.66} ${-vertical - drift}, ${radius + drift} ${-vertical * 0.34}, ${radius} ${phase} C ${radius - drift} ${vertical * 0.56}, ${radius * 0.6} ${vertical + drift}, 0 ${vertical} C ${-radius * 0.66} ${vertical - drift}, ${-radius - drift} ${vertical * 0.36}, ${-radius} ${-phase} C ${-radius + drift} ${-vertical * 0.54}, ${-radius * 0.6} ${-vertical + drift}, 0 ${-vertical}`} />
         })}
-      </g>
-      <g className="summon-void-core">
-        <circle className="summon-void-feather" r="86" />
-        <circle className="summon-void-occlusion" r="82" />
-        <circle className="summon-void-absolute" r="80" />
       </g>
     </g>
   )
@@ -330,8 +344,24 @@ function HandEnergyOverlay({
             <stop offset="100%" stopColor="rgba(0, 0, 0, 0)" />
           </radialGradient>
         </defs>
-        {summonEnergyHands.map((hand) => renderSummonBlackHole(`summon-black-hole-${hand.id}`, hand.point))}
-        {collapseHands.map((hand) => renderSummonBlackHole(`summon-black-hole-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
+        {summonEnergyHands.map((hand) => renderSummonBlackHoleDepth(`summon-black-hole-${hand.id}`, hand.point))}
+        {collapseHands.map((hand) => renderSummonBlackHoleDepth(`summon-black-hole-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
+      </svg>
+      <svg
+        className="summon-black-hole-core-layer"
+        viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
+        aria-hidden="true"
+      >
+        {summonEnergyHands.map((hand) => renderSummonBlackHoleCore(`summon-black-hole-core-${hand.id}`, hand.point))}
+        {collapseHands.map((hand) => renderSummonBlackHoleCore(`summon-black-hole-core-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
+      </svg>
+      <svg
+        className="summon-black-hole-stream-layer"
+        viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
+        aria-hidden="true"
+      >
+        {summonEnergyHands.map((hand) => renderSummonBlackHoleAccretion(`summon-black-hole-stream-${hand.id}`, hand.point))}
+        {collapseHands.map((hand) => renderSummonBlackHoleAccretion(`summon-black-hole-stream-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
       </svg>
       <svg
         className="hand-energy-layer"
@@ -1325,7 +1355,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${holdingSummonStarId || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${summonResultOverlay ? 'summon-result-active' : ''} ${holdingSummonStarId || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}

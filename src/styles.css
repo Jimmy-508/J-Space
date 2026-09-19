@@ -836,6 +836,34 @@ button:disabled {
   filter: drop-shadow(0 0 20px rgba(245, 211, 132, 0.52));
 }
 
+/* The reveal is carried by the numeral and a brief energy wave, never by a panel behind it. */
+.app-shell.summon-result-active .graph-canvas canvas {
+  filter: brightness(0.54) saturate(0.76);
+  transition: filter 140ms ease-out;
+}
+
+.summon-result-overlay::before {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(9rem, 29vmin, 23rem);
+  aspect-ratio: 1;
+  border: 1.5px solid rgba(255, 230, 159, 0.88);
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(255, 218, 132, 0.62), 0 0 46px rgba(175, 220, 255, 0.3);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.16);
+  animation: summon-result-shockwave 760ms cubic-bezier(0.08, 0.7, 0.25, 1) both;
+}
+
+@keyframes summon-result-shockwave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.14); }
+  13% { opacity: 0.92; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.72); }
+}
+
 @keyframes summon-result-return {
   0% {
     opacity: 0;
@@ -868,6 +896,8 @@ button:disabled {
 }
 
 .summon-black-hole-layer,
+.summon-black-hole-core-layer,
+.summon-black-hole-stream-layer,
 .hand-energy-layer {
   position: fixed;
   left: 0;
@@ -884,6 +914,15 @@ button:disabled {
 
 .summon-black-hole-layer {
   z-index: 1;
+}
+
+/* This layer stays above the Three canvas: the event horizon cannot inherit canvas transparency. */
+.summon-black-hole-core-layer {
+  z-index: 3;
+}
+
+.summon-black-hole-stream-layer {
+  z-index: 4;
 }
 
 .summon-black-hole-layer .summon-singularity {
@@ -918,14 +957,6 @@ button:disabled {
 }
 
 .summon-void-occlusion {
-  fill: #000;
-  fill-opacity: 1;
-  opacity: 1;
-  filter: none;
-  mix-blend-mode: normal;
-}
-
-.summon-void-absolute {
   fill: #000;
   fill-opacity: 1;
   opacity: 1;

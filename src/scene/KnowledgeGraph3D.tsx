@@ -1471,8 +1471,8 @@ export default function KnowledgeGraph3D({
         const clearing = object.userData.clearing === true
         const clearingProgress = clearing ? THREE.MathUtils.clamp((time - (object.userData.clearingAt ?? time)) / 0.72, 0, 1) : 0
         const objectId = object.userData.id as string | undefined
-        // Do this in the render loop rather than only while rebuilding the group: no resolved mesh or residual ring can sit behind the result numeral.
-        object.visible = !(resolved && objectId === resultReturnStarIdRef.current)
+        // A revealed star stays in the scene so the result numeral can return to the same physical object.
+        object.visible = true
         const pointerHoldStartedAt = pointerSummonHoldRef.current.active && pointerSummonHoldRef.current.summonId === objectId
           ? pointerSummonHoldRef.current.startedAt
           : 0
@@ -1609,9 +1609,9 @@ export default function KnowledgeGraph3D({
               const baseOpacity = child.userData.baseOpacity ?? 0.16
               const baseScaleX = child.userData.baseScaleX ?? child.userData.baseScale ?? child.scale.x
               const baseScaleY = child.userData.baseScaleY ?? child.userData.baseScale ?? child.scale.y
-              const breath = 1 + Math.sin(time * (child.userData.speed ?? 0.8) + phase) * (holding ? 0.1 : 0.04)
+              const breath = 1 + Math.sin(time * (child.userData.speed ?? 0.42) + phase) * (holding ? 0.1 : 0.025)
               child.scale.set(baseScaleX * breath * (holding ? 1 - holdProgress * 0.18 : 1), baseScaleY * breath * (holding ? 1 - holdProgress * 0.18 : 1), 1)
-              material.opacity = Math.max(0.04, baseOpacity + (holding ? holdProgress * 0.22 : 0) + Math.sin(time * 1.1 + phase) * 0.025)
+              material.opacity = Math.max(0.04, baseOpacity + (holding ? holdProgress * 0.22 : 0) + Math.sin(time * 0.52 + phase) * 0.018)
             } else if (child.userData.role === 'celestialMote') {
               const speed = child.userData.speed ?? 0.4
               const angle = (child.userData.angle ?? 0) + time * speed * (holding ? 2.2 : 1)
@@ -1619,7 +1619,7 @@ export default function KnowledgeGraph3D({
               child.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * (child.userData.ellipse ?? 0.8), 0.36)
               child.scale.setScalar((child.userData.baseScale ?? 0.1) * (1 + Math.sin(time * 3.4 + phase) * 0.22))
               const baseOpacity = child.userData.baseOpacity ?? 0.18
-              material.opacity = holding ? 0.42 + holdProgress * 0.46 : baseOpacity + Math.sin(time * 2.4 + phase) * 0.06
+              material.opacity = holding ? 0.42 + holdProgress * 0.46 : baseOpacity + Math.sin(time * 0.48 + phase) * 0.025
             } else if (child.userData.role === 'surfaceGlow') {
               const baseOpacity = child.userData.baseOpacity ?? 0.08
               child.position.x = (child.userData.baseX ?? child.position.x) + Math.sin(time * 0.72 + phase) * 0.035
@@ -1634,7 +1634,7 @@ export default function KnowledgeGraph3D({
           }
           if (child instanceof THREE.Mesh && child.userData.role === 'core' && !holding) {
             const material = child.material as THREE.MeshStandardMaterial
-            material.emissiveIntensity = (child.userData.baseEmissiveIntensity ?? 0.2) + Math.sin(time * 2.2 + phase) * 0.08
+            material.emissiveIntensity = (child.userData.baseEmissiveIntensity ?? 0.2) + Math.sin(time * 0.52 + phase) * 0.04
           }
         })
       })
@@ -2048,13 +2048,12 @@ export default function KnowledgeGraph3D({
       const resolvedAge = star.resolvedAt ? Math.max(0, (performance.now() - star.resolvedAt) / 1000) : 99
       const clearingAge = star.clearingAt ? Math.max(0, (performance.now() - star.clearingAt) / 1000) : 0
       const inactive = resolved || clearing
-      const presentingResult = resolved && star.id === resultReturnStarId
       root.userData = { id: star.id, number: star.number, phase, startPosition, targetPosition, createdAt, deploying, holding, resolved, resolvedAge, clearing, clearingAt: star.clearingAt ? star.clearingAt / 1000 : undefined, clearingAge }
       const coreColor = inactive ? 0x7f7f88 : holding ? 0xfff1bf : armed ? 0xffe0a3 : selected ? 0xd8f4ff : palette.core
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const surfaceTexture = summonCelestialTextures[paletteIndex]
-      const coreEmissiveIntensity = inactive ? 0.12 : holding ? 0.88 : armed ? 1.18 : selected ? 0.96 : 0.1
+      const coreEmissiveIntensity = inactive ? 0.18 : holding ? 0.88 : armed ? 1.18 : selected ? 0.96 : 0.36
       const coreMaterial = new THREE.MeshPhysicalMaterial({
         map: surfaceTexture,
         color: inactive ? coreColor : 0xffffff,
@@ -2090,7 +2089,7 @@ export default function KnowledgeGraph3D({
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
           float summonRim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
-          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.16;`,
+          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.24;`,
         )
       }
       const core = new THREE.Mesh(
@@ -2099,24 +2098,22 @@ export default function KnowledgeGraph3D({
       )
       core.userData = { summonId: star.id, role: 'core', baseEmissiveIntensity: coreEmissiveIntensity }
       core.scale.setScalar(selected ? 1.055 : 1)
-      // The result numeral owns the focus moment; leave its target position intact but remove the focused planet surface behind it.
-      core.visible = !presentingResult
       core.rotation.set(phase * 0.11, phase * 0.17, phase * 0.06)
       root.add(core)
       const aura = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
-        opacity: inactive ? 0.05 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.1,
+        opacity: inactive ? 0.08 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.18,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      const auraScale = size * (inactive ? 1.9 : holding ? 3.4 : armed ? 3.15 : selected ? 3.05 : 2.12)
+      const auraScale = size * (inactive ? 1.9 : holding ? 3.4 : armed ? 3.15 : selected ? 3.05 : 2.25)
       aura.scale.setScalar(auraScale)
-      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.05 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.1 }
+      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.08 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.18 }
       root.add(aura)
       const moteCount = inactive ? 2 : holding ? 12 : armed ? 10 : selected ? 9 : 3
-      const moteOpacity = inactive ? 0.12 : holding ? 0.78 : armed ? 0.64 : selected ? 0.58 : 0.2
+      const moteOpacity = inactive ? 0.16 : holding ? 0.78 : armed ? 0.64 : selected ? 0.58 : 0.28
       Array.from({ length: moteCount }).forEach((_, moteIndex) => {
         const mote = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,
@@ -2292,7 +2289,7 @@ export default function KnowledgeGraph3D({
           root.add(tendril)
         })
       }
-      if (inactive && !presentingResult) {
+      if (inactive) {
         const emberRing = new THREE.Mesh(
           new THREE.RingGeometry(size + 0.32, size + 0.345, 48),
           makeHaloMaterial(0xd6c49d, 0.12),
@@ -2300,7 +2297,7 @@ export default function KnowledgeGraph3D({
         emberRing.userData = { role: 'resolvedRing' }
         emberRing.rotation.z = -phase * 0.4
         root.add(emberRing)
-        if (resolved && resolvedAge < 1.45 && !presentingResult) {
+        if (resolved && resolvedAge < 0.82) {
           ;[0, 0.12].forEach((delay, waveIndex) => {
             const shockwave = new THREE.Mesh(
               new THREE.RingGeometry(0.58 + waveIndex * 0.18, 0.82 + waveIndex * 0.24, 88),
@@ -2309,7 +2306,7 @@ export default function KnowledgeGraph3D({
             shockwave.userData = { role: 'shockwave', createdAt: star.resolvedAt, delay }
             root.add(shockwave)
           })
-          Array.from({ length: 30 }).forEach((_, burstIndex) => {
+          Array.from({ length: 16 }).forEach((_, burstIndex) => {
             const angle = phase + burstIndex * 2.399 + Math.sin(burstIndex * 1.3) * 0.18
             const distance = size * (0.95 + (burstIndex % 7) * 0.16)
             const spark = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -2326,7 +2323,7 @@ export default function KnowledgeGraph3D({
             spark.scale.setScalar(0.13 + (burstIndex % 6) * 0.026)
             spark.userData = { role: 'burstSpark', createdAt: star.resolvedAt, angle, speed: 2.1 + (burstIndex % 7) * 0.28, baseX, baseY }
             root.add(spark)
-            if (burstIndex % 2 === 0) {
+            if (burstIndex % 4 === 0) {
               const streakGeometry = new THREE.BufferGeometry().setFromPoints([
                 new THREE.Vector3(Math.cos(angle) * distance * 0.72, Math.sin(angle) * distance * 0.72, 0.06),
                 new THREE.Vector3(Math.cos(angle) * distance * 1.72, Math.sin(angle) * distance * 1.72, 0.06),
@@ -2341,24 +2338,6 @@ export default function KnowledgeGraph3D({
               streak.userData = { role: 'burstStreak', createdAt: star.resolvedAt }
               root.add(streak)
             }
-          })
-          Array.from({ length: 12 }).forEach((_, rayIndex) => {
-            const angle = phase + rayIndex * 0.524
-            const start = size * 0.45
-            const end = size * (3.0 + (rayIndex % 3) * 0.42)
-            const rayGeometry = new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(Math.cos(angle) * start, Math.sin(angle) * start, 0.09),
-              new THREE.Vector3(Math.cos(angle) * end, Math.sin(angle) * end, 0.09),
-            ])
-            const ray = new THREE.Line(rayGeometry, new THREE.LineBasicMaterial({
-              color: rayIndex % 2 === 0 ? 0xffefbd : 0xaee8ff,
-              transparent: true,
-              opacity: 0.72,
-              blending: THREE.AdditiveBlending,
-              depthWrite: false,
-            }))
-            ray.userData = { role: 'burstRay', createdAt: star.resolvedAt }
-            root.add(ray)
           })
         }
         const label = new THREE.Sprite(new THREE.SpriteMaterial({
