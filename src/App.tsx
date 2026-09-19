@@ -299,6 +299,7 @@ function HandEnergyOverlay({
       </g>
       <g className="summon-event-horizon-new">
         <circle className="summon-horizon-penumbra" r="82" />
+        <circle className="summon-horizon-occluder" r="76" />
         <circle className="summon-horizon-core-new" r="75" />
         <circle className="summon-horizon-abyss" r="61" />
         <circle className="summon-horizon-void" r="46" />
@@ -338,7 +339,7 @@ function HandEnergyOverlay({
           <radialGradient id="summon-horizon-void-gradient" cx="44%" cy="40%" r="64%">
             <stop offset="0%" stopColor="rgba(0, 0, 0, 1)" />
             <stop offset="66%" stopColor="rgba(0, 0, 0, 0.99)" />
-            <stop offset="100%" stopColor="rgba(0, 0, 0, 0.88)" />
+            <stop offset="100%" stopColor="rgba(0, 0, 0, 0.96)" />
           </radialGradient>
           <radialGradient id="summon-depth-gradient" cx="50%" cy="50%" r="52%">
             <stop offset="20%" stopColor="rgba(0, 0, 0, 0.56)" />

@@ -1612,10 +1612,10 @@ export default function KnowledgeGraph3D({
             } else if (child.userData.role === 'rimHaze' || child.userData.role === 'dustHaze' || child.userData.role === 'iceShard') {
               const baseOpacity = child.userData.baseOpacity ?? 0.11
               material.opacity = Math.max(0.04, baseOpacity + Math.sin(time * 1.4 + phase) * 0.015)
-            } else if (child.userData.role === 'coreGlow' || child.userData.role === 'localHalo' || child.userData.role === 'atmosphere') {
+            } else if (child.userData.role === 'coreGlow' || child.userData.role === 'celestialAura' || child.userData.role === 'localHalo' || child.userData.role === 'atmosphere') {
               const baseOpacity = child.userData.baseOpacity ?? 0.16
-              const baseScaleX = child.userData.baseScaleX ?? child.scale.x
-              const baseScaleY = child.userData.baseScaleY ?? child.scale.y
+              const baseScaleX = child.userData.baseScaleX ?? child.userData.baseScale ?? child.scale.x
+              const baseScaleY = child.userData.baseScaleY ?? child.userData.baseScale ?? child.scale.y
               const breath = 1 + Math.sin(time * (child.userData.speed ?? 0.8) + phase) * (holding ? 0.1 : 0.04)
               child.scale.set(baseScaleX * breath * (holding ? 1 - holdProgress * 0.18 : 1), baseScaleY * breath * (holding ? 1 - holdProgress * 0.18 : 1), 1)
               material.opacity = Math.max(0.04, baseOpacity + (holding ? holdProgress * 0.22 : 0) + Math.sin(time * 1.1 + phase) * 0.025)
@@ -2060,7 +2060,7 @@ export default function KnowledgeGraph3D({
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const core = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(size * 0.88, 2),
+        new THREE.SphereGeometry(size, 36, 24),
         new THREE.MeshPhysicalMaterial({
           map: summonCelestialTextures[paletteIndex],
           color: coreColor,
@@ -2075,27 +2075,24 @@ export default function KnowledgeGraph3D({
         }),
       )
       core.userData = { summonId: star.id, role: 'core' }
-      core.scale.set(0.92 + (variant % 3) * 0.055, 0.94 + ((variant + 1) % 3) * 0.045, 1)
       root.add(core)
-      const shell = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(size * 0.91, 2),
-        new THREE.MeshBasicMaterial({
-          color: haloColor,
-          transparent: true,
-          opacity: inactive ? 0.025 : holding ? 0.16 : armed ? 0.12 : selected ? 0.1 : 0.035,
-          wireframe: true,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }),
-      )
-      shell.userData = { role: 'celestialShell', speed: 0.0018 + visualSeed * 0.0012 }
-      shell.rotation.set(phase * 0.13, phase * 0.2, phase * 0.08)
-      root.add(shell)
-      Array.from({ length: inactive ? 3 : selected || armed || holding ? 7 : 4 }).forEach((_, moteIndex) => {
+      const aura = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softDiscTexture,
+        color: haloColor,
+        opacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.2 : 0.1,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }))
+      const auraScale = size * (inactive ? 2.1 : holding ? 3.7 : selected || armed ? 3 : 2.25)
+      aura.scale.setScalar(auraScale)
+      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.2 : 0.1 }
+      root.add(aura)
+      Array.from({ length: inactive ? 2 : selected || armed || holding ? 6 : 3 }).forEach((_, moteIndex) => {
         const mote = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,
           color: moteIndex % 3 === 0 ? palette.particle : haloColor,
-          opacity: inactive ? 0.14 : holding ? 0.72 : selected || armed ? 0.46 : 0.24,
+          opacity: inactive ? 0.12 : holding ? 0.7 : selected || armed ? 0.42 : 0.2,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
@@ -2107,143 +2104,6 @@ export default function KnowledgeGraph3D({
         mote.userData = { role: 'celestialMote', angle, radius, baseScale: mote.scale.x, speed: 0.32 + (moteIndex % 4) * 0.09, ellipse: 0.72 + (moteIndex % 2) * 0.12 }
         root.add(mote)
       })
-      const atmosphere = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: softDiscTexture,
-        color: haloColor,
-        opacity: inactive ? 0.06 : holding ? 0.56 : armed ? 0.34 : selected ? 0.26 : 0.13,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }))
-      const atmosphereScale = size * (inactive ? 2.25 : holding ? 4.4 : selected || armed ? 3.4 : 2.72)
-      atmosphere.scale.set(atmosphereScale * (1.06 + variant * 0.03), atmosphereScale * (0.8 + (variant % 3) * 0.08), 1)
-      atmosphere.userData = {
-        role: 'atmosphere',
-        baseOpacity: inactive ? 0.06 : holding ? 0.56 : armed ? 0.34 : selected ? 0.26 : 0.13,
-        baseScaleX: atmosphere.scale.x,
-        baseScaleY: atmosphere.scale.y,
-        speed: 0.62 + visualSeed * 0.32,
-      }
-      root.add(atmosphere)
-      const terminator = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: softDiscTexture,
-        color: 0x020711,
-        opacity: inactive ? 0.2 : 0.34,
-        transparent: true,
-        depthWrite: false,
-      }))
-      terminator.position.set(-size * 0.3, -size * 0.1, size * 0.12)
-      terminator.scale.set(size * 1.52, size * 1.3, 1)
-      terminator.userData = { role: 'surfaceShade', baseOpacity: inactive ? 0.2 : 0.34 }
-      root.add(terminator)
-      const surfaceGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: softDiscTexture,
-        color: palette.particle,
-        opacity: inactive ? 0.04 : holding ? 0.44 : armed ? 0.25 : selected ? 0.18 : 0.08,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }))
-      surfaceGlow.position.set(size * 0.26, size * 0.22, size * 0.2)
-      surfaceGlow.scale.set(size * 1.02, size * 0.68, 1)
-      surfaceGlow.userData = {
-        role: 'surfaceGlow',
-        baseOpacity: inactive ? 0.04 : holding ? 0.44 : armed ? 0.25 : selected ? 0.18 : 0.08,
-        baseX: surfaceGlow.position.x,
-        baseY: surfaceGlow.position.y,
-      }
-      root.add(surfaceGlow)
-      const localHalo = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: softDiscTexture,
-        color: haloColor,
-        opacity: inactive ? 0.08 : holding ? 0.42 : selected || armed ? 0.24 : 0.12,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }))
-      const localHaloWidth = size * (variant === 4 ? 3.9 : variant === 0 ? 3.2 : 2.45)
-      const localHaloHeight = size * (variant === 4 ? 2.25 : variant === 0 ? 3.2 : 1.82)
-      localHalo.position.set(Math.sin(phase) * size * 0.16, Math.cos(phase * 1.7) * size * 0.12, -0.04)
-      localHalo.scale.set(localHaloWidth, localHaloHeight, 1)
-      localHalo.userData = { role: 'localHalo', baseOpacity: inactive ? 0.08 : holding ? 0.42 : selected || armed ? 0.24 : 0.12, baseScaleX: localHaloWidth, baseScaleY: localHaloHeight, speed: 0.56 + visualSeed * 0.34 }
-      root.add(localHalo)
-      if (!inactive) {
-        const bandTilt = phase * 0.18
-        ;[-0.18, -0.04, 0.11].forEach((offset, bandIndex) => {
-          const bandGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-size * 0.74, offset * size, size * 0.16),
-            new THREE.Vector3(-size * 0.18, (offset + 0.13) * size, size * 0.23),
-            new THREE.Vector3(size * 0.7, (offset - 0.07) * size, size * 0.17),
-          ])
-          const band = new THREE.Line(bandGeometry, new THREE.LineBasicMaterial({
-            color: bandIndex === 1 ? palette.particle : bandIndex === 2 ? 0xf2d28b : 0xb8ecff,
-            transparent: true,
-            opacity: holding ? 0.42 : selected || armed ? 0.27 : 0.12,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          }))
-          band.rotation.z = bandTilt + bandIndex * 0.22
-          band.userData = { role: 'surfaceBand', baseOpacity: holding ? 0.42 : selected || armed ? 0.27 : 0.12, offset: bandIndex * 0.7 }
-          root.add(band)
-        })
-      }
-      if (variant === 0) {
-        const corona = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: softDiscTexture,
-          color: glowColor,
-          opacity: inactive ? 0.08 : holding ? 0.62 : selected ? 0.32 : 0.2,
-          transparent: true,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }))
-        const coronaScale = size * (holding ? 5.2 : selected ? 4.3 : 3.6)
-        const coronaOpacity = inactive ? 0.08 : holding ? 0.62 : selected ? 0.32 : 0.2
-        corona.scale.setScalar(coronaScale)
-        corona.userData = { role: 'corona', baseScale: coronaScale, baseOpacity: coronaOpacity }
-        root.add(corona)
-      } else if (variant === 1) {
-        const rim = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: softDiscTexture,
-          color: haloColor,
-          opacity: inactive ? 0.07 : selected ? 0.18 : 0.11,
-          transparent: true,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }))
-        rim.position.set(size * 0.24, size * 0.08, -0.02)
-        rim.scale.setScalar(size * 2.05)
-        rim.userData = { role: 'rimHaze', baseOpacity: inactive ? 0.07 : selected ? 0.18 : 0.11 }
-        root.add(rim)
-      } else if (variant === 2) {
-        Array.from({ length: 3 }).forEach((_, chipIndex) => {
-          const chip = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: softDiscTexture,
-            color: palette.particle,
-            opacity: inactive ? 0.04 : 0.12,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          }))
-          const angle = phase + chipIndex * 2.1
-          chip.position.set(Math.cos(angle) * size * 1.45, Math.sin(angle) * size * 1.18, 0.02)
-          chip.scale.setScalar(size * 0.38)
-          chip.userData = { role: 'iceShard', baseOpacity: inactive ? 0.04 : 0.12 }
-          root.add(chip)
-        })
-      } else if (variant === 4) {
-        const dust = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: softDiscTexture,
-          color: palette.halo,
-          opacity: inactive ? 0.06 : 0.14,
-          transparent: true,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }))
-        dust.position.set(Math.sin(phase) * size * 0.4, Math.cos(phase) * size * 0.26, -0.02)
-        dust.scale.set(size * 3.1, size * 1.7, 1)
-        dust.userData = { role: 'dustHaze', baseOpacity: inactive ? 0.06 : 0.14 }
-        root.add(dust)
-      }
       if (selected || armed || holding || inactive) {
         const ringRadius = inactive ? size + 0.18 : holding ? size + 0.1 : size + 0.24
         const ring = new THREE.Mesh(
@@ -2254,7 +2114,7 @@ export default function KnowledgeGraph3D({
         ring.rotation.z = phase
         root.add(ring)
       }
-      if (variant === 2 || selected || armed || holding) {
+      if (selected || armed || holding) {
         const innerRing = new THREE.Mesh(
           new THREE.RingGeometry(holding ? size + 0.035 : armed ? size + 0.08 : size + 0.16, holding ? size + 0.064 : armed ? size + 0.11 : size + 0.185, 52),
           makeHaloMaterial(holding ? 0xfff0c8 : armed ? 0xffefc2 : selected ? 0xe0fbff : glowColor, holding ? 0.64 : armed ? 0.45 : selected ? 0.28 : 0.09),
@@ -2280,25 +2140,25 @@ export default function KnowledgeGraph3D({
         speed: 0.84,
       }
       root.add(flare)
-      if (variant === 3 || selected || armed || holding || inactive) {
+      if (holding) {
         const companion = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,
-          color: inactive ? 0xd8ceb3 : palette.particle,
-          opacity: inactive ? 0.1 : selected || armed || holding ? 0.24 : 0.11,
+          color: palette.particle,
+          opacity: 0.24,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         }))
         companion.position.set(Math.sin(phase) * 0.58, Math.cos(phase * 1.7) * 0.42, 0)
-        companion.scale.setScalar(inactive ? 0.24 : selected || armed || holding ? 0.42 : 0.28)
-        companion.userData = { role: holding ? 'holdingParticle' : 'companion' }
+        companion.scale.setScalar(0.42)
+        companion.userData = { role: 'holdingParticle' }
         root.add(companion)
       }
-      if (variant === 4 || selected || armed || holding) {
+      if (selected || armed || holding) {
         const orbit = new THREE.Object3D()
         orbit.rotation.set(0.72 + visualSeed * 0.48, -0.36 + visualSeed * 0.72, phase * 0.12)
         orbit.userData = { role: 'summonOrbit', speed: holding ? 0.008 : armed ? 0.005 : selected ? 0.0035 : 0.0018 }
-        Array.from({ length: selected || armed || holding ? 3 : 2 }).forEach((_, dotIndex) => {
+        Array.from({ length: 3 }).forEach((_, dotIndex) => {
           const dot = new THREE.Mesh(
             new THREE.SphereGeometry(0.016 + dotIndex * 0.003, 6, 4),
             new THREE.MeshBasicMaterial({
@@ -2309,8 +2169,8 @@ export default function KnowledgeGraph3D({
               depthWrite: false,
             }),
           )
-          const angle = phase + (dotIndex / (selected || armed || holding ? 3 : 2)) * Math.PI * 2
-          dot.position.set(Math.cos(angle) * (holding ? 0.48 : armed ? 0.62 : selected ? 0.78 : 0.88), Math.sin(angle) * (holding ? 0.48 : armed ? 0.62 : selected ? 0.78 : 0.88), 0)
+          const angle = phase + (dotIndex / 3) * Math.PI * 2
+          dot.position.set(Math.cos(angle) * (holding ? 0.48 : armed ? 0.62 : 0.78), Math.sin(angle) * (holding ? 0.48 : armed ? 0.62 : 0.78), 0)
           orbit.add(dot)
         })
         root.add(orbit)
