@@ -914,26 +914,11 @@ button:disabled {
   filter: blur(8px) drop-shadow(0 0 38px rgba(0, 0, 0, 0.9));
 }
 
-.summon-horizon-occluder {
+.summon-horizon-core-new {
   fill: #000;
   opacity: 1;
-  filter: none;
+  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 1));
   mix-blend-mode: normal;
-}
-
-.summon-horizon-core-new {
-  fill: url("#summon-horizon-core-gradient");
-  filter: blur(1.1px) drop-shadow(0 0 20px rgba(0, 0, 0, 0.96));
-}
-
-.summon-horizon-abyss {
-  fill: url("#summon-horizon-abyss-gradient");
-  filter: blur(0.4px) drop-shadow(0 0 16px rgba(0, 0, 0, 1));
-}
-
-.summon-horizon-void {
-  fill: url("#summon-horizon-void-gradient");
-  filter: blur(0.22px) drop-shadow(0 0 20px rgba(0, 0, 0, 1));
 }
 
 .summon-photon-shear,

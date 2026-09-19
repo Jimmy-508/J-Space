@@ -250,18 +250,18 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
     state = (state * 16807) % 2147483647
     return (state - 1) / 2147483646
   }
-  ctx.clearRect(0, 0, 256, 256)
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(128, 128, 112, 0, Math.PI * 2)
-  ctx.clip()
-  const body = ctx.createRadialGradient(93, 82, 8, 128, 128, 118)
-  body.addColorStop(0, 'rgba(255,255,255,0.86)')
-  body.addColorStop(0.1, glow)
-  body.addColorStop(0.38, color)
-  body.addColorStop(0.76, 'rgba(7,13,29,0.82)')
-  body.addColorStop(1, 'rgba(1,4,12,0.96)')
+  const body = ctx.createLinearGradient(0, 0, 256, 256)
+  body.addColorStop(0, new THREE.Color(palette.halo).lerp(new THREE.Color(palette.core), 0.42).getStyle())
+  body.addColorStop(0.42, color)
+  body.addColorStop(1, new THREE.Color(palette.core).multiplyScalar(0.26).getStyle())
   ctx.fillStyle = body
+  ctx.fillRect(0, 0, 256, 256)
+  const illuminatedHemisphere = ctx.createRadialGradient(82, 70, 4, 126, 126, 176)
+  illuminatedHemisphere.addColorStop(0, 'rgba(255,255,255,0.36)')
+  illuminatedHemisphere.addColorStop(0.22, `${glow.replace('rgb(', 'rgba(').replace(')', ', 0.28)')}`)
+  illuminatedHemisphere.addColorStop(0.72, 'rgba(0,0,0,0.04)')
+  illuminatedHemisphere.addColorStop(1, 'rgba(0,0,0,0.22)')
+  ctx.fillStyle = illuminatedHemisphere
   ctx.fillRect(0, 0, 256, 256)
   for (let index = 0; index < 20; index += 1) {
     const x = 42 + random() * 172
@@ -289,7 +289,6 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
   shade.addColorStop(1, 'rgba(0,0,0,0.8)')
   ctx.fillStyle = shade
   ctx.fillRect(0, 0, 256, 256)
-  ctx.restore()
   const texture = new THREE.CanvasTexture(canvas)
   texture.minFilter = THREE.LinearFilter
   texture.magFilter = THREE.LinearFilter
@@ -2070,8 +2069,8 @@ export default function KnowledgeGraph3D({
           metalness: 0.08 + (variant % 2) * 0.1,
           clearcoat: 0.38,
           clearcoatRoughness: 0.24,
-          transparent: true,
-          opacity: inactive ? 0.68 : 0.95,
+          transparent: false,
+          opacity: 1,
         }),
       )
       core.userData = { summonId: star.id, role: 'core' }
@@ -2123,23 +2122,25 @@ export default function KnowledgeGraph3D({
         innerRing.rotation.z = phase * 0.7
         root.add(innerRing)
       }
-      const flare = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: softDiscTexture,
-        color: haloColor,
-        opacity: inactive ? 0.12 : holding ? 0.74 : armed ? 0.54 : selected ? 0.38 : 0.16,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }))
-      flare.scale.setScalar((inactive ? 1.15 : holding ? 2.35 : armed ? 2.5 : selected ? 2.08 : 1.24) + visualSeed * 0.18)
-      flare.userData = {
-        role: 'coreGlow',
-        baseOpacity: inactive ? 0.12 : holding ? 0.74 : armed ? 0.54 : selected ? 0.38 : 0.16,
-        baseScaleX: (inactive ? 1.15 : holding ? 2.35 : armed ? 2.5 : selected ? 2.08 : 1.24) + visualSeed * 0.18,
-        baseScaleY: (inactive ? 1.15 : holding ? 2.35 : armed ? 2.5 : selected ? 2.08 : 1.24) + visualSeed * 0.18,
-        speed: 0.84,
+      if (selected || armed || holding || inactive) {
+        const flare = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: haloColor,
+          opacity: inactive ? 0.12 : holding ? 0.74 : armed ? 0.54 : 0.38,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        flare.scale.setScalar((inactive ? 1.15 : holding ? 2.35 : armed ? 2.5 : 2.08) + visualSeed * 0.18)
+        flare.userData = {
+          role: 'coreGlow',
+          baseOpacity: inactive ? 0.12 : holding ? 0.74 : armed ? 0.54 : 0.38,
+          baseScaleX: (inactive ? 1.15 : holding ? 2.35 : armed ? 2.5 : 2.08) + visualSeed * 0.18,
+          baseScaleY: (inactive ? 1.15 : holding ? 2.35 : armed ? 2.5 : 2.08) + visualSeed * 0.18,
+          speed: 0.84,
+        }
+        root.add(flare)
       }
-      root.add(flare)
       if (holding) {
         const companion = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,
