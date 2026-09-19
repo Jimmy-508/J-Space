@@ -297,11 +297,6 @@ function HandEnergyOverlay({
         <circle className="summon-depth-falloff" r="124" />
         <circle className="summon-depth-lens" r="101" />
       </g>
-      <g className="summon-void-core">
-        <circle className="summon-void-feather" r="84" />
-        <circle className="summon-void-occlusion" r="79" />
-        <circle className="summon-void-absolute" r="75" />
-      </g>
       <g className="summon-accretion-field">
         {Array.from({ length: 22 }, (_, index) => {
           const radius = 78 + (index % 7) * 1.55
@@ -310,6 +305,11 @@ function HandEnergyOverlay({
           const phase = (index % 5) * 0.16
           return <path key={`accretion-${index}`} className={`summon-accretion-thread thread-${index % 5}`} style={{ animationDelay: `${-index * 0.72}s` }} d={`M 0 ${-vertical} C ${radius * 0.66} ${-vertical - drift}, ${radius + drift} ${-vertical * 0.34}, ${radius} ${phase} C ${radius - drift} ${vertical * 0.56}, ${radius * 0.6} ${vertical + drift}, 0 ${vertical} C ${-radius * 0.66} ${vertical - drift}, ${-radius - drift} ${vertical * 0.36}, ${-radius} ${-phase} C ${-radius + drift} ${-vertical * 0.54}, ${-radius * 0.6} ${-vertical + drift}, 0 ${-vertical}`} />
         })}
+      </g>
+      <g className="summon-void-core">
+        <circle className="summon-void-feather" r="86" />
+        <circle className="summon-void-occlusion" r="82" />
+        <circle className="summon-void-absolute" r="80" />
       </g>
     </g>
   )
