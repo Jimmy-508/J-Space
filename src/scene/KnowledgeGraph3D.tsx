@@ -238,7 +238,7 @@ const createStarFlareTexture = () => {
 
 const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[number], seed: number) => {
   const canvas = document.createElement('canvas')
-  canvas.width = 256
+  canvas.width = 512
   canvas.height = 256
   const ctx = canvas.getContext('2d')
   if (!ctx) return new THREE.CanvasTexture(canvas)
@@ -250,48 +250,49 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
     state = (state * 16807) % 2147483647
     return (state - 1) / 2147483646
   }
-  const body = ctx.createLinearGradient(0, 0, 256, 256)
-  body.addColorStop(0, new THREE.Color(palette.halo).lerp(new THREE.Color(palette.core), 0.42).getStyle())
-  body.addColorStop(0.42, color)
-  body.addColorStop(1, new THREE.Color(palette.core).multiplyScalar(0.26).getStyle())
+  const body = ctx.createLinearGradient(0, 0, 512, 256)
+  body.addColorStop(0, new THREE.Color(palette.core).multiplyScalar(0.18).getStyle())
+  body.addColorStop(0.24, color)
+  body.addColorStop(0.52, new THREE.Color(palette.halo).lerp(new THREE.Color(palette.core), 0.58).getStyle())
+  body.addColorStop(0.78, color)
+  body.addColorStop(1, new THREE.Color(palette.core).multiplyScalar(0.16).getStyle())
   ctx.fillStyle = body
-  ctx.fillRect(0, 0, 256, 256)
-  const illuminatedHemisphere = ctx.createRadialGradient(82, 70, 4, 126, 126, 176)
-  illuminatedHemisphere.addColorStop(0, 'rgba(255,255,255,0.36)')
-  illuminatedHemisphere.addColorStop(0.22, `${glow.replace('rgb(', 'rgba(').replace(')', ', 0.28)')}`)
-  illuminatedHemisphere.addColorStop(0.72, 'rgba(0,0,0,0.04)')
-  illuminatedHemisphere.addColorStop(1, 'rgba(0,0,0,0.22)')
-  ctx.fillStyle = illuminatedHemisphere
-  ctx.fillRect(0, 0, 256, 256)
-  for (let index = 0; index < 20; index += 1) {
-    const x = 42 + random() * 172
-    const y = 42 + random() * 172
-    const radius = 8 + random() * 30
+  ctx.fillRect(0, 0, 512, 256)
+  for (let index = 0; index < 32; index += 1) {
+    const x = random() * 512
+    const y = 18 + random() * 220
+    const radius = 16 + random() * 54
     const haze = ctx.createRadialGradient(x, y, 0, x, y, radius)
-    haze.addColorStop(0, index % 3 === 0 ? 'rgba(255,246,220,0.18)' : `${halo.replace('rgb(', 'rgba(').replace(')', ', 0.15)')}`)
+    haze.addColorStop(0, index % 3 === 0 ? 'rgba(255,246,220,0.2)' : `${halo.replace('rgb(', 'rgba(').replace(')', ', 0.18)')}`)
+    haze.addColorStop(0.46, `${glow.replace('rgb(', 'rgba(').replace(')', ', 0.07)')}`)
     haze.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = haze
     ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
   }
   ctx.lineCap = 'round'
-  for (let index = 0; index < 7; index += 1) {
-    const y = 58 + index * 22 + (random() - 0.5) * 10
+  for (let index = 0; index < 15; index += 1) {
+    const y = 24 + index * 15 + (random() - 0.5) * 8
     ctx.beginPath()
-    ctx.moveTo(28, y)
-    ctx.bezierCurveTo(86, y - 20 + random() * 16, 166, y + 18 - random() * 18, 226, y - 4 + random() * 10)
-    ctx.strokeStyle = index % 2 === 0 ? 'rgba(232,247,255,0.14)' : 'rgba(255,210,130,0.13)'
-    ctx.lineWidth = 1.2 + random() * 2.2
+    ctx.moveTo(-18, y)
+    ctx.bezierCurveTo(116, y - 26 + random() * 24, 336, y + 28 - random() * 26, 530, y - 8 + random() * 16)
+    ctx.strokeStyle = index % 3 === 0 ? 'rgba(244,250,255,0.17)' : index % 3 === 1 ? 'rgba(255,218,151,0.15)' : 'rgba(16,28,52,0.2)'
+    ctx.lineWidth = 0.9 + random() * 1.55
     ctx.stroke()
   }
-  const shade = ctx.createRadialGradient(64, 72, 12, 128, 128, 142)
-  shade.addColorStop(0, 'rgba(0,0,0,0)')
-  shade.addColorStop(0.64, 'rgba(0,0,0,0.06)')
-  shade.addColorStop(1, 'rgba(0,0,0,0.8)')
-  ctx.fillStyle = shade
-  ctx.fillRect(0, 0, 256, 256)
+  for (let index = 0; index < 54; index += 1) {
+    const x = random() * 512
+    const y = random() * 256
+    const radius = 0.5 + random() * 1.9
+    ctx.fillStyle = index % 3 === 0 ? 'rgba(255,250,228,0.3)' : `${halo.replace('rgb(', 'rgba(').replace(')', ', 0.22)')}`
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fill()
+  }
   const texture = new THREE.CanvasTexture(canvas)
   texture.minFilter = THREE.LinearFilter
   texture.magFilter = THREE.LinearFilter
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
   return texture
 }
 
@@ -2043,7 +2044,6 @@ export default function KnowledgeGraph3D({
       const paletteIndex = Math.floor(visualSeed * summonStarPalettes.length) % summonStarPalettes.length
       const palette = summonStarPalettes[paletteIndex]
       const phase = visualSeed * Math.PI * 12.8
-      const variant = Math.floor(visualSeed * 11) % 5
       const sizeTier = Math.floor(visualSeed * 17) % 3
       const size = [0.44, 0.62, 0.82][sizeTier] + (visualSeed - 0.5) * 0.05
       const selected = star.id === selectedSummonStarId
@@ -2058,17 +2058,21 @@ export default function KnowledgeGraph3D({
       const coreColor = inactive ? 0x7f7f88 : holding ? 0xfff1bf : armed ? 0xffe0a3 : selected ? 0xd8f4ff : palette.core
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
+      const surfaceTexture = summonCelestialTextures[paletteIndex]
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 36, 24),
+        new THREE.SphereGeometry(size, 48, 32),
         new THREE.MeshPhysicalMaterial({
-          map: summonCelestialTextures[paletteIndex],
-          color: coreColor,
-          emissive: glowColor,
-          emissiveIntensity: inactive ? 0.26 : holding ? 2.45 : armed ? 1.72 : selected ? 1.08 : 0.34,
-          roughness: 0.3 + (variant % 3) * 0.08,
-          metalness: 0.08 + (variant % 2) * 0.1,
-          clearcoat: 0.38,
-          clearcoatRoughness: 0.24,
+          map: surfaceTexture,
+          bumpMap: surfaceTexture,
+          bumpScale: 0.035,
+          emissiveMap: surfaceTexture,
+          color: inactive ? coreColor : 0xffffff,
+          emissive: inactive ? glowColor : 0xffffff,
+          emissiveIntensity: inactive ? 0.14 : holding ? 0.92 : armed ? 0.68 : selected ? 0.48 : 0.3,
+          roughness: 0.42,
+          metalness: 0.04,
+          clearcoat: 0.24,
+          clearcoatRoughness: 0.32,
           transparent: false,
           opacity: 1,
         }),
@@ -2078,14 +2082,14 @@ export default function KnowledgeGraph3D({
       const aura = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
-        opacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.2 : 0.1,
+        opacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.22 : 0.14,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      const auraScale = size * (inactive ? 2.1 : holding ? 3.7 : selected || armed ? 3 : 2.25)
+      const auraScale = size * (inactive ? 2.1 : holding ? 3.7 : selected || armed ? 3 : 2.4)
       aura.scale.setScalar(auraScale)
-      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.2 : 0.1 }
+      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.22 : 0.14 }
       root.add(aura)
       Array.from({ length: inactive ? 2 : selected || armed || holding ? 6 : 3 }).forEach((_, moteIndex) => {
         const mote = new THREE.Sprite(new THREE.SpriteMaterial({
