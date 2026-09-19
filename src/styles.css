@@ -905,86 +905,51 @@ button:disabled {
   filter: blur(18px);
 }
 
-.summon-event-horizon-new {
-  animation: summon-horizon-breathe-new 5.8s ease-in-out infinite alternate;
+.summon-void-core {
+  animation: summon-void-breathe 6.8s ease-in-out infinite alternate;
 }
 
-.summon-horizon-penumbra {
-  fill: rgba(0, 0, 0, 0.42);
-  filter: blur(8px) drop-shadow(0 0 38px rgba(0, 0, 0, 0.9));
-}
-
-.summon-horizon-core-new {
+.summon-void-feather {
   fill: #000;
   opacity: 1;
-  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 1));
+  filter: blur(6px) drop-shadow(0 0 42px rgba(0, 0, 0, 0.96));
+}
+
+.summon-void-absolute {
+  fill: #000;
+  opacity: 1;
+  filter: none;
   mix-blend-mode: normal;
 }
 
-.summon-photon-shear,
-.summon-central-accretion-new {
+.summon-accretion-field {
   fill: none;
   mix-blend-mode: screen;
+  animation: summon-accretion-drift 19s ease-in-out infinite alternate;
 }
 
-.summon-photon-shear {
-  animation: summon-photon-shear-drift 16s linear infinite;
-}
-
-.summon-photon-shear-line {
+.summon-accretion-thread {
   fill: none;
-  stroke: rgba(255, 241, 204, 0.48);
-  stroke-width: 0.42px;
+  stroke: rgba(255, 241, 204, 0.44);
+  stroke-width: 0.32px;
   stroke-linecap: round;
-  stroke-dasharray: 540 8;
   filter:
-    drop-shadow(0 0 2px rgba(255, 245, 216, 0.72))
-    drop-shadow(0 0 7px rgba(255, 213, 132, 0.5))
-    drop-shadow(0 0 17px rgba(255, 169, 78, 0.2));
-  animation: summon-photon-shear-flow 20s linear infinite;
+    drop-shadow(0 0 2px rgba(255, 245, 216, 0.64))
+    drop-shadow(0 0 8px rgba(255, 205, 112, 0.42));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: summon-accretion-thread 13s ease-in-out infinite alternate;
 }
 
-.summon-photon-shear-line.flow-1,
-.summon-photon-shear-line.flow-3 {
-  stroke: rgba(255, 191, 104, 0.42);
-  stroke-width: 0.34px;
-  animation-duration: 24s;
-}
-
-.summon-photon-shear-line.flow-2 {
-  stroke: rgba(190, 227, 255, 0.32);
+.summon-accretion-thread.thread-1,
+.summon-accretion-thread.thread-4 {
+  stroke: rgba(255, 193, 102, 0.38);
   stroke-width: 0.28px;
-  animation-duration: 28s;
 }
 
-.summon-central-accretion-new {
-  animation: summon-central-field-breathe 4.6s ease-in-out infinite alternate;
-}
-
-.summon-central-stream {
-  fill: none;
-  stroke: rgba(255, 239, 204, 0.52);
-  stroke-width: 0.58px;
-  stroke-linecap: round;
-  stroke-dasharray: 292 10;
-  filter:
-    drop-shadow(0 0 3px rgba(255, 244, 216, 0.7))
-    drop-shadow(0 0 9px rgba(255, 213, 130, 0.48))
-    drop-shadow(0 0 20px rgba(255, 158, 64, 0.2));
-  animation: summon-central-stream-flow 13s linear infinite;
-}
-
-.summon-central-stream.flow-1,
-.summon-central-stream.flow-3 {
-  stroke: rgba(255, 190, 96, 0.43);
-  stroke-width: 0.42px;
-  animation-duration: 16s;
-}
-
-.summon-central-stream.flow-2 {
-  stroke: rgba(188, 229, 255, 0.32);
-  stroke-width: 0.34px;
-  animation-duration: 19s;
+.summon-accretion-thread.thread-2 {
+  stroke: rgba(196, 231, 255, 0.3);
+  stroke-width: 0.24px;
 }
 
 @keyframes summon-depth-drift-new {
@@ -992,29 +957,19 @@ button:disabled {
   to { transform: scale(1.04) translate(2px, -1px); opacity: 0.94; }
 }
 
-@keyframes summon-horizon-breathe-new {
-  from { transform: scale(0.988); opacity: 1; }
-  to { transform: scale(1.012); opacity: 1; }
+@keyframes summon-void-breathe {
+  from { transform: scale(0.992); opacity: 1; }
+  to { transform: scale(1.008); opacity: 1; }
 }
 
-@keyframes summon-photon-shear-drift {
-  from { transform: rotate(-1deg) scale(0.992); }
-  to { transform: rotate(1deg) scale(1.008); }
+@keyframes summon-accretion-drift {
+  from { transform: rotate(-0.55deg) scale(0.994, 1.006); }
+  to { transform: rotate(0.55deg) scale(1.006, 0.994); }
 }
 
-@keyframes summon-photon-shear-flow {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: -548; }
-}
-
-@keyframes summon-central-field-breathe {
-  from { opacity: 0.72; transform: scaleY(0.94); }
-  to { opacity: 1; transform: scaleY(1.05); }
-}
-
-@keyframes summon-central-stream-flow {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: -302; }
+@keyframes summon-accretion-thread {
+  from { transform: rotate(-0.45deg) scale(0.997, 1.003); opacity: 0.54; }
+  to { transform: rotate(0.45deg) scale(1.003, 0.997); opacity: 0.9; }
 }
 
 .hand-energy-layer {

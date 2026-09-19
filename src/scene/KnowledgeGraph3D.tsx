@@ -279,6 +279,20 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
     ctx.lineWidth = 0.9 + random() * 1.55
     ctx.stroke()
   }
+  for (let index = 0; index < 5; index += 1) {
+    const y = 42 + index * 42 + (random() - 0.5) * 16
+    const ribbon = ctx.createLinearGradient(0, y - 10, 0, y + 10)
+    ribbon.addColorStop(0, 'rgba(0,0,0,0)')
+    ribbon.addColorStop(0.42, index % 2 === 0 ? 'rgba(239,249,255,0.2)' : 'rgba(255,211,130,0.18)')
+    ribbon.addColorStop(0.58, index % 2 === 0 ? 'rgba(126,188,255,0.15)' : 'rgba(216,140,70,0.14)')
+    ribbon.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.beginPath()
+    ctx.moveTo(-12, y)
+    ctx.bezierCurveTo(136, y - 34 + random() * 26, 354, y + 36 - random() * 28, 524, y + (random() - 0.5) * 18)
+    ctx.strokeStyle = ribbon
+    ctx.lineWidth = 6 + random() * 5
+    ctx.stroke()
+  }
   for (let index = 0; index < 54; index += 1) {
     const x = random() * 512
     const y = random() * 256
@@ -294,6 +308,28 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
   texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = THREE.RepeatWrapping
   return texture
+}
+
+const createSummonCelestialGeometry = (radius: number, seed: number) => {
+  const geometry = new THREE.SphereGeometry(radius, 56, 36)
+  const position = geometry.getAttribute('position') as THREE.BufferAttribute
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index)
+    const y = position.getY(index)
+    const z = position.getZ(index)
+    const length = Math.sqrt(x * x + y * y + z * z) || 1
+    const longitude = Math.atan2(z, x)
+    const latitude = Math.asin(y / length)
+    const terrain =
+      Math.sin(longitude * 3.2 + seed * 17.3) * 0.032 +
+      Math.sin(latitude * 5.4 - longitude * 1.8 + seed * 9.1) * 0.024 +
+      Math.cos(longitude * 8.1 + latitude * 3.6 + seed * 23.7) * 0.012
+    const scale = 1 + terrain
+    position.setXYZ(index, x * scale, y * scale, z * scale)
+  }
+  position.needsUpdate = true
+  geometry.computeVertexNormals()
+  return geometry
 }
 
 const getScreenHit = (
@@ -2060,36 +2096,36 @@ export default function KnowledgeGraph3D({
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const surfaceTexture = summonCelestialTextures[paletteIndex]
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 48, 32),
+        createSummonCelestialGeometry(size, visualSeed),
         new THREE.MeshPhysicalMaterial({
           map: surfaceTexture,
           bumpMap: surfaceTexture,
           bumpScale: 0.035,
-          emissiveMap: surfaceTexture,
           color: inactive ? coreColor : 0xffffff,
-          emissive: inactive ? glowColor : 0xffffff,
-          emissiveIntensity: inactive ? 0.14 : holding ? 0.92 : armed ? 0.68 : selected ? 0.48 : 0.3,
-          roughness: 0.42,
-          metalness: 0.04,
-          clearcoat: 0.24,
-          clearcoatRoughness: 0.32,
+          emissive: glowColor,
+          emissiveIntensity: inactive ? 0.16 : holding ? 1.35 : armed ? 0.86 : selected ? 0.56 : 0.16,
+          roughness: 0.5,
+          metalness: 0.06,
+          clearcoat: 0.18,
+          clearcoatRoughness: 0.4,
           transparent: false,
           opacity: 1,
         }),
       )
       core.userData = { summonId: star.id, role: 'core' }
+      core.rotation.set(phase * 0.11, phase * 0.17, phase * 0.06)
       root.add(core)
       const aura = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
-        opacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.22 : 0.14,
+        opacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.24 : 0.18,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
       const auraScale = size * (inactive ? 2.1 : holding ? 3.7 : selected || armed ? 3 : 2.4)
       aura.scale.setScalar(auraScale)
-      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.22 : 0.14 }
+      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.24 : 0.18 }
       root.add(aura)
       Array.from({ length: inactive ? 2 : selected || armed || holding ? 6 : 3 }).forEach((_, moteIndex) => {
         const mote = new THREE.Sprite(new THREE.SpriteMaterial({

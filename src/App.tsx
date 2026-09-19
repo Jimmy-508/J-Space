@@ -294,19 +294,20 @@ function HandEnergyOverlay({
   const renderSummonBlackHole = (key: string, point: ScreenPoint, state = '') => (
     <g key={key} className={`summon-singularity ${state}`} transform={`translate(${point.x} ${point.y}) scale(${getSingularityScale()})`}>
       <g className="summon-black-depth-field">
-        <circle className="summon-depth-falloff" r="118" />
-        <ellipse className="summon-depth-lens" rx="104" ry="82" />
+        <circle className="summon-depth-falloff" r="124" />
+        <circle className="summon-depth-lens" r="101" />
       </g>
-      <g className="summon-event-horizon-new">
-        <circle className="summon-horizon-penumbra" r="82" />
-        <circle className="summon-horizon-core-new" r="76" />
+      <g className="summon-void-core">
+        <circle className="summon-void-feather" r="82" />
+        <circle className="summon-void-absolute" r="76" />
       </g>
-      <g className="summon-photon-shear">
-        {Array.from({ length: 12 }, (_, index) => {
-          const rx = 68 + (index % 4) * 2.2
-          const ry = 64 + ((index * 3) % 5) * 1.6
-          const skew = (index - 5.5) * 1.1
-          return <path key={`rim-${index}`} className={`summon-photon-shear-line flow-${index % 4}`} d={`M 0 ${-ry} C ${rx * 0.72} ${-ry - skew}, ${rx + skew} ${-ry * 0.38}, ${rx} 0 C ${rx - skew} ${ry * 0.52}, ${rx * 0.58} ${ry + skew}, 0 ${ry} C ${-rx * 0.64} ${ry - skew}, ${-rx - skew} ${ry * 0.42}, ${-rx} 0 C ${-rx + skew} ${-ry * 0.48}, ${-rx * 0.62} ${-ry + skew}, 0 ${-ry} Z`} />
+      <g className="summon-accretion-field">
+        {Array.from({ length: 22 }, (_, index) => {
+          const radius = 78 + (index % 7) * 1.55
+          const vertical = radius * (0.92 + ((index * 5) % 4) * 0.017)
+          const drift = (index - 10.5) * 0.42
+          const phase = (index % 5) * 0.16
+          return <path key={`accretion-${index}`} className={`summon-accretion-thread thread-${index % 5}`} style={{ animationDelay: `${-index * 0.72}s` }} d={`M 0 ${-vertical} C ${radius * 0.66} ${-vertical - drift}, ${radius + drift} ${-vertical * 0.34}, ${radius} ${phase} C ${radius - drift} ${vertical * 0.56}, ${radius * 0.6} ${vertical + drift}, 0 ${vertical} C ${-radius * 0.66} ${vertical - drift}, ${-radius - drift} ${vertical * 0.36}, ${-radius} ${-phase} C ${-radius + drift} ${-vertical * 0.54}, ${-radius * 0.6} ${-vertical + drift}, 0 ${-vertical}`} />
         })}
       </g>
     </g>
@@ -323,8 +324,8 @@ function HandEnergyOverlay({
       >
         <defs>
           <radialGradient id="summon-depth-gradient" cx="50%" cy="50%" r="52%">
-            <stop offset="20%" stopColor="rgba(0, 0, 0, 0.56)" />
-            <stop offset="66%" stopColor="rgba(0, 0, 0, 0.22)" />
+            <stop offset="18%" stopColor="rgba(0, 0, 0, 0.72)" />
+            <stop offset="62%" stopColor="rgba(0, 0, 0, 0.3)" />
             <stop offset="100%" stopColor="rgba(0, 0, 0, 0)" />
           </radialGradient>
         </defs>
