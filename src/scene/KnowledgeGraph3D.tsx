@@ -2053,7 +2053,7 @@ export default function KnowledgeGraph3D({
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const surfaceTexture = summonCelestialTextures[paletteIndex]
-      const coreEmissiveIntensity = inactive ? 0.18 : holding ? 0.88 : armed ? 1.18 : selected ? 0.96 : 0.36
+      const coreEmissiveIntensity = inactive ? 0.22 : holding ? 0.88 : armed ? 1.18 : selected ? 0.96 : 0.52
       const coreMaterial = new THREE.MeshPhysicalMaterial({
         map: surfaceTexture,
         color: inactive ? coreColor : 0xffffff,
@@ -2089,7 +2089,7 @@ export default function KnowledgeGraph3D({
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
           float summonRim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
-          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.24;`,
+          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.3;`,
         )
       }
       const core = new THREE.Mesh(
@@ -2103,17 +2103,17 @@ export default function KnowledgeGraph3D({
       const aura = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
-        opacity: inactive ? 0.08 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.18,
+        opacity: inactive ? 0.1 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.24,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      const auraScale = size * (inactive ? 1.9 : holding ? 3.4 : armed ? 3.15 : selected ? 3.05 : 2.25)
+      const auraScale = size * (inactive ? 1.9 : holding ? 3.4 : armed ? 3.15 : selected ? 3.05 : 2.32)
       aura.scale.setScalar(auraScale)
-      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.08 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.18 }
+      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.1 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.24 }
       root.add(aura)
       const moteCount = inactive ? 2 : holding ? 12 : armed ? 10 : selected ? 9 : 3
-      const moteOpacity = inactive ? 0.16 : holding ? 0.78 : armed ? 0.64 : selected ? 0.58 : 0.28
+      const moteOpacity = inactive ? 0.18 : holding ? 0.78 : armed ? 0.64 : selected ? 0.58 : 0.32
       Array.from({ length: moteCount }).forEach((_, moteIndex) => {
         const mote = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,

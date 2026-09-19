@@ -830,16 +830,15 @@ button:disabled {
   line-height: 0.82;
   text-align: center;
   white-space: nowrap;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  mix-blend-mode: normal;
   text-shadow: 0 0 28px rgba(242, 201, 109, 0.62), 0 0 76px rgba(166, 212, 255, 0.34);
   pointer-events: none;
   animation: summon-result-return 2.65s cubic-bezier(0.2, 0.75, 0.16, 1) both;
-  filter: drop-shadow(0 0 20px rgba(245, 211, 132, 0.52));
-}
-
-/* The reveal is carried by the numeral and a brief energy wave, never by a panel behind it. */
-.app-shell.summon-result-active .graph-canvas canvas {
-  filter: brightness(0.54) saturate(0.76);
-  transition: filter 140ms ease-out;
+  filter: none;
 }
 
 .summon-result-overlay::before {
@@ -916,13 +915,13 @@ button:disabled {
   z-index: 1;
 }
 
-/* This layer stays above the Three canvas: the event horizon cannot inherit canvas transparency. */
+/* All black-hole layers sit below the transparent Three canvas, so summoned celestial bodies always stay in front. */
 .summon-black-hole-core-layer {
-  z-index: 3;
+  z-index: 1;
 }
 
 .summon-black-hole-stream-layer {
-  z-index: 4;
+  z-index: 1;
 }
 
 .summon-black-hole-layer .summon-singularity {

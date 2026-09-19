@@ -289,7 +289,8 @@ function HandEnergyOverlay({
   const hiddenHandIds = new Set([...summonEnergyHands.map((hand) => hand.id), ...collapseHands.map((hand) => hand.id)])
   const getSingularityScale = () => {
     const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 2.7 : 1
-    return Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
+    const currentScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
+    return currentScale * 1.3
   }
   const singularityTransform = (point: ScreenPoint) => `translate(${point.x} ${point.y}) scale(${getSingularityScale()})`
   const renderSummonBlackHoleDepth = (key: string, point: ScreenPoint, state = '') => (
@@ -1355,7 +1356,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${summonResultOverlay ? 'summon-result-active' : ''} ${holdingSummonStarId || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${holdingSummonStarId || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}
