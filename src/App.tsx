@@ -298,8 +298,9 @@ function HandEnergyOverlay({
         <circle className="summon-depth-lens" r="101" />
       </g>
       <g className="summon-void-core">
-        <circle className="summon-void-feather" r="82" />
-        <circle className="summon-void-absolute" r="76" />
+        <circle className="summon-void-feather" r="84" />
+        <circle className="summon-void-occlusion" r="79" />
+        <circle className="summon-void-absolute" r="75" />
       </g>
       <g className="summon-accretion-field">
         {Array.from({ length: 22 }, (_, index) => {
@@ -1386,9 +1387,7 @@ export default function App() {
             '--return-x': `${summonResultTarget?.x ?? viewportSize.width / 2}px`,
             '--return-y': `${summonResultTarget?.y ?? viewportSize.height / 2}px`,
           } as CSSProperties}
-        >
-          <span>{summonResultOverlay.value}</span>
-        </div>
+        >{summonResultOverlay.value}</div>
       ) : null}
       {viewerNode && viewerLoadState !== 'ready' ? (
         <div className={`viewer-status ${viewerLoadState === 'error' ? 'error' : ''}`} role="status">

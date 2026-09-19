@@ -242,88 +242,41 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
   canvas.height = 256
   const ctx = canvas.getContext('2d')
   if (!ctx) return new THREE.CanvasTexture(canvas)
-  const color = new THREE.Color(palette.core).getStyle()
-  const glow = new THREE.Color(palette.glow).getStyle()
-  const halo = new THREE.Color(palette.halo).getStyle()
-  let state = Math.max(1, Math.floor(seed * 0x7fffffff))
-  const random = () => {
-    state = (state * 16807) % 2147483647
-    return (state - 1) / 2147483646
-  }
-  const body = ctx.createLinearGradient(0, 0, 512, 256)
-  body.addColorStop(0, new THREE.Color(palette.core).multiplyScalar(0.18).getStyle())
-  body.addColorStop(0.24, color)
-  body.addColorStop(0.52, new THREE.Color(palette.halo).lerp(new THREE.Color(palette.core), 0.58).getStyle())
-  body.addColorStop(0.78, color)
-  body.addColorStop(1, new THREE.Color(palette.core).multiplyScalar(0.16).getStyle())
+  const core = new THREE.Color(palette.core)
+  const glow = new THREE.Color(palette.glow)
+  const halo = new THREE.Color(palette.halo)
+  const toRgba = (color: THREE.Color, alpha: number) => `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, ${alpha})`
+  const body = ctx.createLinearGradient(0, 0, 0, 256)
+  body.addColorStop(0, toRgba(core.clone().multiplyScalar(0.22), 1))
+  body.addColorStop(0.2, toRgba(core.clone().multiplyScalar(0.62), 1))
+  body.addColorStop(0.49, toRgba(core.clone().lerp(glow, 0.24), 1))
+  body.addColorStop(0.78, toRgba(core.clone().multiplyScalar(0.48), 1))
+  body.addColorStop(1, toRgba(core.clone().multiplyScalar(0.16), 1))
   ctx.fillStyle = body
   ctx.fillRect(0, 0, 512, 256)
-  for (let index = 0; index < 9; index += 1) {
-    const x = random() * 540 - 14
-    const y = 18 + random() * 216
-    const width = 38 + random() * 96
-    const height = 14 + random() * 42
-    ctx.beginPath()
-    ctx.moveTo(x - width * 0.55, y)
-    ctx.bezierCurveTo(x - width * 0.25, y - height, x + width * 0.1, y - height * 0.72, x + width * 0.44, y - height * 0.16)
-    ctx.bezierCurveTo(x + width * 0.62, y + height * 0.28, x + width * 0.2, y + height, x - width * 0.18, y + height * 0.52)
-    ctx.bezierCurveTo(x - width * 0.5, y + height * 0.3, x - width * 0.72, y + height * 0.08, x - width * 0.55, y)
-    ctx.fillStyle = index % 3 === 0 ? 'rgba(3,10,25,0.42)' : index % 3 === 1 ? 'rgba(8,20,42,0.28)' : 'rgba(245,228,182,0.1)'
-    ctx.fill()
-  }
-  for (let index = 0; index < 32; index += 1) {
-    const x = random() * 512
-    const y = 18 + random() * 220
-    const radius = 16 + random() * 54
-    const haze = ctx.createRadialGradient(x, y, 0, x, y, radius)
-    haze.addColorStop(0, index % 3 === 0 ? 'rgba(255,246,220,0.2)' : `${halo.replace('rgb(', 'rgba(').replace(')', ', 0.18)')}`)
-    haze.addColorStop(0.46, `${glow.replace('rgb(', 'rgba(').replace(')', ', 0.07)')}`)
-    haze.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = haze
-    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
-  }
+
+  // A few broad atmospheric currents give a single smooth planet surface its depth.
+  const phase = seed * Math.PI * 2
+  ctx.globalCompositeOperation = 'screen'
   ctx.lineCap = 'round'
-  for (let index = 0; index < 15; index += 1) {
-    const y = 24 + index * 15 + (random() - 0.5) * 8
-    ctx.beginPath()
-    ctx.moveTo(-18, y)
-    ctx.bezierCurveTo(116, y - 26 + random() * 24, 336, y + 28 - random() * 26, 530, y - 8 + random() * 16)
-    ctx.strokeStyle = index % 3 === 0 ? 'rgba(244,250,255,0.17)' : index % 3 === 1 ? 'rgba(255,218,151,0.15)' : 'rgba(16,28,52,0.2)'
-    ctx.lineWidth = 0.9 + random() * 1.55
-    ctx.stroke()
-  }
   for (let index = 0; index < 5; index += 1) {
-    const y = 42 + index * 42 + (random() - 0.5) * 16
-    const ribbon = ctx.createLinearGradient(0, y - 10, 0, y + 10)
-    ribbon.addColorStop(0, 'rgba(0,0,0,0)')
-    ribbon.addColorStop(0.42, index % 2 === 0 ? 'rgba(239,249,255,0.2)' : 'rgba(255,211,130,0.18)')
-    ribbon.addColorStop(0.58, index % 2 === 0 ? 'rgba(126,188,255,0.15)' : 'rgba(216,140,70,0.14)')
-    ribbon.addColorStop(1, 'rgba(0,0,0,0)')
+    const y = 37 + index * 43 + Math.sin(phase + index * 1.73) * 13
     ctx.beginPath()
-    ctx.moveTo(-12, y)
-    ctx.bezierCurveTo(136, y - 34 + random() * 26, 354, y + 36 - random() * 28, 524, y + (random() - 0.5) * 18)
-    ctx.strokeStyle = ribbon
-    ctx.lineWidth = 6 + random() * 5
+    ctx.moveTo(-28, y)
+    ctx.bezierCurveTo(112, y - 12 - index * 1.5, 342, y + 15 + index * 1.4, 540, y - 5)
+    ctx.strokeStyle = toRgba(index % 2 === 0 ? halo : glow, index === 2 ? 0.16 : 0.08)
+    ctx.lineWidth = index === 2 ? 7 : 3.5
     ctx.stroke()
   }
-  for (let index = 0; index < 8; index += 1) {
-    const y = 28 + random() * 198
-    ctx.beginPath()
-    ctx.moveTo(-10, y)
-    ctx.bezierCurveTo(128, y + (random() - 0.5) * 42, 342, y + (random() - 0.5) * 36, 522, y + (random() - 0.5) * 28)
-    ctx.strokeStyle = index % 2 === 0 ? 'rgba(255,239,190,0.26)' : 'rgba(145,215,255,0.22)'
-    ctx.lineWidth = 0.55 + random() * 0.85
-    ctx.stroke()
-  }
-  for (let index = 0; index < 54; index += 1) {
-    const x = random() * 512
-    const y = random() * 256
-    const radius = 0.5 + random() * 1.9
-    ctx.fillStyle = index % 3 === 0 ? 'rgba(255,250,228,0.3)' : `${halo.replace('rgb(', 'rgba(').replace(')', ', 0.22)')}`
-    ctx.beginPath()
-    ctx.arc(x, y, radius, 0, Math.PI * 2)
-    ctx.fill()
-  }
+  ctx.globalCompositeOperation = 'source-over'
+
+  const terminator = ctx.createLinearGradient(0, 0, 512, 0)
+  terminator.addColorStop(0, 'rgba(0, 0, 0, 0.42)')
+  terminator.addColorStop(0.2, 'rgba(0, 0, 0, 0.08)')
+  terminator.addColorStop(0.62, 'rgba(255, 255, 255, 0.05)')
+  terminator.addColorStop(1, 'rgba(0, 0, 0, 0.5)')
+  ctx.fillStyle = terminator
+  ctx.fillRect(0, 0, 512, 256)
   const texture = new THREE.CanvasTexture(canvas)
   texture.minFilter = THREE.LinearFilter
   texture.magFilter = THREE.LinearFilter
@@ -332,27 +285,7 @@ const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[numbe
   return texture
 }
 
-const createSummonCelestialGeometry = (radius: number, seed: number) => {
-  const geometry = new THREE.SphereGeometry(radius, 56, 36)
-  const position = geometry.getAttribute('position') as THREE.BufferAttribute
-  for (let index = 0; index < position.count; index += 1) {
-    const x = position.getX(index)
-    const y = position.getY(index)
-    const z = position.getZ(index)
-    const length = Math.sqrt(x * x + y * y + z * z) || 1
-    const longitude = Math.atan2(z, x)
-    const latitude = Math.asin(y / length)
-    const terrain =
-      Math.sin(longitude * 3.2 + seed * 17.3) * 0.032 +
-      Math.sin(latitude * 5.4 - longitude * 1.8 + seed * 9.1) * 0.024 +
-      Math.cos(longitude * 8.1 + latitude * 3.6 + seed * 23.7) * 0.012
-    const scale = 1 + terrain
-    position.setXYZ(index, x * scale, y * scale, z * scale)
-  }
-  position.needsUpdate = true
-  geometry.computeVertexNormals()
-  return geometry
-}
+const createSummonCelestialGeometry = (radius: number) => new THREE.SphereGeometry(radius, 64, 48)
 
 const getScreenHit = (
   screenPoint: { x: number; y: number },
@@ -2119,29 +2052,44 @@ export default function KnowledgeGraph3D({
       const surfaceTexture = summonCelestialTextures[paletteIndex]
       const coreMaterial = new THREE.MeshPhysicalMaterial({
         map: surfaceTexture,
-        bumpMap: surfaceTexture,
-        bumpScale: 0.055,
         color: inactive ? coreColor : 0xffffff,
         emissive: glowColor,
-        emissiveIntensity: inactive ? 0.16 : holding ? 1.35 : armed ? 0.86 : selected ? 0.56 : 0.16,
-        roughness: 0.5,
-        metalness: 0.06,
-        clearcoat: 0.18,
-        clearcoatRoughness: 0.4,
+        emissiveIntensity: inactive ? 0.12 : holding ? 0.88 : armed ? 0.62 : selected ? 0.38 : 0.1,
+        roughness: 0.16,
+        metalness: 0.02,
+        clearcoat: 1,
+        clearcoatRoughness: 0.08,
+        transmission: 0.18,
+        thickness: 0.72,
+        ior: 1.32,
+        attenuationColor: new THREE.Color(haloColor),
+        attenuationDistance: 1.3,
+        iridescence: 0.14,
+        iridescenceIOR: 1.3,
         transparent: false,
         opacity: 1,
       })
       const rimColor = new THREE.Color(haloColor)
       coreMaterial.onBeforeCompile = (shader) => {
         shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <normal_fragment_maps>',
+          `#include <normal_fragment_maps>
+          // This keeps the planet's day side, terminator, and glancing highlight readable in every camera angle.
+          float summonLight = dot(normalize(normal), normalize(vec3(-0.46, 0.58, 0.72)));
+          float summonDay = smoothstep(-0.62, 0.74, summonLight);
+          diffuseColor.rgb *= mix(vec3(0.22, 0.25, 0.32), vec3(1.12, 1.1, 1.06), summonDay);
+          float summonSpecular = pow(max(summonLight, 0.0), 18.0);
+          diffuseColor.rgb += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonSpecular * 0.34;`,
+        )
+        shader.fragmentShader = shader.fragmentShader.replace(
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
           float summonRim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
-          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.22;`,
+          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.16;`,
         )
       }
       const core = new THREE.Mesh(
-        createSummonCelestialGeometry(size, visualSeed),
+        createSummonCelestialGeometry(size),
         coreMaterial,
       )
       core.userData = { summonId: star.id, role: 'core' }
@@ -2150,14 +2098,14 @@ export default function KnowledgeGraph3D({
       const aura = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
-        opacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.24 : 0.18,
+        opacity: inactive ? 0.05 : holding ? 0.32 : armed ? 0.19 : selected ? 0.16 : 0.1,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }))
-      const auraScale = size * (inactive ? 2.1 : holding ? 3.7 : selected || armed ? 3 : 2.4)
+      const auraScale = size * (inactive ? 1.9 : holding ? 3.15 : selected || armed ? 2.65 : 2.12)
       aura.scale.setScalar(auraScale)
-      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.06 : holding ? 0.42 : armed ? 0.26 : selected ? 0.24 : 0.18 }
+      aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.05 : holding ? 0.32 : armed ? 0.19 : selected ? 0.16 : 0.1 }
       root.add(aura)
       Array.from({ length: inactive ? 2 : selected || armed || holding ? 6 : 3 }).forEach((_, moteIndex) => {
         const mote = new THREE.Sprite(new THREE.SpriteMaterial({
