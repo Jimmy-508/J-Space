@@ -924,6 +924,11 @@ button:disabled {
   filter: blur(0.4px) drop-shadow(0 0 16px rgba(0, 0, 0, 1));
 }
 
+.summon-horizon-void {
+  fill: url("#summon-horizon-void-gradient");
+  filter: blur(0.22px) drop-shadow(0 0 20px rgba(0, 0, 0, 1));
+}
+
 .summon-photon-shear,
 .summon-central-accretion-new {
   fill: none;

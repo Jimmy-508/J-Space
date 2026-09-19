@@ -298,9 +298,10 @@ function HandEnergyOverlay({
         <ellipse className="summon-depth-lens" rx="104" ry="82" />
       </g>
       <g className="summon-event-horizon-new">
-        <circle className="summon-horizon-penumbra" r="78" />
-        <circle className="summon-horizon-core-new" r="65" />
-        <circle className="summon-horizon-abyss" r="53" />
+        <circle className="summon-horizon-penumbra" r="82" />
+        <circle className="summon-horizon-core-new" r="72" />
+        <circle className="summon-horizon-abyss" r="61" />
+        <circle className="summon-horizon-void" r="46" />
       </g>
       <g className="summon-photon-shear">
         {Array.from({ length: 12 }, (_, index) => {
@@ -308,13 +309,6 @@ function HandEnergyOverlay({
           const ry = 64 + ((index * 3) % 5) * 1.6
           const skew = (index - 5.5) * 1.1
           return <path key={`rim-${index}`} className={`summon-photon-shear-line flow-${index % 4}`} d={`M 0 ${-ry} C ${rx * 0.72} ${-ry - skew}, ${rx + skew} ${-ry * 0.38}, ${rx} 0 C ${rx - skew} ${ry * 0.52}, ${rx * 0.58} ${ry + skew}, 0 ${ry} C ${-rx * 0.64} ${ry - skew}, ${-rx - skew} ${ry * 0.42}, ${-rx} 0 C ${-rx + skew} ${-ry * 0.48}, ${-rx * 0.62} ${-ry + skew}, 0 ${-ry} Z`} />
-        })}
-      </g>
-      <g className="summon-central-accretion-new">
-        {Array.from({ length: 13 }, (_, index) => {
-          const y = -15 + index * 2.5
-          const amplitude = 3.6 + (index % 4) * 1.2
-          return <path key={`stream-${index}`} className={`summon-central-stream flow-${index % 4}`} d={`M -150 ${y} C -106 ${y - amplitude}, -55 ${y + amplitude * 0.56}, 0 ${y - amplitude * 0.18} C 54 ${y - amplitude * 0.7}, 108 ${y + amplitude * 0.68}, 150 ${y - amplitude * 0.3}`} />
         })}
       </g>
     </g>
@@ -340,6 +334,11 @@ function HandEnergyOverlay({
             <stop offset="0%" stopColor="rgba(0, 0, 0, 1)" />
             <stop offset="70%" stopColor="rgba(0, 0, 0, 0.98)" />
             <stop offset="100%" stopColor="rgba(0, 0, 0, 0.72)" />
+          </radialGradient>
+          <radialGradient id="summon-horizon-void-gradient" cx="44%" cy="40%" r="64%">
+            <stop offset="0%" stopColor="rgba(0, 0, 0, 1)" />
+            <stop offset="66%" stopColor="rgba(0, 0, 0, 0.99)" />
+            <stop offset="100%" stopColor="rgba(0, 0, 0, 0.88)" />
           </radialGradient>
           <radialGradient id="summon-depth-gradient" cx="50%" cy="50%" r="52%">
             <stop offset="20%" stopColor="rgba(0, 0, 0, 0.56)" />

@@ -236,6 +236,66 @@ const createStarFlareTexture = () => {
   return new THREE.CanvasTexture(canvas)
 }
 
+const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[number], seed: number) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  const color = new THREE.Color(palette.core).getStyle()
+  const glow = new THREE.Color(palette.glow).getStyle()
+  const halo = new THREE.Color(palette.halo).getStyle()
+  let state = Math.max(1, Math.floor(seed * 0x7fffffff))
+  const random = () => {
+    state = (state * 16807) % 2147483647
+    return (state - 1) / 2147483646
+  }
+  ctx.clearRect(0, 0, 256, 256)
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(128, 128, 112, 0, Math.PI * 2)
+  ctx.clip()
+  const body = ctx.createRadialGradient(93, 82, 8, 128, 128, 118)
+  body.addColorStop(0, 'rgba(255,255,255,0.86)')
+  body.addColorStop(0.1, glow)
+  body.addColorStop(0.38, color)
+  body.addColorStop(0.76, 'rgba(7,13,29,0.82)')
+  body.addColorStop(1, 'rgba(1,4,12,0.96)')
+  ctx.fillStyle = body
+  ctx.fillRect(0, 0, 256, 256)
+  for (let index = 0; index < 20; index += 1) {
+    const x = 42 + random() * 172
+    const y = 42 + random() * 172
+    const radius = 8 + random() * 30
+    const haze = ctx.createRadialGradient(x, y, 0, x, y, radius)
+    haze.addColorStop(0, index % 3 === 0 ? 'rgba(255,246,220,0.18)' : `${halo.replace('rgb(', 'rgba(').replace(')', ', 0.15)')}`)
+    haze.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = haze
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+  }
+  ctx.lineCap = 'round'
+  for (let index = 0; index < 7; index += 1) {
+    const y = 58 + index * 22 + (random() - 0.5) * 10
+    ctx.beginPath()
+    ctx.moveTo(28, y)
+    ctx.bezierCurveTo(86, y - 20 + random() * 16, 166, y + 18 - random() * 18, 226, y - 4 + random() * 10)
+    ctx.strokeStyle = index % 2 === 0 ? 'rgba(232,247,255,0.14)' : 'rgba(255,210,130,0.13)'
+    ctx.lineWidth = 1.2 + random() * 2.2
+    ctx.stroke()
+  }
+  const shade = ctx.createRadialGradient(64, 72, 12, 128, 128, 142)
+  shade.addColorStop(0, 'rgba(0,0,0,0)')
+  shade.addColorStop(0.64, 'rgba(0,0,0,0.06)')
+  shade.addColorStop(1, 'rgba(0,0,0,0.8)')
+  ctx.fillStyle = shade
+  ctx.fillRect(0, 0, 256, 256)
+  ctx.restore()
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  return texture
+}
+
 const getScreenHit = (
   screenPoint: { x: number; y: number },
   meshes: Map<string, THREE.Mesh>,
@@ -624,6 +684,10 @@ export default function KnowledgeGraph3D({
   const layout = useMemo(() => makeLayout(data), [data])
   const softDiscTexture = useMemo(() => createSoftDiscTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
+  const summonCelestialTextures = useMemo(
+    () => summonStarPalettes.map((palette, index) => createSummonCelestialTexture(palette, 0.137 + index * 0.149)),
+    [],
+  )
 
   useEffect(() => {
     selectedIdRef.current = selectedId
@@ -1463,6 +1527,10 @@ export default function KnowledgeGraph3D({
               material.emissiveIntensity = 2.2 + holdProgress * 2.2 + Math.sin(time * 18 + phase) * 0.35
               child.scale.setScalar(1 - holdProgress * 0.3)
             }
+            if (child.userData.role === 'celestialShell') {
+              child.rotation.x += (child.userData.speed ?? 0.002) * 0.7
+              child.rotation.y += child.userData.speed ?? 0.002
+            }
             if (clearing && 'opacity' in material) material.opacity *= Math.max(0, 1 - clearingProgress)
           }
           if (child instanceof THREE.Line && child.userData.role === 'deployTrail') {
@@ -1551,6 +1619,20 @@ export default function KnowledgeGraph3D({
               const breath = 1 + Math.sin(time * (child.userData.speed ?? 0.8) + phase) * (holding ? 0.1 : 0.04)
               child.scale.set(baseScaleX * breath * (holding ? 1 - holdProgress * 0.18 : 1), baseScaleY * breath * (holding ? 1 - holdProgress * 0.18 : 1), 1)
               material.opacity = Math.max(0.04, baseOpacity + (holding ? holdProgress * 0.22 : 0) + Math.sin(time * 1.1 + phase) * 0.025)
+            } else if (child.userData.role === 'summonCelestialBody') {
+              const baseOpacity = child.userData.baseOpacity ?? 0.72
+              const baseScaleX = child.userData.baseScaleX ?? child.scale.x
+              const baseScaleY = child.userData.baseScaleY ?? child.scale.y
+              const pulse = 1 + Math.sin(time * (holding ? 6.8 : 1.45) + phase) * (holding ? 0.055 : 0.018)
+              child.scale.set(baseScaleX * pulse, baseScaleY * pulse, 1)
+              material.opacity = Math.min(1, baseOpacity + (holding ? holdProgress * 0.08 : 0) + Math.sin(time * 1.8 + phase) * 0.018)
+            } else if (child.userData.role === 'celestialMote') {
+              const speed = child.userData.speed ?? 0.4
+              const angle = (child.userData.angle ?? 0) + time * speed * (holding ? 2.2 : 1)
+              const radius = (child.userData.radius ?? 1) * (holding ? 1 - holdProgress * 0.34 : 1)
+              child.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * (child.userData.ellipse ?? 0.8), 0.36)
+              child.scale.setScalar((child.userData.baseScale ?? 0.1) * (1 + Math.sin(time * 3.4 + phase) * 0.22))
+              material.opacity = holding ? 0.42 + holdProgress * 0.46 : 0.18 + Math.sin(time * 2.4 + phase) * 0.06
             } else if (child.userData.role === 'surfaceGlow') {
               const baseOpacity = child.userData.baseOpacity ?? 0.08
               child.position.x = (child.userData.baseX ?? child.position.x) + Math.sin(time * 0.72 + phase) * 0.035
@@ -1966,11 +2048,12 @@ export default function KnowledgeGraph3D({
       const startPosition = new THREE.Vector3(targetPosition.x * 0.12, targetPosition.y * 0.12, -9)
       root.position.copy(deploying ? startPosition : targetPosition)
       const visualSeed = star.visualSeed ?? 0.5
-      const palette = summonStarPalettes[Math.floor(visualSeed * summonStarPalettes.length) % summonStarPalettes.length]
+      const paletteIndex = Math.floor(visualSeed * summonStarPalettes.length) % summonStarPalettes.length
+      const palette = summonStarPalettes[paletteIndex]
       const phase = visualSeed * Math.PI * 12.8
       const variant = Math.floor(visualSeed * 11) % 5
       const sizeTier = Math.floor(visualSeed * 17) % 3
-      const size = [0.32, 0.5, 0.68][sizeTier] + (visualSeed - 0.5) * 0.04
+      const size = [0.44, 0.62, 0.82][sizeTier] + (visualSeed - 0.5) * 0.05
       const selected = star.id === selectedSummonStarId
       const armed = star.id === armedSummonStarId || star.status === 'armed'
       const holding = star.id === holdingSummonStarId
@@ -1984,7 +2067,7 @@ export default function KnowledgeGraph3D({
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : selected ? 0x9be8ff : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : selected ? 0xc8f4ff : palette.halo
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 36, 24),
+        new THREE.IcosahedronGeometry(size * 0.88, 2),
         new THREE.MeshPhysicalMaterial({
           color: coreColor,
           emissive: glowColor,
@@ -2000,6 +2083,53 @@ export default function KnowledgeGraph3D({
       core.userData = { summonId: star.id, role: 'core' }
       core.scale.set(0.92 + (variant % 3) * 0.055, 0.94 + ((variant + 1) % 3) * 0.045, 1)
       root.add(core)
+      const celestialBody = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: summonCelestialTextures[paletteIndex],
+        color: 0xffffff,
+        opacity: inactive ? 0.42 : holding ? 1 : armed ? 0.94 : selected ? 0.88 : 0.74,
+        transparent: true,
+        depthWrite: false,
+      }))
+      const celestialScale = size * (inactive ? 1.82 : holding ? 2.28 : selected || armed ? 2.13 : 1.96)
+      celestialBody.position.set(0, 0, size * 1.06)
+      celestialBody.scale.set(celestialScale * (0.92 + (variant % 3) * 0.06), celestialScale * (0.95 + ((variant + 1) % 3) * 0.045), 1)
+      celestialBody.userData = {
+        role: 'summonCelestialBody',
+        baseOpacity: inactive ? 0.42 : holding ? 1 : armed ? 0.94 : selected ? 0.88 : 0.74,
+        baseScaleX: celestialBody.scale.x,
+        baseScaleY: celestialBody.scale.y,
+      }
+      root.add(celestialBody)
+      const shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(size * 1.04, 2),
+        new THREE.MeshBasicMaterial({
+          color: haloColor,
+          transparent: true,
+          opacity: inactive ? 0.025 : holding ? 0.16 : armed ? 0.12 : selected ? 0.1 : 0.035,
+          wireframe: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      )
+      shell.userData = { role: 'celestialShell', speed: 0.0018 + visualSeed * 0.0012 }
+      shell.rotation.set(phase * 0.13, phase * 0.2, phase * 0.08)
+      root.add(shell)
+      Array.from({ length: inactive ? 3 : selected || armed || holding ? 7 : 4 }).forEach((_, moteIndex) => {
+        const mote = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: moteIndex % 3 === 0 ? palette.particle : haloColor,
+          opacity: inactive ? 0.14 : holding ? 0.72 : selected || armed ? 0.46 : 0.24,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        const angle = phase + moteIndex * 2.399 + Math.sin(moteIndex * 1.7) * 0.28
+        const radius = size * (1.45 + (moteIndex % 3) * 0.23)
+        mote.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * (0.72 + (moteIndex % 2) * 0.12), size * 0.34)
+        mote.scale.setScalar(size * (0.12 + (moteIndex % 3) * 0.045))
+        mote.userData = { role: 'celestialMote', angle, radius, baseScale: mote.scale.x, speed: 0.32 + (moteIndex % 4) * 0.09, ellipse: 0.72 + (moteIndex % 2) * 0.12 }
+        root.add(mote)
+      })
       const atmosphere = new THREE.Sprite(new THREE.SpriteMaterial({
         map: softDiscTexture,
         color: haloColor,
@@ -2137,7 +2267,7 @@ export default function KnowledgeGraph3D({
         dust.userData = { role: 'dustHaze', baseOpacity: inactive ? 0.06 : 0.14 }
         root.add(dust)
       }
-      if (variant !== 0 || selected || armed || holding || inactive) {
+      if (selected || armed || holding || inactive) {
         const ringRadius = inactive ? size + 0.18 : holding ? size + 0.1 : size + 0.24
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(ringRadius, ringRadius + (inactive ? 0.025 : 0.055), 64),
@@ -2409,7 +2539,7 @@ export default function KnowledgeGraph3D({
       if (inactive) resolvedSummonMeshesRef.current.set(star.id, core)
       else summonMeshesRef.current.set(star.id, core)
     })
-  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, softDiscTexture, starFlareTexture])
+  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, softDiscTexture, starFlareTexture, summonCelestialTextures])
 
   useEffect(() => {
     if (appMode !== 'summon' || summonStage !== 'drawing' || !selectedSummonStarId) return
