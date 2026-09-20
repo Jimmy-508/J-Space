@@ -196,83 +196,117 @@ const panCameraView = (camera: THREE.PerspectiveCamera, target: THREE.Vector3, d
   camera.position.add(offset)
 }
 
-type AccretionStreamKind = 'back' | 'front' | 'lensing'
+type AccretionRibbonKind = 'back' | 'front' | 'upperLens' | 'lowerLens'
 
-const createAccretionStream = (
-  kind: AccretionStreamKind,
-  offset: number,
-  phase: number,
-  side = 1,
-) => {
-  const pointCount = kind === 'lensing' ? 72 : 96
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3))
-  geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3))
-  const material = new THREE.LineBasicMaterial({
-    vertexColors: true,
+const createAccretionRibbonTexture = (kind: AccretionRibbonKind, seed: number) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 144
+  const context = canvas.getContext('2d')!
+  const width = canvas.width
+  const height = canvas.height
+  const gradient = context.createLinearGradient(0, 0, width, 0)
+  gradient.addColorStop(0, 'rgba(255, 195, 113, 0)')
+  gradient.addColorStop(0.14, 'rgba(255, 199, 119, 0.52)')
+  gradient.addColorStop(0.48, 'rgba(255, 242, 214, 0.96)')
+  gradient.addColorStop(0.76, 'rgba(255, 203, 126, 0.58)')
+  gradient.addColorStop(1, 'rgba(255, 194, 112, 0)')
+
+  const drawRibbon = (lineWidth: number, alpha: number, blur: number) => {
+    context.save()
+    context.globalAlpha = alpha
+    context.strokeStyle = gradient
+    context.lineCap = 'round'
+    context.lineJoin = 'round'
+    context.lineWidth = lineWidth
+    context.shadowColor = 'rgba(255, 216, 158, 0.72)'
+    context.shadowBlur = blur
+    context.beginPath()
+    if (kind === 'upperLens' || kind === 'lowerLens') {
+      const sign = kind === 'upperLens' ? -1 : 1
+      context.moveTo(width * 0.1, height * (0.56 + sign * 0.08))
+      context.bezierCurveTo(
+        width * 0.28,
+        height * (0.18 + sign * 0.08),
+        width * 0.7,
+        height * (0.23 + sign * 0.06),
+        width * 0.93,
+        height * (0.54 + sign * 0.09),
+      )
+    } else {
+      const bend = kind === 'back' ? -0.1 : 0.08
+      context.moveTo(0, height * (0.54 + bend + Math.sin(seed) * 0.025))
+      context.bezierCurveTo(
+        width * 0.28,
+        height * (0.38 + bend),
+        width * 0.66,
+        height * (0.62 - bend * 0.35),
+        width,
+        height * (0.47 + bend * 0.55),
+      )
+    }
+    context.stroke()
+    context.restore()
+  }
+
+  drawRibbon(kind === 'back' ? 42 : kind === 'front' ? 32 : 22, kind === 'back' ? 0.18 : kind === 'front' ? 0.25 : 0.17, 20)
+  drawRibbon(kind === 'back' ? 20 : kind === 'front' ? 15 : 10, kind === 'back' ? 0.38 : kind === 'front' ? 0.55 : 0.4, 9)
+  drawRibbon(kind === 'back' ? 5 : kind === 'front' ? 4 : 3, kind === 'back' ? 0.72 : 0.9, 3)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.repeat.set(1.04, 1)
+  return texture
+}
+
+const createAccretionRibbon = (kind: AccretionRibbonKind, phase: number, side = 1) => {
+  const texture = createAccretionRibbonTexture(kind, phase)
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
     transparent: true,
-    opacity: kind === 'back' ? 0.24 : kind === 'front' ? 0.58 : 0.2,
+    opacity: kind === 'back' ? 0.38 : kind === 'front' ? 0.7 : kind === 'upperLens' ? 0.32 : 0.16,
     blending: THREE.AdditiveBlending,
     depthTest: false,
     depthWrite: false,
+    side: THREE.DoubleSide,
   })
-  const line = new THREE.Line(geometry, material)
-  line.userData = {
-    role: 'blackHoleAccretion',
+  const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material)
+  const dimensions = kind === 'back'
+    ? [4.32, 0.52]
+    : kind === 'front'
+      ? [1.72 * side, 0.42]
+      : kind === 'upperLens'
+        ? [2.12, 0.68]
+        : [1.58, 0.4]
+  ribbon.scale.set(dimensions[0], dimensions[1], 1)
+  if (kind === 'front') ribbon.position.set(side * 1.35, side * 0.015, 0.018)
+  else if (kind === 'upperLens') ribbon.position.set(0.08, 0.55, 0.02)
+  else if (kind === 'lowerLens') ribbon.position.set(-0.14, -0.46, 0.02)
+  else ribbon.position.set(0, phase > 1 ? 0.055 : -0.035, 0.018)
+  ribbon.userData = {
+    role: 'blackHoleAccretionRibbon',
     kind,
-    offset,
     phase,
-    side,
     baseOpacity: material.opacity,
+    baseY: ribbon.position.y,
   }
-  return line
+  return ribbon
 }
 
-const updateAccretionStream = (line: THREE.Line, time: number) => {
-  const { kind, offset, phase, side, baseOpacity } = line.userData as {
-    kind: AccretionStreamKind
-    offset: number
+const updateAccretionRibbon = (ribbon: THREE.Mesh, time: number) => {
+  const { kind, phase, baseOpacity, baseY } = ribbon.userData as {
+    kind: AccretionRibbonKind
     phase: number
-    side: number
     baseOpacity: number
+    baseY: number
   }
-  const positions = line.geometry.getAttribute('position') as THREE.BufferAttribute
-  const colors = line.geometry.getAttribute('color') as THREE.BufferAttribute
-  const warm = new THREE.Color(0xffc371)
-  const hot = new THREE.Color(0xfff3d9)
-  const cool = new THREE.Color(0xddeeff)
-  const color = new THREE.Color()
-
-  for (let index = 0; index < positions.count; index += 1) {
-    const t = index / Math.max(1, positions.count - 1)
-    let x = 0
-    let y = 0
-    let intensity = 0
-    if (kind === 'back') {
-      x = -2.16 + t * 4.32
-      const centerPull = Math.max(0, 1 - Math.abs(x) / 2.16)
-      y = offset + centerPull * (0.09 + Math.sin(time * 0.14 + phase) * 0.018) + Math.sin(t * Math.PI * 1.4 + phase + time * 0.18) * 0.024
-      intensity = 0.3 + centerPull * 0.62
-    } else if (kind === 'front') {
-      x = side * (0.5 + t * 1.68)
-      const innerPull = 1 - t
-      y = offset + side * innerPull * 0.055 + Math.sin(t * Math.PI * 1.2 + phase + time * 0.2) * (0.035 + innerPull * 0.035)
-      intensity = 0.28 + innerPull * 0.72
-    } else {
-      x = -0.94 + t * 1.88
-      const arch = Math.max(0, 1 - (x / 0.94) ** 2)
-      y = side * (0.47 + arch * 0.22) + offset + Math.sin(t * Math.PI * 1.5 + phase + time * 0.15) * 0.025
-      intensity = 0.22 + arch * 0.68
-    }
-    positions.setXYZ(index, x, y, 0.018)
-    color.lerpColors(warm, hot, intensity)
-    if (kind === 'lensing') color.lerp(cool, 0.14)
-    colors.setXYZ(index, color.r, color.g, color.b)
-  }
-  positions.needsUpdate = true
-  colors.needsUpdate = true
-  const wave = Math.sin(time * (kind === 'front' ? 0.28 : 0.18) + phase) * 0.035
-  ;(line.material as THREE.LineBasicMaterial).opacity = Math.max(0.08, baseOpacity + wave)
+  const material = ribbon.material as THREE.MeshBasicMaterial
+  const texture = material.map
+  if (texture) texture.offset.x = (time * (kind === 'front' ? 0.018 : 0.011) + phase * 0.007) % 1
+  const breathe = Math.sin(time * (kind === 'front' ? 0.32 : 0.2) + phase) * 0.035
+  material.opacity = Math.max(0.08, baseOpacity + breathe)
+  ribbon.position.y = baseY + Math.sin(time * 0.17 + phase) * (kind === 'front' ? 0.012 : 0.018)
 }
 
 const createSoftDiscTexture = () => {
@@ -1219,10 +1253,10 @@ export default function KnowledgeGraph3D({
       while (summonBlackHoleBackAccretionRef.current.length < blackHoleOcclusions.length) {
         const backAccretion = new THREE.Group()
         backAccretion.renderOrder = 9
-        ;[-0.105, -0.064, -0.022, 0.018, 0.058, 0.098].forEach((offset, index) => {
-          const stream = createAccretionStream('back', offset, index * 0.76, 1)
-          stream.renderOrder = 9
-          backAccretion.add(stream)
+        ;[0.42, 1.84].forEach((phase) => {
+          const ribbon = createAccretionRibbon('back', phase)
+          ribbon.renderOrder = 9
+          backAccretion.add(ribbon)
         })
         summonBlackHoleBackAccretionGroup.add(backAccretion)
         summonBlackHoleBackAccretionRef.current.push(backAccretion)
@@ -1230,19 +1264,15 @@ export default function KnowledgeGraph3D({
       while (summonBlackHoleFrontAccretionRef.current.length < blackHoleOcclusions.length) {
         const frontAccretion = new THREE.Group()
         frontAccretion.renderOrder = 12
-        ;[-0.105, -0.052, 0.008, 0.066].forEach((offset, index) => {
-          ;[-1, 1].forEach((side) => {
-            const stream = createAccretionStream('front', offset, index * 0.91 + (side === 1 ? 0.32 : 0), side)
-            stream.renderOrder = 12
-            frontAccretion.add(stream)
-          })
+        ;[-1, 1].forEach((side, index) => {
+          const ribbon = createAccretionRibbon('front', 0.72 + index * 0.88, side)
+          ribbon.renderOrder = 12
+          frontAccretion.add(ribbon)
         })
-        ;[-0.055, 0.018, 0.082].forEach((offset, index) => {
-          ;[-1, 1].forEach((side) => {
-            const lensing = createAccretionStream('lensing', offset, index * 1.18 + (side === 1 ? 0.46 : 0), side)
-            lensing.renderOrder = 12
-            frontAccretion.add(lensing)
-          })
+        ;['upperLens', 'lowerLens'].forEach((kind, index) => {
+          const ribbon = createAccretionRibbon(kind as AccretionRibbonKind, 1.26 + index * 1.14)
+          ribbon.renderOrder = 12
+          frontAccretion.add(ribbon)
         })
         summonBlackHoleFrontAccretionGroup.add(frontAccretion)
         summonBlackHoleFrontAccretionRef.current.push(frontAccretion)
@@ -1341,7 +1371,7 @@ export default function KnowledgeGraph3D({
           const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance * blackHolePortraitScale
           layer.scale.setScalar(worldRadius)
           if (updateStreams) {
-            layer.children.forEach((stream) => updateAccretionStream(stream as THREE.Line, time))
+            layer.children.forEach((ribbon) => updateAccretionRibbon(ribbon as THREE.Mesh, time))
           }
         })
       }
@@ -2185,9 +2215,11 @@ export default function KnowledgeGraph3D({
       ;[summonBlackHoleBackAccretionRef.current, summonBlackHoleFrontAccretionRef.current].forEach((layers) => {
         layers.forEach((layer) => {
           layer.traverse((object) => {
-            if (object instanceof THREE.Line) {
+            if (object instanceof THREE.Mesh) {
               object.geometry.dispose()
-              ;(object.material as THREE.Material).dispose()
+              const material = object.material as THREE.MeshBasicMaterial
+              material.map?.dispose()
+              material.dispose()
             }
           })
         })
