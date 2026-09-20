@@ -824,7 +824,6 @@ export default function KnowledgeGraph3D({
     camera.position.copy(DEFAULT_CAMERA_POSITION)
     scene.add(camera)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
-    renderer.sortObjects = true
     renderer.setClearColor(0x030713, 0)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
     renderer.setSize(mount.clientWidth, mount.clientHeight)
@@ -958,16 +957,22 @@ export default function KnowledgeGraph3D({
     backgroundFlaresRef.current = distantFlares
     const group = new THREE.Group()
     scene.add(group)
+    const summonScene = new THREE.Scene()
+    summonScene.fog = scene.fog
     const summonGroup = new THREE.Group()
     summonGroup.visible = false
-    summonGroup.renderOrder = 20
-    scene.add(summonGroup)
+    summonScene.add(new THREE.AmbientLight(0x9fb8ff, 0.72))
+    const summonLight = new THREE.PointLight(0xcddcff, 1.7, 90)
+    summonLight.position.set(8, 10, 18)
+    summonScene.add(summonLight)
+    summonScene.add(summonGroup)
+    const blackHoleScene = new THREE.Scene()
     const summonBlackHoleCoreGroup = new THREE.Group()
     summonBlackHoleCoreGroup.renderOrder = 10
-    scene.add(summonBlackHoleCoreGroup)
+    blackHoleScene.add(summonBlackHoleCoreGroup)
     const summonBlackHoleFlowGroup = new THREE.Group()
     summonBlackHoleFlowGroup.renderOrder = 11
-    scene.add(summonBlackHoleFlowGroup)
+    blackHoleScene.add(summonBlackHoleFlowGroup)
     const dwellFeedback = new THREE.Mesh(
       new THREE.RingGeometry(0.8, 0.92, 72),
       makeHaloMaterial(0xffdf8a, 0),
@@ -1004,13 +1009,10 @@ export default function KnowledgeGraph3D({
       while (summonBlackHoleCoreRef.current.length < blackHoleOcclusions.length) {
         const core = new THREE.Mesh(
           new THREE.CircleGeometry(1, 128),
-          // Alpha remains exactly 1. Marking this transparent puts it in the same ordered
-          // render pass as the starfield, lensing, and summon sprites instead of letting
-          // later transparent background fragments paint over an otherwise opaque core.
           new THREE.MeshBasicMaterial({
             color: 0x000000,
             opacity: 1,
-            transparent: true,
+            transparent: false,
             blending: THREE.NormalBlending,
             depthTest: false,
             depthWrite: false,
@@ -1778,7 +1780,16 @@ export default function KnowledgeGraph3D({
         lastSummonResultTargetRef.current = undefined
         summonCallbacksRef.current.onSummonResultTargetChange?.(undefined)
       }
+      renderer.autoClear = true
       renderer.render(scene, camera)
+      if (summonActive && summonStage !== 'setup') {
+        renderer.autoClear = false
+        renderer.clearDepth()
+        renderer.render(blackHoleScene, camera)
+        renderer.clearDepth()
+        renderer.render(summonScene, camera)
+        renderer.autoClear = true
+      }
     }
     animate()
 
@@ -2211,9 +2222,7 @@ export default function KnowledgeGraph3D({
         attenuationDistance: 1.3,
         iridescence: 0.14,
         iridescenceIOR: 1.3,
-        // Keep every summon celestial body in the ordered transparent pass so it is
-        // always painted after the black-hole core and its stream group.
-        transparent: true,
+        transparent: false,
         opacity: 1,
       })
       const rimColor = new THREE.Color(haloColor)
@@ -2240,7 +2249,6 @@ export default function KnowledgeGraph3D({
         coreMaterial,
       )
       core.userData = { summonId: star.id, role: 'core', baseEmissiveIntensity: coreEmissiveIntensity }
-      core.renderOrder = 20
       core.scale.setScalar(selected ? 1.055 : 1)
       core.rotation.set(phase * 0.11, phase * 0.17, phase * 0.06)
       root.add(core)
@@ -2538,12 +2546,6 @@ export default function KnowledgeGraph3D({
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh || child instanceof THREE.Sprite || child instanceof THREE.Line)) return
         child.renderOrder = child.userData.role === 'core' ? 20 : child.userData.role === 'resolvedLabel' ? 32 : 30
-        const material = child.material as THREE.Material | THREE.Material[]
-        const materials = Array.isArray(material) ? material : [material]
-        materials.forEach((item) => {
-          item.depthTest = false
-          item.depthWrite = false
-        })
       })
       group.add(root)
       summonEffectsRef.current.push(root)
