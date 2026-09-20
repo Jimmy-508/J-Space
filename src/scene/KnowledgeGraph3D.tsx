@@ -1046,8 +1046,37 @@ export default function KnowledgeGraph3D({
           })
           const thread = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), material)
           thread.renderOrder = 11
-          thread.userData = { baseOpacity: material.opacity, offset: index * 0.42, speed: 0.014 + (index % 5) * 0.002 }
+          thread.userData = { role: 'blackHoleThread', baseOpacity: material.opacity, offset: index * 0.42, speed: 0.014 + (index % 5) * 0.002 }
           flow.add(thread)
+
+          // A long, moving highlight rides each continuous thread. It makes the light itself
+          // travel around the horizon without turning the entire black hole into a spinner.
+          const tier = radius < 1.065 ? 0 : radius < 1.115 ? 1 : 2
+          const pointCount = 28
+          const currentGeometry = new THREE.BufferGeometry()
+          currentGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3))
+          const currentMaterial = new THREE.LineBasicMaterial({
+            color: colors[index % colors.length],
+            transparent: true,
+            opacity: [0.62, 0.5, 0.38][tier],
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false,
+          })
+          const current = new THREE.Line(currentGeometry, currentMaterial)
+          current.renderOrder = 11
+          current.userData = {
+            role: 'blackHoleCurrent',
+            radius,
+            drift,
+            lensPhase: index * 0.72,
+            phase: index * 0.42 + (index % 3) * 0.7,
+            arcLength: [1.16, 1.42, 1.7][tier],
+            flowSpeed: [0.14, 0.098, 0.063][tier],
+            baseOpacity: [0.62, 0.5, 0.38][tier],
+            breathePhase: index * 0.58,
+          }
+          flow.add(current)
         })
         summonBlackHoleFlowGroup.add(flow)
         summonBlackHoleFlowRef.current.push(flow)
@@ -1085,11 +1114,35 @@ export default function KnowledgeGraph3D({
         flow.quaternion.copy(camera.quaternion)
         const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance
         flow.scale.setScalar(worldRadius)
-        flow.rotateZ(time * 0.012)
+        flow.rotateZ(time * 0.004)
         flow.children.forEach((thread) => {
           const material = (thread as THREE.Line).material as THREE.LineBasicMaterial
-          material.opacity = Math.max(0.22, (thread.userData.baseOpacity ?? 0.5) + Math.sin(time * 0.42 + (thread.userData.offset ?? 0)) * 0.11)
-          thread.rotation.z = Math.sin(time * (thread.userData.speed ?? 0.014) + (thread.userData.offset ?? 0)) * 0.028
+          if (thread.userData.role === 'blackHoleCurrent') {
+            const position = (thread as THREE.Line).geometry.getAttribute('position') as THREE.BufferAttribute
+            const progressSpeed = thread.userData.flowSpeed ?? 0.08
+            const phase = thread.userData.phase ?? 0
+            const advance = time * progressSpeed * (1 + Math.sin(time * 0.11 + phase) * 0.07) + phase
+            const arcLength = thread.userData.arcLength ?? 1.4
+            const radius = thread.userData.radius ?? 1.08
+            const drift = thread.userData.drift ?? 0
+            const lensPhase = thread.userData.lensPhase ?? 0
+            for (let pointIndex = 0; pointIndex < position.count; pointIndex += 1) {
+              const portion = pointIndex / Math.max(1, position.count - 1) - 0.5
+              const angle = advance + portion * arcLength
+              const lensing = 1 + Math.sin(angle * 2 + lensPhase) * 0.012
+              position.setXYZ(
+                pointIndex,
+                Math.cos(angle) * radius * lensing,
+                Math.sin(angle) * radius + drift * Math.sin(angle * 3),
+                0.004,
+              )
+            }
+            position.needsUpdate = true
+            material.opacity = Math.max(0.18, (thread.userData.baseOpacity ?? 0.42) + Math.sin(time * 0.2 + (thread.userData.breathePhase ?? 0)) * 0.032)
+            return
+          }
+          material.opacity = Math.max(0.22, (thread.userData.baseOpacity ?? 0.5) + Math.sin(time * 0.2 + (thread.userData.offset ?? 0)) * 0.032)
+          thread.rotation.z = Math.sin(time * (thread.userData.speed ?? 0.014) * 0.32 + (thread.userData.offset ?? 0)) * 0.008
         })
       })
       const summonActive = appModeRef.current === 'summon'
