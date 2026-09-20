@@ -287,67 +287,10 @@ function HandEnergyOverlay({
     }, 420)
   }, [handsReady, summonEnergyActive, summonEnergyTarget, summonHandSignature, summonEnergyHands])
   const hiddenHandIds = new Set([...summonEnergyHands.map((hand) => hand.id), ...collapseHands.map((hand) => hand.id)])
-  const getSingularityScale = () => {
-    const portraitBlackHoleBoost = viewportSize.height > viewportSize.width ? 2.7 : 1
-    const currentScale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBlackHoleBoost
-    return currentScale * 1.3
-  }
-  const singularityTransform = (point: ScreenPoint) => `translate(${point.x} ${point.y}) scale(${getSingularityScale()})`
-  const renderSummonBlackHoleDepth = (key: string, point: ScreenPoint, state = '') => (
-    <g key={key} className={`summon-singularity ${state}`} transform={`translate(${point.x} ${point.y}) scale(${getSingularityScale()})`}>
-      <g className="summon-black-depth-field">
-        <circle className="summon-depth-falloff" r="124" />
-        <circle className="summon-depth-lens" r="101" />
-      </g>
-    </g>
-  )
-  const renderSummonBlackHoleAccretion = (key: string, point: ScreenPoint, state = '') => (
-    <g key={key} className={`summon-singularity ${state}`} transform={singularityTransform(point)}>
-      <defs>
-        <mask id={`${key}-accretion-mask`} maskUnits="userSpaceOnUse" x="-132" y="-132" width="264" height="264">
-          <rect x="-132" y="-132" width="264" height="264" fill="#fff" />
-          <circle r="82" fill="#000" />
-        </mask>
-      </defs>
-      <g className="summon-accretion-field" mask={`url(#${key}-accretion-mask)`}>
-        {Array.from({ length: 22 }, (_, index) => {
-          const radius = 78 + (index % 7) * 1.55
-          const vertical = radius * (0.92 + ((index * 5) % 4) * 0.017)
-          const drift = (index - 10.5) * 0.42
-          const phase = (index % 5) * 0.16
-          return <path key={`accretion-${index}`} className={`summon-accretion-thread thread-${index % 5}`} style={{ animationDelay: `${-index * 0.72}s` }} d={`M 0 ${-vertical} C ${radius * 0.66} ${-vertical - drift}, ${radius + drift} ${-vertical * 0.34}, ${radius} ${phase} C ${radius - drift} ${vertical * 0.56}, ${radius * 0.6} ${vertical + drift}, 0 ${vertical} C ${-radius * 0.66} ${vertical - drift}, ${-radius - drift} ${vertical * 0.36}, ${-radius} ${-phase} C ${-radius + drift} ${-vertical * 0.54}, ${-radius * 0.6} ${-vertical + drift}, 0 ${-vertical}`} />
-        })}
-      </g>
-    </g>
-  )
-
   if (!handsReady) return null
 
   return (
     <>
-      <svg
-        className="summon-black-hole-layer"
-        viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
-        aria-hidden="true"
-      >
-        <defs>
-          <radialGradient id="summon-depth-gradient" cx="50%" cy="50%" r="52%">
-            <stop offset="18%" stopColor="rgba(0, 0, 0, 0.72)" />
-            <stop offset="62%" stopColor="rgba(0, 0, 0, 0.3)" />
-            <stop offset="100%" stopColor="rgba(0, 0, 0, 0)" />
-          </radialGradient>
-        </defs>
-        {summonEnergyHands.map((hand) => renderSummonBlackHoleDepth(`summon-black-hole-${hand.id}`, hand.point))}
-        {collapseHands.map((hand) => renderSummonBlackHoleDepth(`summon-black-hole-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
-      </svg>
-      <svg
-        className="summon-black-hole-stream-layer"
-        viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
-        aria-hidden="true"
-      >
-        {summonEnergyHands.map((hand) => renderSummonBlackHoleAccretion(`summon-black-hole-stream-${hand.id}`, hand.point))}
-        {collapseHands.map((hand) => renderSummonBlackHoleAccretion(`summon-black-hole-stream-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
-      </svg>
       <svg
         className="hand-energy-layer"
         viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
@@ -1408,8 +1351,8 @@ export default function App() {
           className="summon-result-number"
           aria-live="polite"
           style={{
-            '--return-x': `${summonResultTarget?.x ?? viewportSize.width / 2}px`,
-            '--return-y': `${summonResultTarget?.y ?? viewportSize.height / 2}px`,
+            '--return-dx': `${(summonResultTarget?.x ?? viewportSize.width / 2) - viewportSize.width / 2}px`,
+            '--return-dy': `${(summonResultTarget?.y ?? viewportSize.height / 2) - viewportSize.height / 2}px`,
           } as CSSProperties}
         >{summonResultOverlay.value}</div>
       ) : null}

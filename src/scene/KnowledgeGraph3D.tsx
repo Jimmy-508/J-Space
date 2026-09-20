@@ -584,6 +584,8 @@ export default function KnowledgeGraph3D({
   const summonEffectsRef = useRef<THREE.Object3D[]>([])
   const summonGroupRef = useRef<THREE.Group | null>(null)
   const summonBlackHoleCoreRef = useRef<THREE.Mesh[]>([])
+  const summonBlackHoleFlowRef = useRef<THREE.Group[]>([])
+  const lastSummonResultTargetRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
   const nebulaRef = useRef<THREE.Sprite[]>([])
@@ -957,6 +959,9 @@ export default function KnowledgeGraph3D({
     const summonBlackHoleCoreGroup = new THREE.Group()
     summonBlackHoleCoreGroup.renderOrder = 10
     scene.add(summonBlackHoleCoreGroup)
+    const summonBlackHoleFlowGroup = new THREE.Group()
+    summonBlackHoleFlowGroup.renderOrder = 11
+    scene.add(summonBlackHoleFlowGroup)
     const dwellFeedback = new THREE.Mesh(
       new THREE.RingGeometry(0.8, 0.92, 72),
       makeHaloMaterial(0xffdf8a, 0),
@@ -999,6 +1004,35 @@ export default function KnowledgeGraph3D({
         summonBlackHoleCoreGroup.add(core)
         summonBlackHoleCoreRef.current.push(core)
       }
+      while (summonBlackHoleFlowRef.current.length < blackHoleOcclusions.length) {
+        const flow = new THREE.Group()
+        flow.renderOrder = 11
+        Array.from({ length: 22 }, (_, index) => {
+          const radius = 1.015 + (index % 7) * 0.024
+          const vertical = radius * (0.9 + ((index * 5) % 4) * 0.018)
+          const drift = (index - 10.5) * 0.0025
+          const points = Array.from({ length: 129 }, (_, pointIndex) => {
+            const angle = (pointIndex / 128) * Math.PI * 2
+            const lensing = 1 + Math.sin(angle * 2 + index * 0.72) * 0.012
+            return new THREE.Vector3(Math.cos(angle) * radius * lensing, Math.sin(angle) * vertical + drift * Math.sin(angle * 3), 0)
+          })
+          const colors = [0xfff1cc, 0xffc46d, 0xbde7ff, 0xffdfaa, 0xffcf87]
+          const material = new THREE.LineBasicMaterial({
+            color: colors[index % colors.length],
+            transparent: true,
+            opacity: index % 5 === 2 ? 0.33 : 0.56,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false,
+          })
+          const thread = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), material)
+          thread.renderOrder = 11
+          thread.userData = { baseOpacity: material.opacity, offset: index * 0.42, speed: 0.014 + (index % 5) * 0.002 }
+          flow.add(thread)
+        })
+        summonBlackHoleFlowGroup.add(flow)
+        summonBlackHoleFlowRef.current.push(flow)
+      }
       summonBlackHoleCoreRef.current.forEach((core, index) => {
         const occlusion = blackHoleOcclusions[index]
         core.visible = !!occlusion
@@ -1015,6 +1049,29 @@ export default function KnowledgeGraph3D({
         core.quaternion.copy(camera.quaternion)
         const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance
         core.scale.setScalar(worldRadius)
+      })
+      summonBlackHoleFlowRef.current.forEach((flow, index) => {
+        const occlusion = blackHoleOcclusions[index]
+        flow.visible = !!occlusion
+        if (!occlusion) return
+        const distance = 24
+        const ndc = new THREE.Vector3(
+          (occlusion.point.x / Math.max(1, renderer.domElement.clientWidth)) * 2 - 1,
+          -(occlusion.point.y / Math.max(1, renderer.domElement.clientHeight)) * 2 + 1,
+          0.1,
+        )
+        ndc.unproject(camera)
+        const direction = ndc.sub(camera.position).normalize()
+        flow.position.copy(camera.position).addScaledVector(direction, distance)
+        flow.quaternion.copy(camera.quaternion)
+        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance
+        flow.scale.setScalar(worldRadius)
+        flow.rotateZ(time * 0.012)
+        flow.children.forEach((thread) => {
+          const material = (thread as THREE.Line).material as THREE.LineBasicMaterial
+          material.opacity = Math.max(0.22, (thread.userData.baseOpacity ?? 0.5) + Math.sin(time * 0.42 + (thread.userData.offset ?? 0)) * 0.11)
+          thread.rotation.z = Math.sin(time * (thread.userData.speed ?? 0.014) + (thread.userData.offset ?? 0)) * 0.028
+        })
       })
       const summonActive = appModeRef.current === 'summon'
       const summonStage = summonStageRef.current
@@ -1686,14 +1743,22 @@ export default function KnowledgeGraph3D({
       if (returnStarId) {
         const mesh = resolvedSummonMeshesRef.current.get(returnStarId) ?? summonMeshesRef.current.get(returnStarId)
         if (mesh) {
+          mesh.updateWorldMatrix(true, false)
+          camera.updateMatrixWorld()
           const world = new THREE.Vector3()
           mesh.getWorldPosition(world)
           const projected = world.clone().project(camera)
-          const x = (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth
-          const y = (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight
-          summonCallbacksRef.current.onSummonResultTargetChange?.({ x, y })
+          const canvasRect = renderer.domElement.getBoundingClientRect()
+          const x = canvasRect.left + (projected.x * 0.5 + 0.5) * canvasRect.width
+          const y = canvasRect.top + (-projected.y * 0.5 + 0.5) * canvasRect.height
+          const previousTarget = lastSummonResultTargetRef.current
+          if (!previousTarget || Math.abs(previousTarget.x - x) > 0.35 || Math.abs(previousTarget.y - y) > 0.35) {
+            lastSummonResultTargetRef.current = { x, y }
+            summonCallbacksRef.current.onSummonResultTargetChange?.({ x, y })
+          }
         }
       } else {
+        lastSummonResultTargetRef.current = undefined
         summonCallbacksRef.current.onSummonResultTargetChange?.(undefined)
       }
       renderer.render(scene, camera)
@@ -1719,6 +1784,15 @@ export default function KnowledgeGraph3D({
         ;(core.material as THREE.Material).dispose()
       })
       summonBlackHoleCoreRef.current = []
+      summonBlackHoleFlowRef.current.forEach((flow) => {
+        flow.traverse((object) => {
+          if (object instanceof THREE.Line) {
+            object.geometry.dispose()
+            ;(object.material as THREE.Material).dispose()
+          }
+        })
+      })
+      summonBlackHoleFlowRef.current = []
       renderer.dispose()
       cometsRef.current.forEach(disposeComet)
       if (warpStreaksRef.current) {
