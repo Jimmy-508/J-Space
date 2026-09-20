@@ -94,6 +94,26 @@ const makeHaloMaterial = (color: number, opacity: number) => new THREE.MeshBasic
   depthWrite: false,
 })
 
+const createAnnularArcGeometry = (innerRadius: number, outerRadius: number, startAngle: number, arcAngle: number, segments = 28) => {
+  const positions: number[] = []
+  const indices: number[] = []
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = startAngle + arcAngle * (index / segments)
+    const cosine = Math.cos(angle)
+    const sine = Math.sin(angle)
+    positions.push(innerRadius * cosine, innerRadius * sine, 0, outerRadius * cosine, outerRadius * sine, 0)
+  }
+  for (let index = 0; index < segments; index += 1) {
+    const base = index * 2
+    indices.push(base, base + 1, base + 3, base, base + 3, base + 2)
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 const isClusterNode = (node: KnowledgeNode) => node.tags?.includes('cluster') ?? false
 
 const isContentNode = (node: KnowledgeNode) => (
@@ -1661,20 +1681,22 @@ export default function KnowledgeGraph3D({
         }
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
-            if (child.userData.role !== 'summonSelectedRing') child.quaternion.copy(camera.quaternion)
-            if (child.userData.role === 'summonSelectedRing') {
+            const isSelectedArc = child.userData.role === 'summonSelectedArc' || child.userData.role === 'summonSelectedArcGlow'
+            if (!isSelectedArc) child.quaternion.copy(camera.quaternion)
+            if (isSelectedArc) {
               const parentQuaternion = new THREE.Quaternion()
               child.parent?.getWorldQuaternion(parentQuaternion)
               const tiltQuaternion = child.userData.tiltQuaternion as THREE.Quaternion
               const spinQuaternion = new THREE.Quaternion().setFromAxisAngle(
                 new THREE.Vector3(0, 0, 1),
-                (child.userData.spinOffset ?? 0) + time * 0.12,
+                (child.userData.spinOffset ?? 0) + time * (child.userData.speed ?? 0.04),
               )
               const cameraRelativeTilt = camera.quaternion.clone().multiply(tiltQuaternion).multiply(spinQuaternion)
               child.quaternion.copy(parentQuaternion.invert().multiply(cameraRelativeTilt))
-              child.scale.setScalar(1 + Math.sin(time * 0.68 + phase) * 0.028)
+              child.scale.setScalar(1 + Math.sin(time * 0.34 + phase + (child.userData.spinOffset ?? 0)) * 0.016)
               const material = child.material as THREE.MeshBasicMaterial
-              material.opacity = Math.max(0.66, (child.userData.baseOpacity ?? 0.74) + Math.sin(time * 0.68 + phase) * 0.025)
+              const baseOpacity = child.userData.baseOpacity ?? 0.3
+              material.opacity = Math.max(baseOpacity * 0.84, baseOpacity + Math.sin(time * 0.34 + phase + (child.userData.spinOffset ?? 0)) * baseOpacity * 0.09)
             }
             if (child.userData.role === 'resolvedRing') child.scale.setScalar(1 + Math.sin(time * 0.8 + phase) * 0.03)
             if (child.userData.role === 'shockwave') {
@@ -1726,11 +1748,24 @@ export default function KnowledgeGraph3D({
             child.quaternion.copy(camera.quaternion)
             const material = child.material as THREE.SpriteMaterial
             if (child.userData.role === 'summonSelectedHalo') {
-              const baseScale = child.userData.baseScale ?? 1
-              const baseOpacity = child.userData.baseOpacity ?? 0.44
-              const breathe = Math.sin(time * 0.68 + phase) * 0.025
-              child.scale.setScalar(baseScale * (1 + breathe))
-              material.opacity = Math.max(0.4, baseOpacity + Math.sin(time * 0.68 + phase) * 0.022)
+              const baseScaleX = child.userData.baseScaleX ?? child.scale.x
+              const baseScaleY = child.userData.baseScaleY ?? child.scale.y
+              const baseOpacity = child.userData.baseOpacity ?? 0.26
+              const breathe = Math.sin(time * 0.31 + phase) * 0.018
+              child.scale.set(baseScaleX * (1 + breathe), baseScaleY * (1 + breathe), 1)
+              material.opacity = Math.max(baseOpacity * 0.84, baseOpacity + Math.sin(time * 0.31 + phase) * 0.014)
+            } else if (child.userData.role === 'summonSelectedDust') {
+              const speed = child.userData.speed ?? 0.12
+              const angle = (child.userData.angle ?? 0) + time * speed
+              const radius = (child.userData.radius ?? 1) * (1 + Math.sin(time * 0.22 + (child.userData.offset ?? 0)) * 0.035)
+              child.position.set(
+                Math.cos(angle) * radius,
+                Math.sin(angle) * radius * (child.userData.ellipse ?? 0.82),
+                0.42 + Math.sin(time * 0.28 + (child.userData.offset ?? 0)) * 0.07,
+              )
+              child.scale.setScalar((child.userData.baseScale ?? 0.04) * (1 + Math.sin(time * 0.44 + (child.userData.offset ?? 0)) * 0.08))
+              const baseOpacity = child.userData.baseOpacity ?? 0.18
+              material.opacity = Math.max(baseOpacity * 0.78, baseOpacity + Math.sin(time * 0.36 + (child.userData.offset ?? 0)) * 0.025)
             } else if (child.userData.role === 'result') {
               const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
               child.position.y = 0.26 + Math.sin(time * 0.9 + phase) * 0.08
@@ -2322,37 +2357,92 @@ export default function KnowledgeGraph3D({
       if (isSelected) {
         const selectionHalo = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,
-          color: 0xcceeff,
-          opacity: 0.44,
+          color: haloColor,
+          opacity: 0.26,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthTest: false,
           depthWrite: false,
         }))
-        const selectionHaloScale = size * 3.32
-        selectionHalo.scale.setScalar(selectionHaloScale)
+        const selectionHaloScaleX = size * 3.72
+        const selectionHaloScaleY = size * 3.34
+        selectionHalo.scale.set(selectionHaloScaleX, selectionHaloScaleY, 1)
         selectionHalo.userData = {
           role: 'summonSelectedHalo',
-          baseScale: selectionHaloScale,
-          baseOpacity: 0.44,
+          baseScaleX: selectionHaloScaleX,
+          baseScaleY: selectionHaloScaleY,
+          baseOpacity: 0.26,
         }
         root.add(selectionHalo)
 
-        const selectionRing = new THREE.Mesh(
-          new THREE.RingGeometry(size * 1.38, size * 1.43, 96),
-          makeHaloMaterial(0xe3f6ff, 0.74),
-        )
-        const selectionRingMaterial = selectionRing.material as THREE.MeshBasicMaterial
-        selectionRingMaterial.depthTest = false
-        selectionRingMaterial.side = THREE.DoubleSide
-        selectionRing.rotation.set(0.76, -0.42, phase * 0.06)
-        selectionRing.userData = {
-          role: 'summonSelectedRing',
-          baseOpacity: 0.74,
-          tiltQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.76, -0.42, 0)),
-          spinOffset: phase * 0.06,
-        }
-        root.add(selectionRing)
+        const selectedArcConfigs = [
+          { radius: 1.42, start: -0.32, length: Math.PI * 0.56, tilt: [0.62, -0.46, 0.18], speed: 0.052, opacity: 0.52 },
+          { radius: 1.64, start: 2.02, length: Math.PI * 0.43, tilt: [-0.48, 0.54, -0.26], speed: -0.037, opacity: 0.46 },
+          { radius: 1.88, start: 4.3, length: Math.PI * 0.34, tilt: [0.34, 0.7, 0.42], speed: 0.026, opacity: 0.4 },
+        ] as const
+        selectedArcConfigs.forEach((arc, arcIndex) => {
+          const arcColor = arcIndex === 1 ? palette.particle : haloColor
+          const arcStart = arc.start + phase * (0.14 + arcIndex * 0.05)
+          const glow = new THREE.Mesh(
+            createAnnularArcGeometry(size * (arc.radius - 0.036), size * (arc.radius + 0.04), arcStart, arc.length),
+            makeHaloMaterial(arcColor, arc.opacity * 0.2),
+          )
+          const glowMaterial = glow.material as THREE.MeshBasicMaterial
+          glowMaterial.depthTest = false
+          glowMaterial.side = THREE.DoubleSide
+          glow.userData = {
+            role: 'summonSelectedArcGlow',
+            baseOpacity: arc.opacity * 0.2,
+            tiltQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(...arc.tilt)),
+            spinOffset: phase * (0.03 + arcIndex * 0.04),
+            speed: arc.speed,
+          }
+          root.add(glow)
+
+          const arcMesh = new THREE.Mesh(
+            createAnnularArcGeometry(size * (arc.radius - 0.011), size * (arc.radius + 0.014), arcStart, arc.length),
+            makeHaloMaterial(arcColor, arc.opacity),
+          )
+          const arcMaterial = arcMesh.material as THREE.MeshBasicMaterial
+          arcMaterial.depthTest = false
+          arcMaterial.side = THREE.DoubleSide
+          arcMesh.userData = {
+            role: 'summonSelectedArc',
+            baseOpacity: arc.opacity,
+            tiltQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(...arc.tilt)),
+            spinOffset: phase * (0.03 + arcIndex * 0.04),
+            speed: arc.speed,
+          }
+          root.add(arcMesh)
+        })
+
+        Array.from({ length: 7 }).forEach((_, dustIndex) => {
+          const dust = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: softDiscTexture,
+            color: dustIndex % 3 === 0 ? palette.particle : haloColor,
+            opacity: 0.18 + (dustIndex % 2) * 0.035,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false,
+          }))
+          const angle = phase * 0.2 + dustIndex * 1.71
+          const radius = size * (1.48 + (dustIndex % 4) * 0.17)
+          const baseScale = size * (0.038 + (dustIndex % 3) * 0.012)
+          dust.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * (0.78 + (dustIndex % 2) * 0.08), 0.42)
+          dust.scale.setScalar(baseScale)
+          dust.userData = {
+            role: 'summonSelectedDust',
+            angle,
+            radius,
+            ellipse: 0.78 + (dustIndex % 2) * 0.08,
+            baseScale,
+            baseOpacity: 0.18 + (dustIndex % 2) * 0.035,
+            speed: 0.11 + (dustIndex % 3) * 0.035,
+            offset: dustIndex * 0.83,
+          }
+          root.add(dust)
+        })
       }
       const moteCount = inactive ? 2 : holding ? 12 : armed ? 10 : 3
       const moteOpacity = inactive ? 0.18 : holding ? 0.78 : armed ? 0.64 : 0.32
@@ -2578,7 +2668,7 @@ export default function KnowledgeGraph3D({
           ? 20
           : child.userData.role === 'resolvedLabel'
             ? 32
-            : child.userData.role === 'summonSelectedHalo' || child.userData.role === 'summonSelectedRing'
+            : child.userData.role === 'summonSelectedHalo' || child.userData.role === 'summonSelectedArc' || child.userData.role === 'summonSelectedArcGlow' || child.userData.role === 'summonSelectedDust'
               ? 31
               : 30
       })
