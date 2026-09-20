@@ -844,9 +844,11 @@ export default function KnowledgeGraph3D({
     starfieldsRef.current.forEach((field) => {
       field.userData.initialRotationY = field.rotation.y
       field.userData.baseSize = (field.material as THREE.PointsMaterial).size
+      field.renderOrder = 0
       scene.add(field)
     })
     const warpStreaks = createWarpStreaks()
+    warpStreaks.renderOrder = 0
     scene.add(warpStreaks)
     warpStreaksRef.current = warpStreaks
     const nebulaLayer = [
@@ -880,6 +882,7 @@ export default function KnowledgeGraph3D({
         initialPosition: sprite.position.clone(),
         initialMaterialRotation: sprite.material.rotation,
       }
+      sprite.renderOrder = 0
       scene.add(sprite)
       return sprite
     })
@@ -910,6 +913,7 @@ export default function KnowledgeGraph3D({
         initialPosition: sprite.position.clone(),
         initialMaterialRotation: sprite.material.rotation,
       }
+      sprite.renderOrder = 0
       scene.add(sprite)
       return sprite
     })
@@ -946,6 +950,7 @@ export default function KnowledgeGraph3D({
         initialMaterialRotation: sprite.material.rotation,
         initialScale: sprite.scale.clone(),
       }
+      sprite.renderOrder = 0
       scene.add(sprite)
       return sprite
     })
@@ -998,7 +1003,18 @@ export default function KnowledgeGraph3D({
       while (summonBlackHoleCoreRef.current.length < blackHoleOcclusions.length) {
         const core = new THREE.Mesh(
           new THREE.CircleGeometry(1, 128),
-          new THREE.MeshBasicMaterial({ color: 0x000000, depthTest: false, depthWrite: false, transparent: false, fog: false }),
+          // Alpha remains exactly 1. Marking this transparent puts it in the same ordered
+          // render pass as the starfield, lensing, and summon sprites instead of letting
+          // later transparent background fragments paint over an otherwise opaque core.
+          new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            opacity: 1,
+            transparent: true,
+            blending: THREE.NormalBlending,
+            depthTest: false,
+            depthWrite: false,
+            fog: false,
+          }),
         )
         core.renderOrder = 10
         summonBlackHoleCoreGroup.add(core)
@@ -2194,7 +2210,9 @@ export default function KnowledgeGraph3D({
         attenuationDistance: 1.3,
         iridescence: 0.14,
         iridescenceIOR: 1.3,
-        transparent: false,
+        // Keep every summon celestial body in the ordered transparent pass so it is
+        // always painted after the black-hole core and its stream group.
+        transparent: true,
         opacity: 1,
       })
       const rimColor = new THREE.Color(haloColor)
@@ -2221,6 +2239,7 @@ export default function KnowledgeGraph3D({
         coreMaterial,
       )
       core.userData = { summonId: star.id, role: 'core', baseEmissiveIntensity: coreEmissiveIntensity }
+      core.renderOrder = 20
       core.scale.setScalar(selected ? 1.055 : 1)
       core.rotation.set(phase * 0.11, phase * 0.17, phase * 0.06)
       root.add(core)
@@ -2514,6 +2533,11 @@ export default function KnowledgeGraph3D({
         trail.userData = { role: 'deployTrail' }
         root.add(trail)
       }
+      root.renderOrder = 20
+      root.traverse((child) => {
+        if (!(child instanceof THREE.Mesh || child instanceof THREE.Sprite || child instanceof THREE.Line)) return
+        child.renderOrder = child.userData.role === 'core' ? 20 : child.userData.role === 'resolvedLabel' ? 32 : 30
+      })
       group.add(root)
       summonEffectsRef.current.push(root)
       if (inactive) resolvedSummonMeshesRef.current.set(star.id, core)
