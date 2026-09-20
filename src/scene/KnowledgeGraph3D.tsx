@@ -1662,17 +1662,15 @@ export default function KnowledgeGraph3D({
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
             child.quaternion.copy(camera.quaternion)
-            if (child.userData.role === 'ring') child.scale.setScalar(holding ? 1 - holdProgress * 0.34 + Math.sin(time * (13 + holdProgress * 13) + phase) * 0.035 : 1 + Math.sin(time * 1.8 + phase) * 0.08)
+            if (child.userData.role === 'selectionRing') {
+              child.scale.setScalar(holding
+                ? 1 - holdProgress * 0.34 + Math.sin(time * (13 + holdProgress * 13) + phase) * 0.035
+                : 1 + Math.sin(time * 1.8 + phase) * 0.08)
+              const material = child.material as THREE.MeshBasicMaterial
+              material.opacity = Math.max(0.58, (child.userData.baseOpacity ?? 0.72) + Math.sin(time * 0.72 + phase) * 0.035)
+            }
             if (child.userData.role === 'innerRing') child.scale.setScalar(holding ? 1 - holdProgress * 0.42 + Math.sin(time * (15 + holdProgress * 16) + phase) * 0.025 : 1 + Math.sin(time * 2.4 + phase) * 0.055)
             if (child.userData.role === 'focusWave') child.scale.setScalar(holding ? 0.96 - holdProgress * 0.32 + Math.sin(time * 18 + phase) * 0.09 : 1.04 + Math.sin(time * 1.4 + phase) * 0.18)
-            if (child.userData.role === 'selectionHalo') {
-              const baseScale = child.userData.baseScale ?? 1
-              const baseOpacity = child.userData.baseOpacity ?? 0.42
-              const breathe = Math.sin(time * 0.72 + phase) * 0.035
-              child.scale.setScalar(baseScale * (1 + breathe))
-              const material = child.material as THREE.SpriteMaterial
-              material.opacity = Math.max(0.34, baseOpacity + Math.sin(time * 0.72 + phase) * 0.05)
-            }
             if (child.userData.role === 'resolvedRing') child.scale.setScalar(1 + Math.sin(time * 0.8 + phase) * 0.03)
             if (child.userData.role === 'shockwave') {
               const delay = child.userData.delay ?? 0
@@ -1730,7 +1728,13 @@ export default function KnowledgeGraph3D({
           if (child instanceof THREE.Sprite) {
             child.quaternion.copy(camera.quaternion)
             const material = child.material as THREE.SpriteMaterial
-            if (child.userData.role === 'result') {
+            if (child.userData.role === 'selectionHalo') {
+              const baseScale = child.userData.baseScale ?? 1
+              const baseOpacity = child.userData.baseOpacity ?? 0.48
+              const breathe = Math.sin(time * 0.72 + phase) * 0.035
+              child.scale.setScalar(baseScale * (1 + breathe))
+              material.opacity = Math.max(0.42, baseOpacity + Math.sin(time * 0.72 + phase) * 0.05)
+            } else if (child.userData.role === 'result') {
               const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
               child.position.y = 0.26 + Math.sin(time * 0.9 + phase) * 0.08
               const labelPulse = 1 + Math.sin(Math.min(1, age) * Math.PI) * 0.18
@@ -2328,6 +2332,7 @@ export default function KnowledgeGraph3D({
           opacity: holding ? 0.62 : armed ? 0.54 : 0.48,
           transparent: true,
           blending: THREE.AdditiveBlending,
+          depthTest: false,
           depthWrite: false,
         }))
         const selectionHaloScale = size * (holding ? 4.05 : armed ? 3.72 : 3.52)
@@ -2363,7 +2368,12 @@ export default function KnowledgeGraph3D({
           new THREE.RingGeometry(ringRadius, ringRadius + (inactive ? 0.025 : selected ? 0.078 : 0.055), 64),
           makeHaloMaterial(haloColor, inactive ? 0.16 : holding ? 0.76 : armed ? 0.68 : selected ? 0.78 : 0.16),
         )
-        ring.userData = { role: inactive ? 'resolvedRing' : 'ring' }
+        const ringMaterial = ring.material as THREE.MeshBasicMaterial
+        if (focusActive) ringMaterial.depthTest = false
+        ring.userData = {
+          role: inactive ? 'resolvedRing' : 'selectionRing',
+          baseOpacity: inactive ? 0.16 : holding ? 0.76 : armed ? 0.68 : 0.78,
+        }
         ring.rotation.z = phase
         root.add(ring)
       }
@@ -2600,7 +2610,13 @@ export default function KnowledgeGraph3D({
       root.renderOrder = 20
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh || child instanceof THREE.Sprite || child instanceof THREE.Line)) return
-        child.renderOrder = child.userData.role === 'core' ? 20 : child.userData.role === 'resolvedLabel' ? 32 : 30
+        child.renderOrder = child.userData.role === 'core'
+          ? 20
+          : child.userData.role === 'resolvedLabel'
+            ? 32
+            : child.userData.role === 'selectionHalo' || child.userData.role === 'selectionRing'
+              ? 31
+              : 30
       })
       group.add(root)
       summonEffectsRef.current.push(root)
