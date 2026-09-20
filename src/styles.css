@@ -2437,8 +2437,8 @@ textarea {
   }
 
   .summon-panel-setup .summon-range-field .summon-range-input {
-    width: 44px;
-    min-width: 44px;
+    width: 41.25px;
+    min-width: 41.25px;
   }
 
   .summon-panel-status,
