@@ -193,6 +193,7 @@ export default function SummonControls({
             <label className="summon-exclude-field">
               排除
               <input
+                className="summon-exclude-input"
                 value={excludedInput}
                 placeholder="3,7,12 或 3-8"
                 onFocus={handleInputFocus}
