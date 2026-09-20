@@ -6,7 +6,6 @@ type Props = {
   maxNumberInput: string
   excludedInput: string
   remaining: number
-  result?: number
   canClearResolved: boolean
   clearingResolved: boolean
   onMaxNumberInputChange: (value: string) => void
@@ -25,7 +24,6 @@ export default function SummonControls({
   maxNumberInput,
   excludedInput,
   remaining,
-  result,
   canClearResolved,
   clearingResolved,
   onMaxNumberInputChange,
@@ -113,7 +111,6 @@ export default function SummonControls({
           <div className="summon-panel-status">
             <strong>召喚</strong>
             <span>剩餘：{remaining}</span>
-            {result ? <span className="summon-result-chip">已召喚：{result}</span> : null}
           </div>
           <div className="summon-panel-actions">
             <button type="button" data-gesture-clickable="true" disabled={!canClearResolved || clearingResolved} onClick={onClearResolved}>清場</button>

@@ -1616,7 +1616,6 @@ export default function App() {
         maxNumberInput={summonMaxNumberInput}
         excludedInput={summonExcludedInput}
         remaining={summonStars.filter((star) => star.status === 'available' || star.status === 'selected' || star.status === 'armed').length}
-        result={summonResult}
         canClearResolved={summonStars.some((star) => star.status === 'resolved' || star.status === 'clearing')}
         clearingResolved={clearingResolved}
         onMaxNumberInputChange={setSummonMaxNumberInput}
