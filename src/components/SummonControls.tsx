@@ -51,12 +51,8 @@ export default function SummonControls({
 
   useEffect(() => {
     const panel = panelRef.current
-    if (!panel) return
-
-    panel.scrollLeft = 0
-
     const viewport = window.visualViewport
-    if (!viewport) return
+    if (!panel || !viewport) return
 
     let restoreFrame: number | undefined
     let restoreTimer: number | undefined
@@ -174,6 +170,7 @@ export default function SummonControls({
               <span>
                 1 ～
                 <input
+                  className="summon-range-input"
                   type="number"
                   min="1"
                   max="99"
