@@ -775,6 +775,13 @@ button:disabled {
   min-width: 220px;
 }
 
+@media (hover: none) and (pointer: coarse) {
+  .summon-panel input {
+    font-size: 16px;
+    line-height: 1.2;
+  }
+}
+
 .summon-panel button {
   flex: 0 0 auto;
   min-height: 32px;

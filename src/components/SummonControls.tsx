@@ -1,5 +1,14 @@
 import { useEffect, useRef } from 'react'
 
+type InputViewportSnapshot = {
+  height: number
+  offsetLeft: number
+  offsetTop: number
+  scale: number
+  scrollX: number
+  scrollY: number
+}
+
 type Props = {
   active: boolean
   stage: 'setup' | 'deploying' | 'drawing'
@@ -36,26 +45,117 @@ export default function SummonControls({
   onExit,
 }: Props) {
   const panelRef = useRef<HTMLElement | null>(null)
+  const inputViewportSnapshotRef = useRef<InputViewportSnapshot | null>(null)
+  const cancelViewportRestoreRef = useRef<() => void>(() => {})
+  const scheduleViewportRestoreRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     const panel = panelRef.current
     const viewport = window.visualViewport
     if (!panel || !viewport) return
 
+    let restoreFrame: number | undefined
+    let restoreTimer: number | undefined
+    let restoreStartedAt = 0
+    let restoreRequested = false
+
+    const panelInputFocused = () => {
+      const activeElement = document.activeElement
+      return activeElement instanceof HTMLInputElement && panel.contains(activeElement)
+    }
+
+    const cancelViewportRestore = () => {
+      restoreRequested = false
+      if (restoreFrame !== undefined) {
+        window.cancelAnimationFrame(restoreFrame)
+        restoreFrame = undefined
+      }
+      if (restoreTimer !== undefined) {
+        window.clearTimeout(restoreTimer)
+        restoreTimer = undefined
+      }
+    }
+
+    const restoreWhenSettled = () => {
+      restoreTimer = undefined
+      const snapshot = inputViewportSnapshotRef.current
+      if (!snapshot || panelInputFocused()) {
+        restoreRequested = false
+        return
+      }
+
+      const elapsed = performance.now() - restoreStartedAt
+      const viewportSettled = viewport.height >= snapshot.height - 2
+        && Math.abs(viewport.offsetTop) < 1
+        && Math.abs(viewport.offsetLeft) < 1
+
+      if (!viewportSettled && elapsed < 360) {
+        restoreTimer = window.setTimeout(restoreWhenSettled, 48)
+        return
+      }
+
+      panel.style.setProperty('--summon-keyboard-offset', '0px')
+      if (Math.abs(window.scrollX - snapshot.scrollX) > 1 || Math.abs(window.scrollY - snapshot.scrollY) > 1) {
+        window.scrollTo(snapshot.scrollX, snapshot.scrollY)
+      }
+      inputViewportSnapshotRef.current = null
+      restoreRequested = false
+    }
+
+    const scheduleViewportRestore = () => {
+      cancelViewportRestore()
+      restoreRequested = true
+      restoreFrame = window.requestAnimationFrame(() => {
+        restoreFrame = undefined
+        if (panelInputFocused()) return
+        restoreStartedAt = performance.now()
+        restoreWhenSettled()
+      })
+    }
+
     const syncKeyboardOffset = () => {
       const keyboardOffset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
       panel.style.setProperty('--summon-keyboard-offset', `${Math.round(keyboardOffset)}px`)
+      if (restoreRequested && !panelInputFocused() && restoreTimer === undefined) {
+        restoreWhenSettled()
+      }
     }
 
+    cancelViewportRestoreRef.current = cancelViewportRestore
+    scheduleViewportRestoreRef.current = scheduleViewportRestore
     syncKeyboardOffset()
     viewport.addEventListener('resize', syncKeyboardOffset)
     viewport.addEventListener('scroll', syncKeyboardOffset)
     return () => {
+      cancelViewportRestore()
+      cancelViewportRestoreRef.current = () => {}
+      scheduleViewportRestoreRef.current = () => {}
       viewport.removeEventListener('resize', syncKeyboardOffset)
       viewport.removeEventListener('scroll', syncKeyboardOffset)
       panel.style.removeProperty('--summon-keyboard-offset')
     }
   }, [active])
+
+  const handleInputFocus = () => {
+    cancelViewportRestoreRef.current()
+    if (inputViewportSnapshotRef.current) return
+
+    const viewport = window.visualViewport
+    if (!viewport) return
+
+    inputViewportSnapshotRef.current = {
+      height: viewport.height,
+      offsetLeft: viewport.offsetLeft,
+      offsetTop: viewport.offsetTop,
+      scale: viewport.scale,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    }
+  }
+
+  const handleInputBlur = () => {
+    scheduleViewportRestoreRef.current()
+  }
 
   if (!active) return null
 
@@ -74,12 +174,15 @@ export default function SummonControls({
                   min="1"
                   max="99"
                   value={maxNumberInput}
-                  onBlur={onMaxNumberCommit}
+                  onFocus={handleInputFocus}
+                  onBlur={() => {
+                    onMaxNumberCommit()
+                    handleInputBlur()
+                  }}
                   onChange={(event) => onMaxNumberInputChange(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.currentTarget.blur()
-                      onMaxNumberCommit()
                     }
                   }}
                 />
@@ -92,6 +195,8 @@ export default function SummonControls({
               <input
                 value={excludedInput}
                 placeholder="3,7,12 或 3-8"
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
                 onChange={(event) => onExcludedInputChange(event.target.value)}
               />
             </label>
