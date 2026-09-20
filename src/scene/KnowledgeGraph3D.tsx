@@ -94,26 +94,6 @@ const makeHaloMaterial = (color: number, opacity: number) => new THREE.MeshBasic
   depthWrite: false,
 })
 
-const createAnnularArcGeometry = (innerRadius: number, outerRadius: number, startAngle: number, arcAngle: number, segments = 28) => {
-  const positions: number[] = []
-  const indices: number[] = []
-  for (let index = 0; index <= segments; index += 1) {
-    const angle = startAngle + arcAngle * (index / segments)
-    const cosine = Math.cos(angle)
-    const sine = Math.sin(angle)
-    positions.push(innerRadius * cosine, innerRadius * sine, 0, outerRadius * cosine, outerRadius * sine, 0)
-  }
-  for (let index = 0; index < segments; index += 1) {
-    const base = index * 2
-    indices.push(base, base + 1, base + 3, base, base + 3, base + 2)
-  }
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geometry.setIndex(indices)
-  geometry.computeVertexNormals()
-  return geometry
-}
-
 const isClusterNode = (node: KnowledgeNode) => node.tags?.includes('cluster') ?? false
 
 const isContentNode = (node: KnowledgeNode) => (
@@ -203,6 +183,37 @@ const createSoftDiscTexture = () => {
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, 128, 128)
   return new THREE.CanvasTexture(canvas)
+}
+
+const createSpatialDistortionTexture = () => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 192
+  canvas.height = 192
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  const image = ctx.createImageData(canvas.width, canvas.height)
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      const nx = (x / (canvas.width - 1)) * 2 - 1
+      const ny = (y / (canvas.height - 1)) * 2 - 1
+      const warpedX = nx + Math.sin(ny * 4.7) * 0.045
+      const warpedY = ny + Math.sin(nx * 3.9 + ny * 2.1) * 0.04
+      const distance = Math.sqrt(warpedX * warpedX * 0.92 + warpedY * warpedY * 1.08)
+      const envelope = THREE.MathUtils.clamp(1 - distance, 0, 1)
+      const grain = 0.72 + Math.sin(nx * 11.3 + ny * 5.7) * 0.13 + Math.sin(nx * 3.1 - ny * 9.4) * 0.1
+      const alpha = Math.round(Math.pow(envelope, 1.85) * grain * 96)
+      const offset = (y * canvas.width + x) * 4
+      image.data[offset] = 210
+      image.data[offset + 1] = 228
+      image.data[offset + 2] = 255
+      image.data[offset + 3] = alpha
+    }
+  }
+  ctx.putImageData(image, 0, 0)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  return texture
 }
 
 const createNodeLabelTexture = (title: string) => {
@@ -688,6 +699,7 @@ export default function KnowledgeGraph3D({
   const appModeRef = useRef(appMode)
   const summonStageRef = useRef(summonStage)
   const selectedSummonStarIdRef = useRef<string | undefined>(selectedSummonStarId)
+  const selectedSummonRippleIdRef = useRef<string | undefined>(undefined)
   const armedSummonStarIdRef = useRef<string | undefined>(armedSummonStarId)
   const holdingSummonStarIdRef = useRef<string | undefined>(holdingSummonStarId)
   const summonBlackHoleOcclusionsRef = useRef(summonBlackHoleOcclusions)
@@ -700,6 +712,7 @@ export default function KnowledgeGraph3D({
   const nextCometAtRef = useRef(0)
   const layout = useMemo(() => makeLayout(data), [data])
   const softDiscTexture = useMemo(() => createSoftDiscTexture(), [])
+  const spatialDistortionTexture = useMemo(() => createSpatialDistortionTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
   const summonCelestialTextures = useMemo(
     () => summonStarPalettes.map((palette, index) => createSummonCelestialTexture(palette, 0.137 + index * 0.149)),
@@ -709,6 +722,10 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
+
+  useEffect(() => {
+    if (!selectedSummonStarId) selectedSummonRippleIdRef.current = undefined
+  }, [selectedSummonStarId])
 
   useEffect(() => {
     gestureControlRef.current = gestureControl
@@ -1681,23 +1698,7 @@ export default function KnowledgeGraph3D({
         }
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
-            const isSelectedArc = child.userData.role === 'summonSelectedArc' || child.userData.role === 'summonSelectedArcGlow'
-            if (!isSelectedArc) child.quaternion.copy(camera.quaternion)
-            if (isSelectedArc) {
-              const parentQuaternion = new THREE.Quaternion()
-              child.parent?.getWorldQuaternion(parentQuaternion)
-              const tiltQuaternion = child.userData.tiltQuaternion as THREE.Quaternion
-              const spinQuaternion = new THREE.Quaternion().setFromAxisAngle(
-                new THREE.Vector3(0, 0, 1),
-                (child.userData.spinOffset ?? 0) + time * (child.userData.speed ?? 0.04),
-              )
-              const cameraRelativeTilt = camera.quaternion.clone().multiply(tiltQuaternion).multiply(spinQuaternion)
-              child.quaternion.copy(parentQuaternion.invert().multiply(cameraRelativeTilt))
-              child.scale.setScalar(1 + Math.sin(time * 0.34 + phase + (child.userData.spinOffset ?? 0)) * 0.016)
-              const material = child.material as THREE.MeshBasicMaterial
-              const baseOpacity = child.userData.baseOpacity ?? 0.3
-              material.opacity = Math.max(baseOpacity * 0.84, baseOpacity + Math.sin(time * 0.34 + phase + (child.userData.spinOffset ?? 0)) * baseOpacity * 0.09)
-            }
+            child.quaternion.copy(camera.quaternion)
             if (child.userData.role === 'resolvedRing') child.scale.setScalar(1 + Math.sin(time * 0.8 + phase) * 0.03)
             if (child.userData.role === 'shockwave') {
               const delay = child.userData.delay ?? 0
@@ -1747,25 +1748,35 @@ export default function KnowledgeGraph3D({
           if (child instanceof THREE.Sprite) {
             child.quaternion.copy(camera.quaternion)
             const material = child.material as THREE.SpriteMaterial
-            if (child.userData.role === 'summonSelectedHalo') {
+            if (child.userData.role === 'summonSpatialDistortion') {
               const baseScaleX = child.userData.baseScaleX ?? child.scale.x
               const baseScaleY = child.userData.baseScaleY ?? child.scale.y
-              const baseOpacity = child.userData.baseOpacity ?? 0.26
-              const breathe = Math.sin(time * 0.31 + phase) * 0.018
-              child.scale.set(baseScaleX * (1 + breathe), baseScaleY * (1 + breathe), 1)
-              material.opacity = Math.max(baseOpacity * 0.84, baseOpacity + Math.sin(time * 0.31 + phase) * 0.014)
+              const baseOpacity = child.userData.baseOpacity ?? 0.16
+              const drift = Math.sin(time * 0.17 + phase + (child.userData.offset ?? 0))
+              child.scale.set(baseScaleX * (1 + drift * 0.018), baseScaleY * (1 - drift * 0.012), 1)
+              material.rotation = (child.userData.rotationOffset ?? 0) + time * (child.userData.rotationSpeed ?? 0.008)
+              material.opacity = Math.max(baseOpacity * 0.82, baseOpacity + Math.sin(time * 0.23 + phase + (child.userData.offset ?? 0)) * 0.012)
             } else if (child.userData.role === 'summonSelectedDust') {
-              const speed = child.userData.speed ?? 0.12
-              const angle = (child.userData.angle ?? 0) + time * speed
-              const radius = (child.userData.radius ?? 1) * (1 + Math.sin(time * 0.22 + (child.userData.offset ?? 0)) * 0.035)
+              const duration = child.userData.duration ?? 7
+              const cycle = ((time + (child.userData.offset ?? 0)) % duration) / duration
+              const angle = (child.userData.angle ?? 0) + Math.sin(time * (child.userData.speed ?? 0.14) + (child.userData.offset ?? 0)) * 0.46 + cycle * 0.32
+              const radius = THREE.MathUtils.lerp(child.userData.outerRadius ?? 1.9, child.userData.innerRadius ?? 1.2, cycle)
               child.position.set(
-                Math.cos(angle) * radius,
+                Math.cos(angle) * radius + Math.sin(time * 0.31 + (child.userData.offset ?? 0)) * 0.08,
                 Math.sin(angle) * radius * (child.userData.ellipse ?? 0.82),
-                0.42 + Math.sin(time * 0.28 + (child.userData.offset ?? 0)) * 0.07,
+                (child.userData.depth ?? 0.42) + Math.sin(time * 0.28 + (child.userData.offset ?? 0)) * 0.12,
               )
-              child.scale.setScalar((child.userData.baseScale ?? 0.04) * (1 + Math.sin(time * 0.44 + (child.userData.offset ?? 0)) * 0.08))
+              child.scale.setScalar((child.userData.baseScale ?? 0.04) * (0.8 + Math.sin(cycle * Math.PI) * 0.3))
               const baseOpacity = child.userData.baseOpacity ?? 0.18
-              material.opacity = Math.max(baseOpacity * 0.78, baseOpacity + Math.sin(time * 0.36 + (child.userData.offset ?? 0)) * 0.025)
+              material.opacity = Math.max(0.03, baseOpacity * Math.sin(cycle * Math.PI))
+            } else if (child.userData.role === 'summonSelectionRipple') {
+              const age = child.userData.createdAt ? Math.max(0, time - child.userData.createdAt) : 1
+              const progress = THREE.MathUtils.clamp(age / (child.userData.duration ?? 0.68), 0, 1)
+              const eased = 1 - (1 - progress) ** 2
+              const baseScale = child.userData.baseScale ?? 1
+              child.scale.setScalar(baseScale * (0.72 + eased * 0.78))
+              material.opacity = Math.max(0, (child.userData.baseOpacity ?? 0.2) * (1 - progress) ** 2)
+              child.visible = progress < 1
             } else if (child.userData.role === 'result') {
               const age = child.userData.createdAt ? Math.max(0, (nowMs - child.userData.createdAt) / 1000) : 0
               child.position.y = 0.26 + Math.sin(time * 0.9 + phase) * 0.08
@@ -2355,94 +2366,120 @@ export default function KnowledgeGraph3D({
       aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.1 : holding ? 0.46 : armed ? 0.38 : 0.24 }
       root.add(aura)
       if (isSelected) {
+        const glassRim = new THREE.Mesh(
+          new THREE.SphereGeometry(size * 1.035, 24, 16),
+          new THREE.MeshBasicMaterial({
+            color: haloColor,
+            opacity: 0.1,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.BackSide,
+            depthWrite: false,
+          }),
+        )
+        glassRim.userData = { role: 'summonSelectedRim', baseOpacity: 0.1 }
+        root.add(glassRim)
+
         const selectionHalo = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: softDiscTexture,
+          map: spatialDistortionTexture,
           color: haloColor,
-          opacity: 0.26,
+          opacity: 0.16,
+          transparent: true,
+          blending: THREE.NormalBlending,
+          depthTest: false,
+          depthWrite: false,
+        }))
+        const selectionHaloScaleX = size * 3.56
+        const selectionHaloScaleY = size * 3.22
+        selectionHalo.scale.set(selectionHaloScaleX, selectionHaloScaleY, 1)
+        selectionHalo.userData = {
+          role: 'summonSpatialDistortion',
+          baseScaleX: selectionHaloScaleX,
+          baseScaleY: selectionHaloScaleY,
+          baseOpacity: 0.16,
+          offset: 0,
+          rotationOffset: phase * 0.08,
+          rotationSpeed: 0.007,
+        }
+        root.add(selectionHalo)
+
+        const distortionSheen = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: spatialDistortionTexture,
+          color: palette.particle,
+          opacity: 0.075,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthTest: false,
           depthWrite: false,
         }))
-        const selectionHaloScaleX = size * 3.72
-        const selectionHaloScaleY = size * 3.34
-        selectionHalo.scale.set(selectionHaloScaleX, selectionHaloScaleY, 1)
-        selectionHalo.userData = {
-          role: 'summonSelectedHalo',
-          baseScaleX: selectionHaloScaleX,
-          baseScaleY: selectionHaloScaleY,
-          baseOpacity: 0.26,
+        const distortionSheenScaleX = size * 2.72
+        const distortionSheenScaleY = size * 3.08
+        distortionSheen.scale.set(distortionSheenScaleX, distortionSheenScaleY, 1)
+        distortionSheen.userData = {
+          role: 'summonSpatialDistortion',
+          baseScaleX: distortionSheenScaleX,
+          baseScaleY: distortionSheenScaleY,
+          baseOpacity: 0.075,
+          offset: 2.1,
+          rotationOffset: -phase * 0.05,
+          rotationSpeed: -0.011,
         }
-        root.add(selectionHalo)
+        root.add(distortionSheen)
 
-        const selectedArcConfigs = [
-          { radius: 1.42, start: -0.32, length: Math.PI * 0.56, tilt: [0.62, -0.46, 0.18], speed: 0.052, opacity: 0.52 },
-          { radius: 1.64, start: 2.02, length: Math.PI * 0.43, tilt: [-0.48, 0.54, -0.26], speed: -0.037, opacity: 0.46 },
-          { radius: 1.88, start: 4.3, length: Math.PI * 0.34, tilt: [0.34, 0.7, 0.42], speed: 0.026, opacity: 0.4 },
-        ] as const
-        selectedArcConfigs.forEach((arc, arcIndex) => {
-          const arcColor = arcIndex === 1 ? palette.particle : haloColor
-          const arcStart = arc.start + phase * (0.14 + arcIndex * 0.05)
-          const glow = new THREE.Mesh(
-            createAnnularArcGeometry(size * (arc.radius - 0.036), size * (arc.radius + 0.04), arcStart, arc.length),
-            makeHaloMaterial(arcColor, arc.opacity * 0.2),
-          )
-          const glowMaterial = glow.material as THREE.MeshBasicMaterial
-          glowMaterial.depthTest = false
-          glowMaterial.side = THREE.DoubleSide
-          glow.userData = {
-            role: 'summonSelectedArcGlow',
-            baseOpacity: arc.opacity * 0.2,
-            tiltQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(...arc.tilt)),
-            spinOffset: phase * (0.03 + arcIndex * 0.04),
-            speed: arc.speed,
-          }
-          root.add(glow)
-
-          const arcMesh = new THREE.Mesh(
-            createAnnularArcGeometry(size * (arc.radius - 0.011), size * (arc.radius + 0.014), arcStart, arc.length),
-            makeHaloMaterial(arcColor, arc.opacity),
-          )
-          const arcMaterial = arcMesh.material as THREE.MeshBasicMaterial
-          arcMaterial.depthTest = false
-          arcMaterial.side = THREE.DoubleSide
-          arcMesh.userData = {
-            role: 'summonSelectedArc',
-            baseOpacity: arc.opacity,
-            tiltQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(...arc.tilt)),
-            spinOffset: phase * (0.03 + arcIndex * 0.04),
-            speed: arc.speed,
-          }
-          root.add(arcMesh)
-        })
-
-        Array.from({ length: 7 }).forEach((_, dustIndex) => {
+        Array.from({ length: 8 }).forEach((_, dustIndex) => {
           const dust = new THREE.Sprite(new THREE.SpriteMaterial({
             map: softDiscTexture,
             color: dustIndex % 3 === 0 ? palette.particle : haloColor,
-            opacity: 0.18 + (dustIndex % 2) * 0.035,
+            opacity: 0.12 + (dustIndex % 2) * 0.025,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthTest: false,
             depthWrite: false,
           }))
-          const angle = phase * 0.2 + dustIndex * 1.71
-          const radius = size * (1.48 + (dustIndex % 4) * 0.17)
+          const angle = phase * 0.17 + dustIndex * 1.83 + Math.sin(dustIndex * 1.9) * 0.32
           const baseScale = size * (0.038 + (dustIndex % 3) * 0.012)
-          dust.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * (0.78 + (dustIndex % 2) * 0.08), 0.42)
+          const outerRadius = size * (2.05 + (dustIndex % 4) * 0.18)
+          const innerRadius = size * (1.16 + (dustIndex % 3) * 0.12)
+          dust.position.set(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius * (0.82 + (dustIndex % 2) * 0.08), 0.42)
           dust.scale.setScalar(baseScale)
           dust.userData = {
             role: 'summonSelectedDust',
             angle,
-            radius,
             ellipse: 0.78 + (dustIndex % 2) * 0.08,
+            outerRadius,
+            innerRadius,
+            depth: dustIndex % 2 === 0 ? 0.5 : -0.2,
             baseScale,
-            baseOpacity: 0.18 + (dustIndex % 2) * 0.035,
-            speed: 0.11 + (dustIndex % 3) * 0.035,
-            offset: dustIndex * 0.83,
+            baseOpacity: 0.12 + (dustIndex % 2) * 0.025,
+            speed: 0.12 + (dustIndex % 3) * 0.035,
+            duration: 5.6 + (dustIndex % 4) * 0.65,
+            offset: dustIndex * 0.79,
           }
           root.add(dust)
         })
+
+        if (selectedSummonRippleIdRef.current !== star.id) {
+          selectedSummonRippleIdRef.current = star.id
+          const ripple = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: spatialDistortionTexture,
+            color: haloColor,
+            opacity: 0.22,
+            transparent: true,
+            blending: THREE.NormalBlending,
+            depthTest: false,
+            depthWrite: false,
+          }))
+          const rippleScale = size * 1.85
+          ripple.scale.setScalar(rippleScale)
+          ripple.userData = {
+            role: 'summonSelectionRipple',
+            baseScale: rippleScale,
+            baseOpacity: 0.22,
+            duration: 0.68,
+            createdAt: performance.now() * 0.001,
+          }
+          root.add(ripple)
+        }
       }
       const moteCount = inactive ? 2 : holding ? 12 : armed ? 10 : 3
       const moteOpacity = inactive ? 0.18 : holding ? 0.78 : armed ? 0.64 : 0.32
@@ -2668,7 +2705,7 @@ export default function KnowledgeGraph3D({
           ? 20
           : child.userData.role === 'resolvedLabel'
             ? 32
-            : child.userData.role === 'summonSelectedHalo' || child.userData.role === 'summonSelectedArc' || child.userData.role === 'summonSelectedArcGlow' || child.userData.role === 'summonSelectedDust'
+            : child.userData.role === 'summonSelectedRim' || child.userData.role === 'summonSpatialDistortion' || child.userData.role === 'summonSelectedDust' || child.userData.role === 'summonSelectionRipple'
               ? 31
               : 30
       })
@@ -2677,7 +2714,7 @@ export default function KnowledgeGraph3D({
       if (inactive) resolvedSummonMeshesRef.current.set(star.id, core)
       else summonMeshesRef.current.set(star.id, core)
     })
-  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, softDiscTexture, starFlareTexture, summonCelestialTextures])
+  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, softDiscTexture, spatialDistortionTexture, starFlareTexture, summonCelestialTextures])
 
   useEffect(() => {
     if (appMode !== 'summon' || summonStage !== 'drawing' || !selectedSummonStarId) return
