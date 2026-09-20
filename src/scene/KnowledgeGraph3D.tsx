@@ -2265,16 +2265,16 @@ export default function KnowledgeGraph3D({
         color: inactive ? coreColor : 0xffffff,
         emissive: glowColor,
         emissiveIntensity: coreEmissiveIntensity,
-        roughness: 0.16,
+        roughness: 0.12,
         metalness: 0.02,
         clearcoat: 1,
-        clearcoatRoughness: 0.08,
-        transmission: 0.18,
-        thickness: 0.72,
-        ior: 1.32,
+        clearcoatRoughness: 0.055,
+        transmission: 0.23,
+        thickness: 0.82,
+        ior: 1.36,
         attenuationColor: new THREE.Color(haloColor),
-        attenuationDistance: 1.3,
-        iridescence: 0.14,
+        attenuationDistance: 1.45,
+        iridescence: 0.17,
         iridescenceIOR: 1.3,
         transparent: false,
         opacity: 1,
@@ -2287,15 +2287,16 @@ export default function KnowledgeGraph3D({
           // This keeps the planet's day side, terminator, and glancing highlight readable in every camera angle.
           float summonLight = dot(normalize(normal), normalize(vec3(-0.46, 0.58, 0.72)));
           float summonDay = smoothstep(-0.62, 0.74, summonLight);
-          diffuseColor.rgb *= mix(vec3(0.22, 0.25, 0.32), vec3(1.12, 1.1, 1.06), summonDay);
-          float summonSpecular = pow(max(summonLight, 0.0), 18.0);
-          diffuseColor.rgb += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonSpecular * 0.34;`,
+          diffuseColor.rgb *= mix(vec3(0.26, 0.28, 0.35), vec3(1.1, 1.08, 1.04), summonDay);
+          float summonSpecular = pow(max(summonLight, 0.0), 25.0);
+          diffuseColor.rgb += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonSpecular * 0.38;`,
         )
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
-          float summonRim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
-          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * summonRim * 0.3;`,
+          float summonRim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 4.15);
+          float summonTranslucency = pow(1.0 - abs(summonLight), 2.4);
+          totalEmissiveRadiance += vec3(${rimColor.r.toFixed(4)}, ${rimColor.g.toFixed(4)}, ${rimColor.b.toFixed(4)}) * (summonRim * 0.36 + summonTranslucency * 0.045);`,
         )
       }
       const core = new THREE.Mesh(
