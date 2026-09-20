@@ -39,6 +39,7 @@ type Props = {
   selectedSummonStarId?: string
   armedSummonStarId?: string
   holdingSummonStarId?: string
+  summonBlackHoleOcclusions?: Array<{ point: { x: number; y: number }; scale: number }>
   resultReturnStarId?: string
   summonedResult?: number
   hands?: TrackedHand[]
@@ -562,6 +563,7 @@ export default function KnowledgeGraph3D({
   selectedSummonStarId,
   armedSummonStarId,
   holdingSummonStarId,
+  summonBlackHoleOcclusions = [],
   resultReturnStarId,
   summonedResult,
   hands = [],
@@ -581,6 +583,7 @@ export default function KnowledgeGraph3D({
   const resolvedSummonMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const summonEffectsRef = useRef<THREE.Object3D[]>([])
   const summonGroupRef = useRef<THREE.Group | null>(null)
+  const summonBlackHoleCoreRef = useRef<THREE.Mesh[]>([])
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
   const nebulaRef = useRef<THREE.Sprite[]>([])
@@ -665,6 +668,7 @@ export default function KnowledgeGraph3D({
   const selectedSummonStarIdRef = useRef<string | undefined>(selectedSummonStarId)
   const armedSummonStarIdRef = useRef<string | undefined>(armedSummonStarId)
   const holdingSummonStarIdRef = useRef<string | undefined>(holdingSummonStarId)
+  const summonBlackHoleOcclusionsRef = useRef(summonBlackHoleOcclusions)
   const resultReturnStarIdRef = useRef<string | undefined>(resultReturnStarId)
   const handsRef = useRef<TrackedHand[]>(hands)
   const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange })
@@ -785,10 +789,11 @@ export default function KnowledgeGraph3D({
     selectedSummonStarIdRef.current = selectedSummonStarId
     armedSummonStarIdRef.current = armedSummonStarId
     holdingSummonStarIdRef.current = holdingSummonStarId
+    summonBlackHoleOcclusionsRef.current = summonBlackHoleOcclusions
     resultReturnStarIdRef.current = resultReturnStarId
     handsRef.current = hands
     summonCallbacksRef.current = { onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange }
-  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, resultReturnStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
+  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, summonBlackHoleOcclusions, resultReturnStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
 
   useEffect(() => {
     dragRef.current.active = false
@@ -947,7 +952,11 @@ export default function KnowledgeGraph3D({
     scene.add(group)
     const summonGroup = new THREE.Group()
     summonGroup.visible = false
+    summonGroup.renderOrder = 20
     scene.add(summonGroup)
+    const summonBlackHoleCoreGroup = new THREE.Group()
+    summonBlackHoleCoreGroup.renderOrder = 10
+    scene.add(summonBlackHoleCoreGroup)
     const dwellFeedback = new THREE.Mesh(
       new THREE.RingGeometry(0.8, 0.92, 72),
       makeHaloMaterial(0xffdf8a, 0),
@@ -980,6 +989,33 @@ export default function KnowledgeGraph3D({
       const activeGesture = gestureControlRef.current
       const viewer = imageViewerRef.current
       const viewerActive = !!viewer?.ready
+      const blackHoleOcclusions = summonBlackHoleOcclusionsRef.current
+      while (summonBlackHoleCoreRef.current.length < blackHoleOcclusions.length) {
+        const core = new THREE.Mesh(
+          new THREE.CircleGeometry(1, 128),
+          new THREE.MeshBasicMaterial({ color: 0x000000, depthTest: false, depthWrite: false, transparent: false, fog: false }),
+        )
+        core.renderOrder = 10
+        summonBlackHoleCoreGroup.add(core)
+        summonBlackHoleCoreRef.current.push(core)
+      }
+      summonBlackHoleCoreRef.current.forEach((core, index) => {
+        const occlusion = blackHoleOcclusions[index]
+        core.visible = !!occlusion
+        if (!occlusion) return
+        const distance = 24
+        const ndc = new THREE.Vector3(
+          (occlusion.point.x / Math.max(1, renderer.domElement.clientWidth)) * 2 - 1,
+          -(occlusion.point.y / Math.max(1, renderer.domElement.clientHeight)) * 2 + 1,
+          0.1,
+        )
+        ndc.unproject(camera)
+        const direction = ndc.sub(camera.position).normalize()
+        core.position.copy(camera.position).addScaledVector(direction, distance)
+        core.quaternion.copy(camera.quaternion)
+        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance
+        core.scale.setScalar(worldRadius)
+      })
       const summonActive = appModeRef.current === 'summon'
       const summonStage = summonStageRef.current
       const summonDeploying = summonActive && summonStage === 'deploying'
@@ -1499,6 +1535,14 @@ export default function KnowledgeGraph3D({
             if (child.userData.role === 'ring') child.scale.setScalar(holding ? 1 - holdProgress * 0.34 + Math.sin(time * (13 + holdProgress * 13) + phase) * 0.035 : 1 + Math.sin(time * 1.8 + phase) * 0.08)
             if (child.userData.role === 'innerRing') child.scale.setScalar(holding ? 1 - holdProgress * 0.42 + Math.sin(time * (15 + holdProgress * 16) + phase) * 0.025 : 1 + Math.sin(time * 2.4 + phase) * 0.055)
             if (child.userData.role === 'focusWave') child.scale.setScalar(holding ? 0.96 - holdProgress * 0.32 + Math.sin(time * 18 + phase) * 0.09 : 1.04 + Math.sin(time * 1.4 + phase) * 0.18)
+            if (child.userData.role === 'selectionHalo') {
+              const baseScale = child.userData.baseScale ?? 1
+              const baseOpacity = child.userData.baseOpacity ?? 0.42
+              const breathe = Math.sin(time * 0.72 + phase) * 0.035
+              child.scale.setScalar(baseScale * (1 + breathe))
+              const material = child.material as THREE.SpriteMaterial
+              material.opacity = Math.max(0.34, baseOpacity + Math.sin(time * 0.72 + phase) * 0.05)
+            }
             if (child.userData.role === 'resolvedRing') child.scale.setScalar(1 + Math.sin(time * 0.8 + phase) * 0.03)
             if (child.userData.role === 'shockwave') {
               const delay = child.userData.delay ?? 0
@@ -1670,6 +1714,11 @@ export default function KnowledgeGraph3D({
       if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
       imageViewerRef.current?.dispose()
       imageViewerRef.current = null
+      summonBlackHoleCoreRef.current.forEach((core) => {
+        core.geometry.dispose()
+        ;(core.material as THREE.Material).dispose()
+      })
+      summonBlackHoleCoreRef.current = []
       renderer.dispose()
       cometsRef.current.forEach(disposeComet)
       if (warpStreaksRef.current) {
@@ -2040,9 +2089,10 @@ export default function KnowledgeGraph3D({
       const phase = visualSeed * Math.PI * 12.8
       const sizeTier = Math.floor(visualSeed * 17) % 3
       const size = [0.44, 0.62, 0.82][sizeTier] + (visualSeed - 0.5) * 0.05
-      const selected = star.id === selectedSummonStarId
+      const selected = star.id === selectedSummonStarId || star.status === 'selected'
       const armed = star.id === armedSummonStarId || star.status === 'armed'
       const holding = star.id === holdingSummonStarId
+      const focusActive = selected || armed || holding
       const resolved = star.status === 'resolved'
       const clearing = star.status === 'clearing'
       const resolvedAge = star.resolvedAt ? Math.max(0, (performance.now() - star.resolvedAt) / 1000) : 99
@@ -2112,6 +2162,26 @@ export default function KnowledgeGraph3D({
       aura.scale.setScalar(auraScale)
       aura.userData = { role: 'celestialAura', baseScale: auraScale, baseOpacity: inactive ? 0.1 : holding ? 0.46 : armed ? 0.38 : selected ? 0.36 : 0.24 }
       root.add(aura)
+      if (focusActive) {
+        // This is the single persistent selected-state halo. Other charge effects can change,
+        // but this never fades out while the candidate remains selected, armed, or held.
+        const selectionHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: holding ? 0xffe4a6 : armed ? 0xffd38a : 0xbceeff,
+          opacity: holding ? 0.62 : armed ? 0.54 : 0.48,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        const selectionHaloScale = size * (holding ? 4.05 : armed ? 3.72 : 3.52)
+        selectionHalo.scale.setScalar(selectionHaloScale)
+        selectionHalo.userData = {
+          role: 'selectionHalo',
+          baseScale: selectionHaloScale,
+          baseOpacity: holding ? 0.62 : armed ? 0.54 : 0.48,
+        }
+        root.add(selectionHalo)
+      }
       const moteCount = inactive ? 2 : holding ? 12 : armed ? 10 : selected ? 9 : 3
       const moteOpacity = inactive ? 0.18 : holding ? 0.78 : armed ? 0.64 : selected ? 0.58 : 0.32
       Array.from({ length: moteCount }).forEach((_, moteIndex) => {
@@ -2130,7 +2200,7 @@ export default function KnowledgeGraph3D({
         mote.userData = { role: 'celestialMote', angle, radius, baseScale: mote.scale.x, baseOpacity: moteOpacity, speed: 0.32 + (moteIndex % 4) * 0.09, ellipse: 0.72 + (moteIndex % 2) * 0.12 }
         root.add(mote)
       })
-      if (selected || armed || holding || inactive) {
+      if (focusActive || inactive) {
         const ringRadius = inactive ? size + 0.18 : holding ? size + 0.1 : size + 0.24
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(ringRadius, ringRadius + (inactive ? 0.025 : selected ? 0.078 : 0.055), 64),
@@ -2140,7 +2210,7 @@ export default function KnowledgeGraph3D({
         ring.rotation.z = phase
         root.add(ring)
       }
-      if (selected || armed || holding) {
+      if (focusActive) {
         const innerRing = new THREE.Mesh(
           new THREE.RingGeometry(holding ? size + 0.035 : armed ? size + 0.08 : size + 0.16, holding ? size + 0.064 : armed ? size + 0.11 : size + 0.185, 52),
           makeHaloMaterial(holding ? 0xfff0c8 : armed ? 0xffefc2 : selected ? 0xe0fbff : glowColor, holding ? 0.7 : armed ? 0.58 : selected ? 0.56 : 0.09),
@@ -2149,7 +2219,7 @@ export default function KnowledgeGraph3D({
         innerRing.rotation.z = phase * 0.7
         root.add(innerRing)
       }
-      if (selected || armed || holding || inactive) {
+      if (focusActive || inactive) {
         const flare = new THREE.Sprite(new THREE.SpriteMaterial({
           map: softDiscTexture,
           color: haloColor,
@@ -2182,7 +2252,7 @@ export default function KnowledgeGraph3D({
         companion.userData = { role: 'holdingParticle' }
         root.add(companion)
       }
-      if (selected || armed || holding) {
+      if (focusActive) {
         const orbit = new THREE.Object3D()
         orbit.rotation.set(0.72 + visualSeed * 0.48, -0.36 + visualSeed * 0.72, phase * 0.12)
         orbit.userData = { role: 'summonOrbit', speed: holding ? 0.008 : armed ? 0.005 : selected ? 0.0035 : 0.0018 }
@@ -2203,7 +2273,7 @@ export default function KnowledgeGraph3D({
         })
         root.add(orbit)
       }
-      if (selected || armed || holding) {
+      if (focusActive) {
         const focusWave = new THREE.Mesh(
           new THREE.RingGeometry(holding ? 0.58 : selected ? 0.82 : 0.68, holding ? 0.62 : selected ? 0.87 : 0.73, 80),
           makeHaloMaterial(holding ? 0xfff0c8 : armed ? 0xffefc2 : 0xdbfaff, holding ? 0.5 : armed ? 0.44 : 0.48),

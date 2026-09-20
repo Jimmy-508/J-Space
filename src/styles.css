@@ -814,88 +814,58 @@ button:disabled {
   white-space: nowrap;
 }
 
-.summon-result-overlay {
+.summon-result-number {
   position: fixed;
-  left: 0;
-  top: 0;
+  left: 50%;
+  top: 50%;
   z-index: 25;
   --return-x: 50vw;
   --return-y: 50dvh;
-  transform: translate(calc(50vw - 50%), calc(50dvh - 50%));
   max-width: calc(100vw - 24px);
-  min-width: min(1.6em, calc(100vw - 24px));
-  color: rgba(255, 246, 218, 0.96);
+  color: rgba(255, 247, 222, 0.98);
   font-size: clamp(7rem, min(44vw, 88vmin), 30rem);
   font-weight: 800;
   line-height: 0.82;
   text-align: center;
   white-space: nowrap;
-  background: none;
+  background: transparent;
   border: 0;
   box-shadow: none;
   backdrop-filter: none;
-  mix-blend-mode: normal;
-  text-shadow: 0 0 28px rgba(242, 201, 109, 0.62), 0 0 76px rgba(166, 212, 255, 0.34);
-  pointer-events: none;
-  animation: summon-result-return 2.65s cubic-bezier(0.2, 0.75, 0.16, 1) both;
   filter: none;
-}
-
-.summon-result-overlay::before {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: clamp(9rem, 29vmin, 23rem);
-  aspect-ratio: 1;
-  border: 1.5px solid rgba(255, 230, 159, 0.88);
-  border-radius: 50%;
-  box-shadow: 0 0 18px rgba(255, 218, 132, 0.62), 0 0 46px rgba(175, 220, 255, 0.3);
-  content: "";
-  opacity: 0;
+  mix-blend-mode: normal;
+  text-shadow: 0 0 16px rgba(255, 236, 180, 0.74), 0 0 34px rgba(255, 204, 102, 0.42);
   pointer-events: none;
-  transform: translate(-50%, -50%) scale(0.16);
-  animation: summon-result-shockwave 760ms cubic-bezier(0.08, 0.7, 0.25, 1) both;
+  animation: summon-result-number-flight 2.65s cubic-bezier(0.2, 0.75, 0.16, 1) both;
 }
 
-@keyframes summon-result-shockwave {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.14); }
-  13% { opacity: 0.92; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.72); }
-}
-
-@keyframes summon-result-return {
+@keyframes summon-result-number-flight {
   0% {
     opacity: 0;
-    transform: translate(calc(50vw - 50%), calc(50dvh - 50%)) scale(0.22);
-    filter: blur(8px);
+    transform: translate(-50%, -50%) scale(0.22);
   }
   18% {
     opacity: 1;
-    transform: translate(calc(50vw - 50%), calc(50dvh - 50%)) scale(1.05);
-    filter: blur(0);
+    transform: translate(-50%, -50%) scale(1.05);
   }
   28% {
-    transform: translate(calc(50vw - 50%), calc(50dvh - 50%)) scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
   62% {
     opacity: 1;
-    transform: translate(calc(50vw - 50%), calc(50dvh - 50%)) scale(1);
-    filter: blur(0);
+    transform: translate(-50%, -50%) scale(1);
   }
   84% {
     opacity: 0.92;
-    transform: translate(calc(var(--return-x) - 50%), calc(var(--return-y) - 50%)) scale(0.18);
-    filter: blur(1px);
+    transform: translate(calc(var(--return-x) - 50vw), calc(var(--return-y) - 50dvh)) scale(0.18);
   }
   100% {
     opacity: 0;
-    transform: translate(calc(var(--return-x) - 50%), calc(var(--return-y) - 50%)) scale(0.08);
-    filter: blur(3px);
+    transform: translate(calc(var(--return-x) - 50vw), calc(var(--return-y) - 50dvh)) scale(0.08);
   }
 }
 
 .summon-black-hole-layer,
-.summon-black-hole-core-layer,
 .summon-black-hole-stream-layer,
 .hand-energy-layer {
   position: fixed;
@@ -912,11 +882,6 @@ button:disabled {
 }
 
 .summon-black-hole-layer {
-  z-index: 1;
-}
-
-/* All black-hole layers sit below the transparent Three canvas, so summoned celestial bodies always stay in front. */
-.summon-black-hole-core-layer {
   z-index: 1;
 }
 
@@ -941,26 +906,6 @@ button:disabled {
 .summon-depth-lens {
   fill: rgba(0, 0, 0, 0.25);
   filter: blur(18px);
-}
-
-.summon-void-core {
-  isolation: isolate;
-  opacity: 1;
-  animation: summon-void-breathe 6.8s ease-in-out infinite alternate;
-}
-
-.summon-void-feather {
-  fill: #000;
-  opacity: 1;
-  filter: blur(6px) drop-shadow(0 0 42px rgba(0, 0, 0, 0.96));
-}
-
-.summon-void-occlusion {
-  fill: #000;
-  fill-opacity: 1;
-  opacity: 1;
-  filter: none;
-  mix-blend-mode: normal;
 }
 
 .summon-accretion-field {

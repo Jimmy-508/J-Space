@@ -301,14 +301,6 @@ function HandEnergyOverlay({
       </g>
     </g>
   )
-  const renderSummonBlackHoleCore = (key: string, point: ScreenPoint, state = '') => (
-    <g key={key} className={`summon-singularity ${state}`} transform={singularityTransform(point)}>
-      <g className="summon-void-core">
-        <circle className="summon-void-feather" r="86" />
-        <circle className="summon-void-occlusion" r="82" />
-      </g>
-    </g>
-  )
   const renderSummonBlackHoleAccretion = (key: string, point: ScreenPoint, state = '') => (
     <g key={key} className={`summon-singularity ${state}`} transform={singularityTransform(point)}>
       <defs>
@@ -347,14 +339,6 @@ function HandEnergyOverlay({
         </defs>
         {summonEnergyHands.map((hand) => renderSummonBlackHoleDepth(`summon-black-hole-${hand.id}`, hand.point))}
         {collapseHands.map((hand) => renderSummonBlackHoleDepth(`summon-black-hole-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
-      </svg>
-      <svg
-        className="summon-black-hole-core-layer"
-        viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
-        aria-hidden="true"
-      >
-        {summonEnergyHands.map((hand) => renderSummonBlackHoleCore(`summon-black-hole-core-${hand.id}`, hand.point))}
-        {collapseHands.map((hand) => renderSummonBlackHoleCore(`summon-black-hole-core-collapse-${hand.id}-${hand.nonce}`, hand.point, 'collapsing'))}
       </svg>
       <svg
         className="summon-black-hole-stream-layer"
@@ -629,6 +613,14 @@ export default function App() {
   const gesturePointerScreen = gestureStatus.activeGesture === 'pointer' && gestureStatus.pointerPoint
     ? normalizedToCoverViewport(gestureStatus.pointerPoint, videoSize, viewportSize, true)
     : undefined
+  const summonBlackHoleOcclusions = isSummonActive && !!holdingSummonStarId
+    ? hands.filter((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex').map((hand) => {
+      const portraitBoost = viewportSize.height > viewportSize.width ? 2.7 : 1
+      const scale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBoost * 1.3
+      const palm = hand.landmarks[9] ?? hand.landmarks[0]
+      return { point: normalizedToCoverViewport(palm, videoSize, viewportSize, true), scale }
+    })
+    : []
 
   const persist = (next: KnowledgeData) => setData(next)
   const cacheFallbackData = useCallback((next: KnowledgeData) => {
@@ -1394,6 +1386,7 @@ export default function App() {
         selectedSummonStarId={selectedSummonStarId}
         armedSummonStarId={armedSummonStarId}
         holdingSummonStarId={holdingSummonStarId}
+        summonBlackHoleOcclusions={summonBlackHoleOcclusions}
         resultReturnStarId={summonResultOverlay?.starId ?? holdingSummonStarId ?? armedSummonStarId ?? selectedSummonStarId}
         summonedResult={summonResult}
         hands={hands}
@@ -1412,7 +1405,7 @@ export default function App() {
       {isSummonActive && summonResultOverlay ? (
         <div
           key={summonResultOverlay.nonce}
-          className="summon-result-overlay"
+          className="summon-result-number"
           aria-live="polite"
           style={{
             '--return-x': `${summonResultTarget?.x ?? viewportSize.width / 2}px`,
