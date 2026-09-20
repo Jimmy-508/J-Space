@@ -2436,9 +2436,21 @@ textarea {
     max-width: 135px;
   }
 
-  .summon-panel-setup .summon-range-field .summon-range-input {
-    width: 41.25px;
-    min-width: 41.25px;
+  .summon-setup-primary {
+    gap: 2px;
+  }
+
+  .summon-setup-primary .summon-range-field {
+    gap: 2px;
+  }
+
+  .summon-setup-primary .summon-range-field span {
+    gap: 1px;
+  }
+
+  .summon-setup-primary .summon-range-input {
+    width: 35px;
+    min-width: 35px;
   }
 
   .summon-panel-status,
