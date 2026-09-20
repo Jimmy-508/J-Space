@@ -196,6 +196,85 @@ const panCameraView = (camera: THREE.PerspectiveCamera, target: THREE.Vector3, d
   camera.position.add(offset)
 }
 
+type AccretionStreamKind = 'back' | 'front' | 'lensing'
+
+const createAccretionStream = (
+  kind: AccretionStreamKind,
+  offset: number,
+  phase: number,
+  side = 1,
+) => {
+  const pointCount = kind === 'lensing' ? 72 : 96
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3))
+  const material = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: kind === 'back' ? 0.24 : kind === 'front' ? 0.58 : 0.2,
+    blending: THREE.AdditiveBlending,
+    depthTest: false,
+    depthWrite: false,
+  })
+  const line = new THREE.Line(geometry, material)
+  line.userData = {
+    role: 'blackHoleAccretion',
+    kind,
+    offset,
+    phase,
+    side,
+    baseOpacity: material.opacity,
+  }
+  return line
+}
+
+const updateAccretionStream = (line: THREE.Line, time: number) => {
+  const { kind, offset, phase, side, baseOpacity } = line.userData as {
+    kind: AccretionStreamKind
+    offset: number
+    phase: number
+    side: number
+    baseOpacity: number
+  }
+  const positions = line.geometry.getAttribute('position') as THREE.BufferAttribute
+  const colors = line.geometry.getAttribute('color') as THREE.BufferAttribute
+  const warm = new THREE.Color(0xffc371)
+  const hot = new THREE.Color(0xfff3d9)
+  const cool = new THREE.Color(0xddeeff)
+  const color = new THREE.Color()
+
+  for (let index = 0; index < positions.count; index += 1) {
+    const t = index / Math.max(1, positions.count - 1)
+    let x = 0
+    let y = 0
+    let intensity = 0
+    if (kind === 'back') {
+      x = -2.16 + t * 4.32
+      const centerPull = Math.max(0, 1 - Math.abs(x) / 2.16)
+      y = offset + centerPull * (0.09 + Math.sin(time * 0.14 + phase) * 0.018) + Math.sin(t * Math.PI * 1.4 + phase + time * 0.18) * 0.024
+      intensity = 0.3 + centerPull * 0.62
+    } else if (kind === 'front') {
+      x = side * (0.5 + t * 1.68)
+      const innerPull = 1 - t
+      y = offset + side * innerPull * 0.055 + Math.sin(t * Math.PI * 1.2 + phase + time * 0.2) * (0.035 + innerPull * 0.035)
+      intensity = 0.28 + innerPull * 0.72
+    } else {
+      x = -0.94 + t * 1.88
+      const arch = Math.max(0, 1 - (x / 0.94) ** 2)
+      y = side * (0.47 + arch * 0.22) + offset + Math.sin(t * Math.PI * 1.5 + phase + time * 0.15) * 0.025
+      intensity = 0.22 + arch * 0.68
+    }
+    positions.setXYZ(index, x, y, 0.018)
+    color.lerpColors(warm, hot, intensity)
+    if (kind === 'lensing') color.lerp(cool, 0.14)
+    colors.setXYZ(index, color.r, color.g, color.b)
+  }
+  positions.needsUpdate = true
+  colors.needsUpdate = true
+  const wave = Math.sin(time * (kind === 'front' ? 0.28 : 0.18) + phase) * 0.035
+  ;(line.material as THREE.LineBasicMaterial).opacity = Math.max(0.08, baseOpacity + wave)
+}
+
 const createSoftDiscTexture = () => {
   const canvas = document.createElement('canvas')
   canvas.width = 128
@@ -675,6 +754,8 @@ export default function KnowledgeGraph3D({
   const summonGroupRef = useRef<THREE.Group | null>(null)
   const summonBlackHoleCoreRef = useRef<THREE.Mesh[]>([])
   const summonBlackHoleFlowRef = useRef<THREE.Group[]>([])
+  const summonBlackHoleBackAccretionRef = useRef<THREE.Group[]>([])
+  const summonBlackHoleFrontAccretionRef = useRef<THREE.Group[]>([])
   const lastSummonResultTargetRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
@@ -1070,13 +1151,21 @@ export default function KnowledgeGraph3D({
     summonLight.position.set(8, 10, 18)
     summonScene.add(summonLight)
     summonScene.add(summonGroup)
+    const blackHoleBackScene = new THREE.Scene()
     const blackHoleScene = new THREE.Scene()
+    const blackHoleForegroundScene = new THREE.Scene()
+    const summonBlackHoleBackAccretionGroup = new THREE.Group()
+    summonBlackHoleBackAccretionGroup.renderOrder = 9
+    blackHoleBackScene.add(summonBlackHoleBackAccretionGroup)
     const summonBlackHoleCoreGroup = new THREE.Group()
     summonBlackHoleCoreGroup.renderOrder = 10
     blackHoleScene.add(summonBlackHoleCoreGroup)
     const summonBlackHoleFlowGroup = new THREE.Group()
     summonBlackHoleFlowGroup.renderOrder = 11
-    blackHoleScene.add(summonBlackHoleFlowGroup)
+    blackHoleForegroundScene.add(summonBlackHoleFlowGroup)
+    const summonBlackHoleFrontAccretionGroup = new THREE.Group()
+    summonBlackHoleFrontAccretionGroup.renderOrder = 12
+    blackHoleForegroundScene.add(summonBlackHoleFrontAccretionGroup)
     const dwellFeedback = new THREE.Mesh(
       new THREE.RingGeometry(0.8, 0.92, 72),
       makeHaloMaterial(0xffdf8a, 0),
@@ -1126,6 +1215,37 @@ export default function KnowledgeGraph3D({
         core.renderOrder = 10
         summonBlackHoleCoreGroup.add(core)
         summonBlackHoleCoreRef.current.push(core)
+      }
+      while (summonBlackHoleBackAccretionRef.current.length < blackHoleOcclusions.length) {
+        const backAccretion = new THREE.Group()
+        backAccretion.renderOrder = 9
+        ;[-0.105, -0.064, -0.022, 0.018, 0.058, 0.098].forEach((offset, index) => {
+          const stream = createAccretionStream('back', offset, index * 0.76, 1)
+          stream.renderOrder = 9
+          backAccretion.add(stream)
+        })
+        summonBlackHoleBackAccretionGroup.add(backAccretion)
+        summonBlackHoleBackAccretionRef.current.push(backAccretion)
+      }
+      while (summonBlackHoleFrontAccretionRef.current.length < blackHoleOcclusions.length) {
+        const frontAccretion = new THREE.Group()
+        frontAccretion.renderOrder = 12
+        ;[-0.105, -0.052, 0.008, 0.066].forEach((offset, index) => {
+          ;[-1, 1].forEach((side) => {
+            const stream = createAccretionStream('front', offset, index * 0.91 + (side === 1 ? 0.32 : 0), side)
+            stream.renderOrder = 12
+            frontAccretion.add(stream)
+          })
+        })
+        ;[-0.055, 0.018, 0.082].forEach((offset, index) => {
+          ;[-1, 1].forEach((side) => {
+            const lensing = createAccretionStream('lensing', offset, index * 1.18 + (side === 1 ? 0.46 : 0), side)
+            lensing.renderOrder = 12
+            frontAccretion.add(lensing)
+          })
+        })
+        summonBlackHoleFrontAccretionGroup.add(frontAccretion)
+        summonBlackHoleFrontAccretionRef.current.push(frontAccretion)
       }
       while (summonBlackHoleFlowRef.current.length < blackHoleOcclusions.length) {
         const flow = new THREE.Group()
@@ -1203,6 +1323,30 @@ export default function KnowledgeGraph3D({
         const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance * blackHolePortraitScale
         core.scale.setScalar(worldRadius)
       })
+      const positionAccretionLayer = (layers: THREE.Group[], updateStreams: boolean) => {
+        layers.forEach((layer, index) => {
+          const occlusion = blackHoleOcclusions[index]
+          layer.visible = !!occlusion
+          if (!occlusion) return
+          const distance = 24
+          const ndc = new THREE.Vector3(
+            (occlusion.point.x / Math.max(1, renderer.domElement.clientWidth)) * 2 - 1,
+            -(occlusion.point.y / Math.max(1, renderer.domElement.clientHeight)) * 2 + 1,
+            0.1,
+          )
+          ndc.unproject(camera)
+          const direction = ndc.sub(camera.position).normalize()
+          layer.position.copy(camera.position).addScaledVector(direction, distance)
+          layer.quaternion.copy(camera.quaternion)
+          const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance * blackHolePortraitScale
+          layer.scale.setScalar(worldRadius)
+          if (updateStreams) {
+            layer.children.forEach((stream) => updateAccretionStream(stream as THREE.Line, time))
+          }
+        })
+      }
+      positionAccretionLayer(summonBlackHoleBackAccretionRef.current, true)
+      positionAccretionLayer(summonBlackHoleFrontAccretionRef.current, true)
       summonBlackHoleFlowRef.current.forEach((flow, index) => {
         const occlusion = blackHoleOcclusions[index]
         flow.visible = !!occlusion
@@ -2007,7 +2151,11 @@ export default function KnowledgeGraph3D({
       if (summonActive && summonStage !== 'setup') {
         renderer.autoClear = false
         renderer.clearDepth()
+        renderer.render(blackHoleBackScene, camera)
+        renderer.clearDepth()
         renderer.render(blackHoleScene, camera)
+        renderer.clearDepth()
+        renderer.render(blackHoleForegroundScene, camera)
         renderer.clearDepth()
         renderer.render(summonScene, camera)
         renderer.autoClear = true
@@ -2034,6 +2182,18 @@ export default function KnowledgeGraph3D({
         ;(core.material as THREE.Material).dispose()
       })
       summonBlackHoleCoreRef.current = []
+      ;[summonBlackHoleBackAccretionRef.current, summonBlackHoleFrontAccretionRef.current].forEach((layers) => {
+        layers.forEach((layer) => {
+          layer.traverse((object) => {
+            if (object instanceof THREE.Line) {
+              object.geometry.dispose()
+              ;(object.material as THREE.Material).dispose()
+            }
+          })
+        })
+      })
+      summonBlackHoleBackAccretionRef.current = []
+      summonBlackHoleFrontAccretionRef.current = []
       summonBlackHoleFlowRef.current.forEach((flow) => {
         flow.traverse((object) => {
           if (object instanceof THREE.Line) {
