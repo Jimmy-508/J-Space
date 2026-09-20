@@ -1663,7 +1663,15 @@ export default function KnowledgeGraph3D({
           if (child instanceof THREE.Mesh) {
             if (child.userData.role !== 'summonSelectedRing') child.quaternion.copy(camera.quaternion)
             if (child.userData.role === 'summonSelectedRing') {
-              child.rotation.z = (child.userData.baseRotationZ ?? 0) + time * 0.12
+              const parentQuaternion = new THREE.Quaternion()
+              child.parent?.getWorldQuaternion(parentQuaternion)
+              const tiltQuaternion = child.userData.tiltQuaternion as THREE.Quaternion
+              const spinQuaternion = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(0, 0, 1),
+                (child.userData.spinOffset ?? 0) + time * 0.12,
+              )
+              const cameraRelativeTilt = camera.quaternion.clone().multiply(tiltQuaternion).multiply(spinQuaternion)
+              child.quaternion.copy(parentQuaternion.invert().multiply(cameraRelativeTilt))
               child.scale.setScalar(1 + Math.sin(time * 0.68 + phase) * 0.028)
               const material = child.material as THREE.MeshBasicMaterial
               material.opacity = Math.max(0.66, (child.userData.baseOpacity ?? 0.74) + Math.sin(time * 0.68 + phase) * 0.025)
@@ -2336,11 +2344,13 @@ export default function KnowledgeGraph3D({
         )
         const selectionRingMaterial = selectionRing.material as THREE.MeshBasicMaterial
         selectionRingMaterial.depthTest = false
+        selectionRingMaterial.side = THREE.DoubleSide
         selectionRing.rotation.set(0.76, -0.42, phase * 0.06)
         selectionRing.userData = {
           role: 'summonSelectedRing',
           baseOpacity: 0.74,
-          baseRotationZ: selectionRing.rotation.z,
+          tiltQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.76, -0.42, 0)),
+          spinOffset: phase * 0.06,
         }
         root.add(selectionRing)
       }
