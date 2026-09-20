@@ -109,6 +109,7 @@ const DOUBLE_TAP_MS = 320
 const DOUBLE_TAP_DISTANCE = 28
 const VIEW_RESET_DURATION_MS = 520
 const FOCUS_TRANSITION_DURATION_MS = 360
+const SUMMON_FOCUS_TRANSITION_DURATION_MS = 460
 const SUMMON_CHARGE_VISUAL_MS = 900
 
 type CameraTransition = {
@@ -120,6 +121,23 @@ type CameraTransition = {
   toTarget: THREE.Vector3
   fromRotation: THREE.Euler
   resetRotation: boolean
+  blurMax?: number
+  scaleMax?: number
+}
+
+const applyFocusMotionBlur = (mount: HTMLElement | null, progress: number, maxBlur = 0, maxScale = 1) => {
+  if (!mount) return
+  const motion = Math.sin(THREE.MathUtils.clamp(progress, 0, 1) * Math.PI)
+  mount.style.setProperty('--scene-focus-blur', `${(motion * maxBlur).toFixed(2)}px`)
+  mount.style.setProperty('--scene-focus-scale', (1 + (maxScale - 1) * motion).toFixed(4))
+  mount.classList.toggle('is-focus-transitioning', motion > 0.001)
+}
+
+const clearFocusMotionBlur = (mount: HTMLElement | null) => {
+  if (!mount) return
+  mount.style.setProperty('--scene-focus-blur', '0px')
+  mount.style.setProperty('--scene-focus-scale', '1')
+  mount.classList.remove('is-focus-transitioning')
 }
 
 type InitialView = {
@@ -722,7 +740,6 @@ export default function KnowledgeGraph3D({
   const universeSnapshotRef = useRef<UniverseSnapshot | null>(null)
   const backgroundResetRef = useRef<BackgroundResetAnimation | null>(null)
   const backgroundTimeOriginRef = useRef(0)
-  const focusBlurTimerRef = useRef<number | undefined>(undefined)
   const gesturePointerBlockedRef = useRef(gesturePointerBlocked)
   const isGesturePointerOverUiRef = useRef<Props['isGesturePointerOverUi']>(undefined)
   const selectedIdRef = useRef<string | undefined>(selectedId)
@@ -813,6 +830,7 @@ export default function KnowledgeGraph3D({
     focusTransitionRef.current = null
     viewResetRef.current = null
     backgroundResetRef.current = null
+    clearFocusMotionBlur(mountRef.current)
     camera.position.copy(snapshot.cameraPosition)
     cameraTargetRef.current.copy(snapshot.cameraTarget)
     group.rotation.copy(snapshot.groupRotation)
@@ -1227,6 +1245,7 @@ export default function KnowledgeGraph3D({
       viewer?.update(nowMs)
       if (!viewerActive && focusTransitionRef.current && activeGesture && ['zoomIn', 'zoomOut', 'pan', 'rotate'].includes(activeGesture.activeGesture) && !(summonActive && activeGesture.activeGesture === 'zoomOut')) {
         focusTransitionRef.current = null
+        clearFocusMotionBlur(mount)
       }
       const viewReset = viewResetRef.current
       const resettingBackground = !!viewReset && !!backgroundResetRef.current
@@ -1252,6 +1271,7 @@ export default function KnowledgeGraph3D({
         const eased = 1 - (1 - progress) ** 3
         camera.position.lerpVectors(viewReset.fromPosition, viewReset.toPosition, eased)
         cameraTargetRef.current.lerpVectors(viewReset.fromTarget, viewReset.toTarget, eased)
+        if (viewReset.blurMax) applyFocusMotionBlur(mount, progress, viewReset.blurMax, viewReset.scaleMax)
         if (viewReset.resetRotation) {
           const resettingSummon = appModeRef.current === 'summon'
           const initialRotation = resettingSummon ? new THREE.Euler() : initialViewRef.current?.rotation ?? new THREE.Euler()
@@ -1306,6 +1326,7 @@ export default function KnowledgeGraph3D({
           viewResetRef.current = null
           backgroundResetRef.current = null
           backgroundTimeOriginRef.current = time
+          clearFocusMotionBlur(mount)
         }
       } else if (focusTransitionRef.current) {
         const transition = focusTransitionRef.current
@@ -1315,7 +1336,11 @@ export default function KnowledgeGraph3D({
           : 1 - (-2 * progress + 2) ** 3 / 2
         camera.position.lerpVectors(transition.fromPosition, transition.toPosition, eased)
         cameraTargetRef.current.lerpVectors(transition.fromTarget, transition.toTarget, eased)
-        if (progress >= 1) focusTransitionRef.current = null
+        if (transition.blurMax) applyFocusMotionBlur(mount, progress, transition.blurMax, transition.scaleMax)
+        if (progress >= 1) {
+          focusTransitionRef.current = null
+          clearFocusMotionBlur(mount)
+        }
       } else if (!transitionActive && !summonDeploying) {
         const controlGroup = summonActive && summonGroup ? summonGroup : group
         controlGroup.rotation.y += 0.00085
@@ -1947,7 +1972,7 @@ export default function KnowledgeGraph3D({
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', resize)
-      if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
+      clearFocusMotionBlur(mount)
       imageViewerRef.current?.dispose()
       imageViewerRef.current = null
       summonBlackHoleCoreRef.current.forEach((core) => {
@@ -1988,6 +2013,7 @@ export default function KnowledgeGraph3D({
     imageViewerRef.current = viewer
     focusTransitionRef.current = null
     viewResetRef.current = null
+    clearFocusMotionBlur(mountRef.current)
     onViewerLoadStateChangeRef.current?.('loading')
     let current = true
     viewer.load(viewerNode.imageUrl)
@@ -2412,7 +2438,7 @@ export default function KnowledgeGraph3D({
           new THREE.SphereGeometry(size * 1.06, 24, 16),
           new THREE.MeshBasicMaterial({
             color: haloColor,
-            opacity: 0.16,
+            opacity: 0.22,
             transparent: true,
             blending: THREE.AdditiveBlending,
             side: THREE.BackSide,
@@ -2420,26 +2446,26 @@ export default function KnowledgeGraph3D({
             depthWrite: false,
           }),
         )
-        glassRim.userData = { role: 'summonSelectedRim', baseOpacity: 0.16 }
+        glassRim.userData = { role: 'summonSelectedRim', baseOpacity: 0.22 }
         root.add(glassRim)
 
         const energyCorona = new THREE.Sprite(new THREE.SpriteMaterial({
           map: selectedCoronaTexture,
           color: haloColor,
-          opacity: 0.46,
+          opacity: 0.59,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthTest: false,
           depthWrite: false,
         }))
-        const energyCoronaScaleX = size * 4.72
-        const energyCoronaScaleY = size * 4.38
+        const energyCoronaScaleX = size * 5.18
+        const energyCoronaScaleY = size * 4.82
         energyCorona.scale.set(energyCoronaScaleX, energyCoronaScaleY, 1)
         energyCorona.userData = {
           role: 'summonSelectedCorona',
           baseScaleX: energyCoronaScaleX,
           baseScaleY: energyCoronaScaleY,
-          baseOpacity: 0.46,
+          baseOpacity: 0.59,
           rotationOffset: phase * 0.08,
           rotationSpeed: 0.014,
         }
@@ -2448,7 +2474,7 @@ export default function KnowledgeGraph3D({
         const starburst = new THREE.Sprite(new THREE.SpriteMaterial({
           map: selectedStarburstTexture,
           color: palette.particle,
-          opacity: 0.34,
+          opacity: 0.45,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthTest: false,
@@ -2461,7 +2487,7 @@ export default function KnowledgeGraph3D({
           role: 'summonSelectedStarburst',
           baseScaleX: starburstScaleX,
           baseScaleY: starburstScaleY,
-          baseOpacity: 0.34,
+          baseOpacity: 0.45,
           rotationOffset: phase * 0.12,
         }
         root.add(starburst)
@@ -2470,14 +2496,14 @@ export default function KnowledgeGraph3D({
           const dust = new THREE.Sprite(new THREE.SpriteMaterial({
             map: softDiscTexture,
             color: dustIndex % 3 === 0 ? palette.particle : haloColor,
-            opacity: 0.19 + (dustIndex % 2) * 0.035,
+            opacity: 0.22 + (dustIndex % 2) * 0.04,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthTest: false,
             depthWrite: false,
           }))
           const angle = phase * 0.17 + dustIndex * 1.83 + Math.sin(dustIndex * 1.9) * 0.32
-          const baseScale = size * (0.052 + (dustIndex % 3) * 0.014)
+          const baseScale = size * (0.057 + (dustIndex % 3) * 0.015)
           const outerRadius = size * (2.05 + (dustIndex % 4) * 0.18)
           const innerRadius = size * (1.16 + (dustIndex % 3) * 0.12)
           dust.position.set(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius * (0.82 + (dustIndex % 2) * 0.08), 0.42)
@@ -2490,7 +2516,7 @@ export default function KnowledgeGraph3D({
             innerRadius,
             depth: dustIndex % 2 === 0 ? 0.5 : -0.2,
             baseScale,
-            baseOpacity: 0.19 + (dustIndex % 2) * 0.035,
+            baseOpacity: 0.22 + (dustIndex % 2) * 0.04,
             speed: 0.12 + (dustIndex % 3) * 0.035,
             duration: 5.6 + (dustIndex % 4) * 0.65,
             offset: dustIndex * 0.79,
@@ -2503,7 +2529,7 @@ export default function KnowledgeGraph3D({
           const ripple = new THREE.Sprite(new THREE.SpriteMaterial({
             map: selectedCoronaTexture,
             color: haloColor,
-            opacity: 0.4,
+            opacity: 0.48,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthTest: false,
@@ -2514,7 +2540,7 @@ export default function KnowledgeGraph3D({
           ripple.userData = {
             role: 'summonSelectionRipple',
             baseScale: rippleScale,
-            baseOpacity: 0.4,
+            baseOpacity: 0.48,
             duration: 0.62,
             createdAt: performance.now() * 0.001,
           }
@@ -2776,27 +2802,16 @@ export default function KnowledgeGraph3D({
     viewResetRef.current = null
     focusTransitionRef.current = {
       startedAt: performance.now(),
-      duration: FOCUS_TRANSITION_DURATION_MS,
+      duration: SUMMON_FOCUS_TRANSITION_DURATION_MS,
       fromPosition: camera.position.clone(),
       toPosition: new THREE.Vector3(world.x, world.y + 0.62, world.z + 5.8),
       fromTarget: cameraTargetRef.current.clone(),
       toTarget: world,
       fromRotation: summonGroupRef.current?.rotation.clone() ?? new THREE.Euler(),
       resetRotation: false,
+      blurMax: THREE.MathUtils.clamp(1.8 + travelDistance * 0.18, 2.4, 4.8),
+      scaleMax: THREE.MathUtils.clamp(1.01 + travelDistance * 0.0008, 1.01, 1.026),
     }
-
-    const blur = THREE.MathUtils.clamp(1.8 + travelDistance * 0.18, 2.2, 5.2)
-    const scale = THREE.MathUtils.clamp(1.01 + travelDistance * 0.0008, 1.01, 1.026)
-    mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
-    mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
-    mount.classList.remove('is-focus-transitioning')
-    void mount.offsetWidth
-    mount.classList.add('is-focus-transitioning')
-    if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
-    focusBlurTimerRef.current = window.setTimeout(() => {
-      mount.classList.remove('is-focus-transitioning')
-      focusBlurTimerRef.current = undefined
-    }, FOCUS_TRANSITION_DURATION_MS + 40)
   }, [appMode, summonStage, selectedSummonStarId])
 
   useEffect(() => {
@@ -2853,20 +2868,9 @@ export default function KnowledgeGraph3D({
       toTarget: world,
       fromRotation: groupRef.current?.rotation.clone() ?? new THREE.Euler(),
       resetRotation: false,
+      blurMax: THREE.MathUtils.clamp(1.2 + travelDistance * 0.16, 1.8, 4.6),
+      scaleMax: THREE.MathUtils.clamp(1.004 + travelDistance * 0.00045, 1.004, 1.014),
     }
-
-    const blur = THREE.MathUtils.clamp(1.2 + travelDistance * 0.16, 1.6, 4.6)
-    const scale = THREE.MathUtils.clamp(1.004 + travelDistance * 0.00045, 1.004, 1.014)
-    mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
-    mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
-    mount.classList.remove('is-focus-transitioning')
-    void mount.offsetWidth
-    mount.classList.add('is-focus-transitioning')
-    if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
-    focusBlurTimerRef.current = window.setTimeout(() => {
-      mount.classList.remove('is-focus-transitioning')
-      focusBlurTimerRef.current = undefined
-    }, FOCUS_TRANSITION_DURATION_MS + 40)
   }, [focusId, viewerNode])
 
   const updatePointer = (event: React.PointerEvent) => {
@@ -2912,23 +2916,6 @@ export default function KnowledgeGraph3D({
     return raycasterRef.current.intersectObjects([...resolvedSummonMeshesRef.current.values()])[0]
   }
 
-  const playFocusBlur = (travelDistance: number, blurBase = 1.4, blurScale = 0.14, scaleBase = 1.006, scaleScale = 0.00055) => {
-    const mount = mountRef.current
-    if (!mount) return
-    const blur = THREE.MathUtils.clamp(blurBase + travelDistance * blurScale, 1.8, 5.2)
-    const scale = THREE.MathUtils.clamp(scaleBase + travelDistance * scaleScale, scaleBase, 1.026)
-    mount.style.setProperty('--scene-focus-blur', `${blur.toFixed(2)}px`)
-    mount.style.setProperty('--scene-focus-scale', scale.toFixed(4))
-    mount.classList.remove('is-focus-transitioning')
-    void mount.offsetWidth
-    mount.classList.add('is-focus-transitioning')
-    if (focusBlurTimerRef.current !== undefined) window.clearTimeout(focusBlurTimerRef.current)
-    focusBlurTimerRef.current = window.setTimeout(() => {
-      mount.classList.remove('is-focus-transitioning')
-      focusBlurTimerRef.current = undefined
-    }, FOCUS_TRANSITION_DURATION_MS + 40)
-  }
-
   const startSummonZoomOutTransition = () => {
     const camera = cameraRef.current
     const summonGroup = summonGroupRef.current
@@ -2943,8 +2930,9 @@ export default function KnowledgeGraph3D({
       toTarget: DEFAULT_CAMERA_TARGET.clone(),
       fromRotation: summonGroup.rotation.clone(),
       resetRotation: false,
+      blurMax: THREE.MathUtils.clamp(1.8 + travelDistance * 0.12, 2.4, 4.8),
+      scaleMax: THREE.MathUtils.clamp(1.008 + travelDistance * 0.0005, 1.008, 1.026),
     }
-    playFocusBlur(travelDistance, 1.8, 0.12, 1.008, 0.0005)
   }
 
   const resetView = () => {
@@ -2966,8 +2954,9 @@ export default function KnowledgeGraph3D({
         toTarget: DEFAULT_CAMERA_TARGET.clone(),
         fromRotation: summonGroup.rotation.clone(),
         resetRotation: true,
+        blurMax: THREE.MathUtils.clamp(1.8 + camera.position.distanceTo(DEFAULT_CAMERA_POSITION) * 0.12, 2.4, 4.8),
+        scaleMax: THREE.MathUtils.clamp(1.008 + camera.position.distanceTo(DEFAULT_CAMERA_POSITION) * 0.0005, 1.008, 1.026),
       }
-      playFocusBlur(camera.position.distanceTo(DEFAULT_CAMERA_POSITION), 1.8, 0.12, 1.008, 0.0005)
       touchRef.current.mode = 'none'
       dragRef.current.active = false
       dragRef.current.dragging = false
@@ -2979,11 +2968,7 @@ export default function KnowledgeGraph3D({
     const initialView = initialViewRef.current
     if (!camera || !group || !initialView) return
     focusTransitionRef.current = null
-    if (focusBlurTimerRef.current !== undefined) {
-      window.clearTimeout(focusBlurTimerRef.current)
-      focusBlurTimerRef.current = undefined
-    }
-    mountRef.current?.classList.remove('is-focus-transitioning')
+    clearFocusMotionBlur(mountRef.current)
     viewResetRef.current = {
       startedAt: performance.now(),
       duration: VIEW_RESET_DURATION_MS,
@@ -3034,11 +3019,7 @@ export default function KnowledgeGraph3D({
     viewResetRef.current = null
     backgroundResetRef.current = null
     focusTransitionRef.current = null
-    if (focusBlurTimerRef.current !== undefined) {
-      window.clearTimeout(focusBlurTimerRef.current)
-      focusBlurTimerRef.current = undefined
-    }
-    mountRef.current?.classList.remove('is-focus-transitioning')
+    clearFocusMotionBlur(mountRef.current)
   }
 
   const hoverAtPointer = () => {
