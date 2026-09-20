@@ -140,6 +140,14 @@ const clearFocusMotionBlur = (mount: HTMLElement | null) => {
   mount.classList.remove('is-focus-transitioning')
 }
 
+const applyContinuousFocusMotionBlur = (mount: HTMLElement | null, blur: number) => {
+  if (!mount) return
+  const clampedBlur = THREE.MathUtils.clamp(blur, 0, 4.8)
+  mount.style.setProperty('--scene-focus-blur', `${clampedBlur.toFixed(2)}px`)
+  mount.style.setProperty('--scene-focus-scale', '1')
+  mount.classList.toggle('is-focus-transitioning', clampedBlur > 0.01)
+}
+
 type InitialView = {
   position: THREE.Vector3
   target: THREE.Vector3
@@ -736,6 +744,13 @@ export default function KnowledgeGraph3D({
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0))
   const viewResetRef = useRef<CameraTransition | null>(null)
   const focusTransitionRef = useRef<CameraTransition | null>(null)
+  const summonMotionBlurRef = useRef({
+    current: 0,
+    initialized: false,
+    cameraPosition: new THREE.Vector3(),
+    cameraTarget: new THREE.Vector3(),
+    groupRotation: new THREE.Euler(),
+  })
   const initialViewRef = useRef<InitialView | null>(null)
   const universeSnapshotRef = useRef<UniverseSnapshot | null>(null)
   const backgroundResetRef = useRef<BackgroundResetAnimation | null>(null)
@@ -1367,6 +1382,45 @@ export default function KnowledgeGraph3D({
       }
       camera.lookAt(cameraTargetRef.current)
       camera.updateMatrixWorld()
+      const summonMotionBlur = summonMotionBlurRef.current
+      const selectedSummonCameraMotion = summonActive && !!selectedSummonStarIdRef.current && !viewerActive
+      if (!selectedSummonCameraMotion) {
+        const ownedBlur = summonMotionBlur.initialized || summonMotionBlur.current > 0.01
+        summonMotionBlur.current = 0
+        summonMotionBlur.initialized = false
+        if (ownedBlur) clearFocusMotionBlur(mount)
+      } else {
+        const activeControlGroup = summonGroupRef.current
+        if (!summonMotionBlur.initialized) {
+          summonMotionBlur.initialized = true
+          summonMotionBlur.cameraPosition.copy(camera.position)
+          summonMotionBlur.cameraTarget.copy(cameraTargetRef.current)
+          summonMotionBlur.groupRotation.copy(activeControlGroup?.rotation ?? new THREE.Euler())
+        } else {
+          const cameraDistance = camera.position.distanceTo(summonMotionBlur.cameraPosition)
+          const targetDistance = cameraTargetRef.current.distanceTo(summonMotionBlur.cameraTarget)
+          const groupRotationDistance = activeControlGroup
+            ? Math.abs(activeControlGroup.rotation.x - summonMotionBlur.groupRotation.x) +
+              Math.abs(activeControlGroup.rotation.y - summonMotionBlur.groupRotation.y) +
+              Math.abs(activeControlGroup.rotation.z - summonMotionBlur.groupRotation.z)
+            : 0
+          const manualGroupMotion = activeGesture?.activeGesture === 'rotate' ||
+            (dragRef.current.active && dragRef.current.dragging) ||
+            touchRef.current.mode === 'rotate'
+          const movementStrength = cameraDistance * 1.6 + targetDistance * 1.2 + (manualGroupMotion ? groupRotationDistance * 24 : 0)
+          const transitionControlsBlur = !!focusTransitionRef.current || !!viewResetRef.current
+          if (!transitionControlsBlur) {
+            const targetBlur = THREE.MathUtils.clamp(movementStrength, 0, 4.8)
+            const smoothing = 1 - Math.exp(-(targetBlur > summonMotionBlur.current ? 16 : 11) * Math.max(0.001, deltaTimeMs / 1000))
+            summonMotionBlur.current += (targetBlur - summonMotionBlur.current) * smoothing
+            if (summonMotionBlur.current > 0.01) applyContinuousFocusMotionBlur(mount, summonMotionBlur.current)
+            else clearFocusMotionBlur(mount)
+          }
+          summonMotionBlur.cameraPosition.copy(camera.position)
+          summonMotionBlur.cameraTarget.copy(cameraTargetRef.current)
+          if (activeControlGroup) summonMotionBlur.groupRotation.copy(activeControlGroup.rotation)
+        }
+      }
       const warp = warpTransitionRef.current
       const transitionDuration = appModeRef.current === 'transition-to-universe' ? 820 : 920
       if (transitionActive && !warp.active) {

@@ -119,20 +119,17 @@ export class GestureStateMachine {
       this.clearZoom()
     }
 
-    const stableFists = hands
-      .filter((hand) => {
-        const since = this.fistSince.get(hand.id)
-        return since !== undefined && now - since >= (viewerMode ? 120 : HOLD_MS)
-      })
+    const fistHands = hands
+      .filter((hand) => hand.gesture === 'fist')
       .sort((a, b) => a.palmCenter.x - b.palmCenter.x)
 
-    if (stableFists.length >= 2) {
-      const panStatus = this.updatePan(stableFists, now, enabled, cameraStatus, hands.length, viewerMode)
-      if (panStatus.activeGesture === 'pan') {
-        this.clearZoom()
-        this.clearRotation()
-        return panStatus
-      }
+    if (fistHands.length >= 2) {
+      // Two fists own this interaction immediately. updatePan keeps its own
+      // hold/baseline handling, but rotation must never run while pan is arming.
+      this.clearRotation()
+      this.clearZoom()
+      const panStatus = this.updatePan(fistHands, now, enabled, cameraStatus, hands.length, viewerMode)
+      return panStatus
     } else {
       this.clearPan()
     }
