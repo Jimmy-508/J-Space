@@ -2414,6 +2414,11 @@ textarea {
     justify-content: flex-start;
   }
 
+  .summon-panel.summon-panel-setup {
+    width: min(84dvw, calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-width: min(84dvw, calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  }
+
   .summon-setup-row {
     width: auto;
     gap: 0.34rem;
@@ -2434,23 +2439,6 @@ textarea {
     width: clamp(112.5px, 33dvw, 135px);
     min-width: 106.5px;
     max-width: 135px;
-  }
-
-  .summon-setup-primary {
-    gap: 2px;
-  }
-
-  .summon-setup-primary .summon-range-field {
-    gap: 2px;
-  }
-
-  .summon-setup-primary .summon-range-field span {
-    gap: 1px;
-  }
-
-  .summon-setup-primary .summon-range-input {
-    width: 35px;
-    min-width: 35px;
   }
 
   .summon-panel-status,

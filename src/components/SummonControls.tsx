@@ -170,7 +170,6 @@ export default function SummonControls({
               <span>
                 1 ～
                 <input
-                  className="summon-range-input"
                   type="number"
                   min="1"
                   max="99"
