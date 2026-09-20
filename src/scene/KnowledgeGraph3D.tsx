@@ -824,6 +824,7 @@ export default function KnowledgeGraph3D({
     camera.position.copy(DEFAULT_CAMERA_POSITION)
     scene.add(camera)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
+    renderer.sortObjects = true
     renderer.setClearColor(0x030713, 0)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
     renderer.setSize(mount.clientWidth, mount.clientHeight)
@@ -1025,7 +1026,7 @@ export default function KnowledgeGraph3D({
         flow.renderOrder = 11
         Array.from({ length: 22 }, (_, index) => {
           const radius = 1.015 + (index % 7) * 0.024
-          const vertical = radius * (0.9 + ((index * 5) % 4) * 0.018)
+          const vertical = radius
           const drift = (index - 10.5) * 0.0025
           const points = Array.from({ length: 129 }, (_, pointIndex) => {
             const angle = (pointIndex / 128) * Math.PI * 2
@@ -2537,6 +2538,12 @@ export default function KnowledgeGraph3D({
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh || child instanceof THREE.Sprite || child instanceof THREE.Line)) return
         child.renderOrder = child.userData.role === 'core' ? 20 : child.userData.role === 'resolvedLabel' ? 32 : 30
+        const material = child.material as THREE.Material | THREE.Material[]
+        const materials = Array.isArray(material) ? material : [material]
+        materials.forEach((item) => {
+          item.depthTest = false
+          item.depthWrite = false
+        })
       })
       group.add(root)
       summonEffectsRef.current.push(root)
