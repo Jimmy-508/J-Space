@@ -2396,7 +2396,7 @@ textarea {
   .summon-panel {
     left: 50%;
     bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--summon-keyboard-offset, 0px));
-    width: max-content;
+    width: 84%;
     max-width: calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right));
     justify-content: flex-start;
     gap: 0.34rem;

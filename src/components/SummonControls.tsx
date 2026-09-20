@@ -51,8 +51,12 @@ export default function SummonControls({
 
   useEffect(() => {
     const panel = panelRef.current
+    if (!panel) return
+
+    panel.scrollLeft = 0
+
     const viewport = window.visualViewport
-    if (!panel || !viewport) return
+    if (!viewport) return
 
     let restoreFrame: number | undefined
     let restoreTimer: number | undefined
