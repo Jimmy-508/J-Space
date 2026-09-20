@@ -1081,6 +1081,7 @@ export default function KnowledgeGraph3D({
         summonBlackHoleFlowGroup.add(flow)
         summonBlackHoleFlowRef.current.push(flow)
       }
+      const blackHolePortraitScale = renderer.domElement.clientHeight > renderer.domElement.clientWidth ? 0.8 : 1
       summonBlackHoleCoreRef.current.forEach((core, index) => {
         const occlusion = blackHoleOcclusions[index]
         core.visible = !!occlusion
@@ -1095,7 +1096,7 @@ export default function KnowledgeGraph3D({
         const direction = ndc.sub(camera.position).normalize()
         core.position.copy(camera.position).addScaledVector(direction, distance)
         core.quaternion.copy(camera.quaternion)
-        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance
+        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance * blackHolePortraitScale
         core.scale.setScalar(worldRadius)
       })
       summonBlackHoleFlowRef.current.forEach((flow, index) => {
@@ -1112,7 +1113,7 @@ export default function KnowledgeGraph3D({
         const direction = ndc.sub(camera.position).normalize()
         flow.position.copy(camera.position).addScaledVector(direction, distance)
         flow.quaternion.copy(camera.quaternion)
-        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance
+        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance * blackHolePortraitScale
         flow.scale.setScalar(worldRadius)
         flow.rotateZ(time * 0.004)
         flow.children.forEach((thread) => {
