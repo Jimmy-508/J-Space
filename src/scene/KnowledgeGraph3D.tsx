@@ -128,10 +128,11 @@ const blackHoleEffectParams = {
   blackHoleParticleOrbitSpeed: 0.24,
   blackHoleParticleSize: 0.115,
   blackHoleParticleOpacity: 0.78,
-  blackHoleDistortionRadius: 1.84,
-  blackHoleDistortionOpacity: 0.18,
-  blackHoleLensingOpacity: 0.16,
-  blackHoleShimmerStrength: 0.035,
+  // Phase 3 is intentionally local: these tune the optical field, never the black-hole group.
+  blackHoleDistortionRadius: 2.08,
+  blackHoleDistortionOpacity: 0.28,
+  blackHoleLensingOpacity: 0.27,
+  blackHoleShimmerStrength: 0.072,
 }
 
 const isBlackHoleNode = (node: KnowledgeNode) => {
@@ -1429,16 +1430,20 @@ export default function KnowledgeGraph3D({
               vec2 p = vUv * 2.0 - 1.0;
               float radius = length(p);
               float angle = atan(p.y, p.x);
-              float inner = smoothstep(0.18, 0.42, radius);
-              float outer = 1.0 - smoothstep(0.72, 1.0, radius);
-              float field = inner * outer;
-              float ripple = 0.5 + 0.5 * sin(angle * 5.0 - radius * 15.0 + time * 0.72);
-              float caustic = exp(-pow((radius - 0.54) * 12.0, 2.0)) * (0.42 + ripple * 0.58);
-              float shimmer = sin(angle * 7.0 + radius * 11.0 - time * 1.1) * shimmerStrength * shimmerEnabled;
-              float alpha = distortionEnabled * field * (0.52 + ripple * 0.24 + shimmer) * opacity;
+              float inner = smoothstep(0.12, 0.34, radius);
+              float outer = 1.0 - smoothstep(0.76, 1.0, radius);
+              float ripple = 0.5 + 0.5 * sin(angle * 4.0 - radius * 13.0 + time * 0.58);
+              float shear = 0.5 + 0.5 * sin(angle * 6.0 + radius * 17.0 - time * 0.41);
+              float field = inner * outer * (0.76 + shear * 0.24);
+              float caustic = exp(-pow((radius - 0.53) * 9.5, 2.0)) * (0.50 + ripple * 0.50);
+              float shimmer = (
+                sin(angle * 7.0 + radius * 11.0 - time * 0.82)
+                + sin(angle * 3.0 - radius * 19.0 + time * 0.47) * 0.56
+              ) * shimmerStrength * shimmerEnabled;
+              float alpha = distortionEnabled * field * (0.70 + ripple * 0.34 + shimmer) * opacity;
               alpha += lensingEnabled * caustic * lensingOpacity;
-              vec3 distortionColor = mix(vec3(0.24, 0.39, 0.68), vec3(0.90, 0.70, 0.36), caustic);
-              gl_FragColor = vec4(distortionColor, clamp(alpha, 0.0, 0.34));
+              vec3 distortionColor = mix(vec3(0.20, 0.34, 0.64), vec3(0.94, 0.73, 0.38), caustic);
+              gl_FragColor = vec4(distortionColor, clamp(alpha, 0.0, 0.48));
             }
           `,
           transparent: true,
