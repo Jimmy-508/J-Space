@@ -875,6 +875,8 @@ export default function KnowledgeGraph3D({
   const gesturePointerBlockedRef = useRef(gesturePointerBlocked)
   const isGesturePointerOverUiRef = useRef<Props['isGesturePointerOverUi']>(undefined)
   const selectedIdRef = useRef<string | undefined>(selectedId)
+  const hoveredIdRef = useRef<string | undefined>(hoveredId)
+  const focusIdRef = useRef<string | undefined>(focusId)
   const gestureControlRef = useRef<Props['gestureControl']>(undefined)
   const onViewerLoadStateChangeRef = useRef(onViewerLoadStateChange)
   const immersiveRef = useRef(immersive)
@@ -925,6 +927,14 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
+
+  useEffect(() => {
+    hoveredIdRef.current = hoveredId
+  }, [hoveredId])
+
+  useEffect(() => {
+    focusIdRef.current = focusId
+  }, [focusId])
 
   useEffect(() => {
     if (!selectedSummonStarId) selectedSummonRippleIdRef.current = undefined
@@ -1252,6 +1262,7 @@ export default function KnowledgeGraph3D({
     }
     backgroundTimeOriginRef.current = performance.now() * 0.001
 
+    const labelWorld = new THREE.Vector3()
     let frame = 0
     let lastFrameMs = performance.now()
     const animate = () => {
@@ -1965,18 +1976,35 @@ export default function KnowledgeGraph3D({
         material.opacity = 0.12 + Math.sin(time * 1.05 + index) * 0.04
       })
       labelSpritesRef.current.forEach((label) => {
-        const world = new THREE.Vector3()
-        label.getWorldPosition(world)
-        const distance = camera.position.distanceTo(world)
+        label.getWorldPosition(labelWorld)
+        const distance = camera.position.distanceTo(labelWorld)
         const screenRadius = ((label.userData.nodeRadius ?? 0.36) / Math.max(1, distance)) * (renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5))))
-        const selected = selectedIdRef.current === label.userData.nodeId
-        const visible = selected || ((label.userData.isCluster ?? false) && screenRadius > 6.5) || screenRadius > 16
+        const nodeId = label.userData.nodeId as string | undefined
+        const selected = selectedIdRef.current === nodeId
+        const hovered = hoveredIdRef.current === nodeId
+        const focused = focusIdRef.current === nodeId
+        const priority = selected || hovered || focused
+        const visible = priority || ((label.userData.isCluster ?? false) && screenRadius > 6.5) || screenRadius > 16
         label.visible = visible
         if (visible) {
           const material = label.material as THREE.SpriteMaterial
-          material.opacity = selected ? 0.92 : label.userData.isCluster ? 0.78 : 0.66
-          const boost = selected ? 1.2 : label.userData.isCluster ? 1.08 : 1
-          label.scale.set((label.userData.baseWidth ?? 1) * boost, (label.userData.baseHeight ?? 0.5) * boost, 1)
+          const depth = THREE.MathUtils.clamp((distance - 10) / 54, 0, 1)
+          const baseOpacity = label.userData.isCluster
+            ? THREE.MathUtils.lerp(0.78, 0.52, depth)
+            : THREE.MathUtils.lerp(0.76, 0.42, depth)
+          const depthScale = THREE.MathUtils.lerp(1.04, 0.88, depth)
+          const depthOrder = Math.round(THREE.MathUtils.lerp(20, 14, depth))
+          const priorityOpacity = selected ? 0.94 : hovered ? 0.92 : 0.9
+          const priorityBoost = selected ? 1.2 : hovered || focused ? 1.14 : 1
+          const clusterBoost = priority ? 1 : label.userData.isCluster ? 1.08 : 1
+
+          material.opacity = priority ? priorityOpacity : baseOpacity
+          label.renderOrder = priority ? 23 : depthOrder
+          label.scale.set(
+            (label.userData.baseWidth ?? 1) * depthScale * clusterBoost * priorityBoost,
+            (label.userData.baseHeight ?? 0.5) * depthScale * clusterBoost * priorityBoost,
+            1,
+          )
         }
       })
       nodeMeshesRef.current.forEach((mesh) => {
