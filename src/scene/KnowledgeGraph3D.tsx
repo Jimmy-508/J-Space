@@ -1263,6 +1263,8 @@ export default function KnowledgeGraph3D({
     backgroundTimeOriginRef.current = performance.now() * 0.001
 
     const labelWorld = new THREE.Vector3()
+    const labelCameraDirection = new THREE.Vector3()
+    const labelParentInverseQuaternion = new THREE.Quaternion()
     let frame = 0
     let lastFrameMs = performance.now()
     const animate = () => {
@@ -1975,8 +1977,11 @@ export default function KnowledgeGraph3D({
         const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial
         material.opacity = 0.12 + Math.sin(time * 1.05 + index) * 0.04
       })
+      group.getWorldQuaternion(labelParentInverseQuaternion).invert()
       labelSpritesRef.current.forEach((label) => {
-        label.getWorldPosition(labelWorld)
+        const nodeMesh = label.userData.nodeMesh as THREE.Mesh
+        const labelAnchor = label.userData.anchorPosition as THREE.Vector3
+        nodeMesh.getWorldPosition(labelWorld)
         const distance = camera.position.distanceTo(labelWorld)
         const screenRadius = ((label.userData.nodeRadius ?? 0.36) / Math.max(1, distance)) * (renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5))))
         const nodeId = label.userData.nodeId as string | undefined
@@ -2000,6 +2005,11 @@ export default function KnowledgeGraph3D({
 
           material.opacity = priority ? priorityOpacity : baseOpacity
           label.renderOrder = priority ? 23 : depthOrder
+          labelCameraDirection.copy(camera.position).sub(labelWorld).normalize().applyQuaternion(labelParentInverseQuaternion)
+          label.position.copy(labelAnchor).addScaledVector(
+            labelCameraDirection,
+            (label.userData.nodeRadius ?? 0.36) * nodeMesh.scale.x + 0.035,
+          )
           label.scale.set(
             (label.userData.baseWidth ?? 1) * depthScale * clusterBoost * priorityBoost,
             (label.userData.baseHeight ?? 0.5) * depthScale * clusterBoost * priorityBoost,
@@ -2468,7 +2478,10 @@ export default function KnowledgeGraph3D({
         emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
         emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
         roughness: hasContent ? 0.38 : 0.5,
-        transparent: true,
+        transparent: false,
+        opacity: 1,
+        depthTest: true,
+        depthWrite: true,
       })
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
@@ -2654,7 +2667,7 @@ export default function KnowledgeGraph3D({
         map: createNodeLabelTexture(node.title),
         transparent: true,
         opacity: 0,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
       }))
       label.position.copy(mesh.position)
@@ -2663,7 +2676,15 @@ export default function KnowledgeGraph3D({
       const labelHeight = nodeRadius * (isCluster ? 1.26 : 1.08)
       label.scale.set(labelWidth, labelHeight, 1)
       label.visible = false
-      label.userData = { nodeId: node.id, nodeRadius, isCluster, baseWidth: labelWidth, baseHeight: labelHeight }
+      label.userData = {
+        nodeId: node.id,
+        nodeRadius,
+        isCluster,
+        baseWidth: labelWidth,
+        baseHeight: labelHeight,
+        nodeMesh: mesh,
+        anchorPosition: mesh.position.clone(),
+      }
       labelSpritesRef.current.push(label)
       group.add(label)
     })
@@ -3165,8 +3186,7 @@ export default function KnowledgeGraph3D({
       const hasContent = isContentNode(node)
       const isCluster = isClusterNode(node)
       const active = id === selectedId || id === hoveredId || id === focusId
-      const relatedActive = !selectedId || related.has(id)
-      mat.opacity = selectedId ? (relatedActive ? 1 : 0.14) : (hasContent || isCluster ? 0.96 : 0.82)
+      mat.opacity = 1
       mat.emissiveIntensity = isSummonNode
         ? active ? 1.9 : related.has(id) ? 1.1 : 0.92
         : active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isCluster ? 0.68 : 0.28)
