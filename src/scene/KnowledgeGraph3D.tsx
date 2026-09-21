@@ -118,22 +118,25 @@ export const blackHoleEffectFlags: {
 }
 
 const blackHoleEffectParams = {
-  blackHoleInfluenceRadius: 5.4,
-  blackHoleFadeStartRadius: 4.6,
-  blackHoleFadeEndRadius: 1.1,
-  blackHoleCurveStrength: 0.72,
-  blackHoleParticleCount: 18,
-  blackHoleParticleSpawnRadius: 4.7,
-  blackHoleParticleSinkSpeed: 0.075,
-  blackHoleOrbitRadius: 5.4,
-  blackHoleOrbitStrength: 0.56,
-  blackHoleOrbitSpeed: 0.18,
-  blackHoleSpiralStartRadius: 3.25,
-  blackHoleSpiralStrength: 0.82,
-  blackHoleEventHorizonRadius: 1.15,
-  blackHoleEventHorizonMinScale: 0.6,
-  blackHoleEventHorizonMinOpacity: 0.24,
-  blackHoleStretchStrength: 0.32,
+  blackHoleInfluenceRadius: 7.8,
+  blackHoleFadeStartRadius: 6.7,
+  blackHoleFadeEndRadius: 0.85,
+  blackHoleCurveStrength: 1.08,
+  blackHoleParticleCount: 32,
+  blackHoleParticleSpawnRadius: 6.4,
+  blackHoleParticleSinkSpeed: 0.12,
+  blackHoleParticleOrbitSpeed: 0.24,
+  blackHoleParticleSize: 0.115,
+  blackHoleParticleOpacity: 0.78,
+  blackHoleOrbitRadius: 7.8,
+  blackHoleOrbitStrength: 1.35,
+  blackHoleOrbitSpeed: 0.24,
+  blackHoleSpiralStartRadius: 4.65,
+  blackHoleSpiralStrength: 1.55,
+  blackHoleEventHorizonRadius: 1.75,
+  blackHoleEventHorizonMinScale: 0.4,
+  blackHoleEventHorizonMinOpacity: 0.1,
+  blackHoleStretchStrength: 0.5,
   blackHoleReturnLerpSpeed: 5.2,
 }
 
@@ -2003,7 +2006,7 @@ export default function KnowledgeGraph3D({
             const depth = particleData[index * 3 + 2]
             const progress = (time * (blackHoleEffectParams.blackHoleParticleSinkSpeed + seed * 0.026) + seed) % 1
             const radius = blackHoleEffectParams.blackHoleParticleSpawnRadius * (1 - progress * 0.9)
-            const drift = angle + time * (0.16 + seed * 0.11) * (1 - progress * 0.42)
+            const drift = angle + time * blackHoleEffectParams.blackHoleParticleOrbitSpeed * (0.78 + seed * 0.55) * (1 - progress * 0.42)
             values[index * 3] = Math.cos(drift) * radius
             values[index * 3 + 1] = Math.sin(drift) * radius * (0.72 + seed * 0.1)
             values[index * 3 + 2] = depth * (1 - progress * 0.78)
@@ -2718,10 +2721,10 @@ export default function KnowledgeGraph3D({
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
       geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       const material = new THREE.PointsMaterial({
-        size: 0.09,
+        size: blackHoleEffectParams.blackHoleParticleSize,
         vertexColors: true,
         transparent: true,
-        opacity: 0.62,
+        opacity: blackHoleEffectParams.blackHoleParticleOpacity,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         sizeAttenuation: true,
