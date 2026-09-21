@@ -129,7 +129,7 @@ const blackHoleEffectParams = {
   blackHoleParticleSize: 0.115,
   blackHoleParticleOpacity: 0.78,
   // Phase 3 is intentionally local: these tune the optical field, never the black-hole group.
-  blackHoleDistortionRadius: 2.08,
+  blackHoleDistortionRadius: 1.56,
   blackHoleDistortionOpacity: 0.28,
   blackHoleLensingOpacity: 0.27,
   blackHoleShimmerStrength: 0.072,
