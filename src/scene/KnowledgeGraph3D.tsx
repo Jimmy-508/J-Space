@@ -113,6 +113,8 @@ const SUMMON_FOCUS_TRANSITION_DURATION_MS = 460
 const SUMMON_CHARGE_VISUAL_MS = 900
 const SUMMON_SELECTED_FOCUS_MIN_DISTANCE = 4.6
 const SUMMON_SELECTED_FOCUS_DISTANCE_EPSILON = 0.03
+const UNIVERSE_FOCUSED_MIN_DISTANCE = 5.4
+const UNIVERSE_FOCUSED_DISTANCE_EPSILON = 0.03
 
 type CameraTransition = {
   startedAt: number
@@ -924,6 +926,26 @@ export default function KnowledgeGraph3D({
     return setSelectedSummonFocusDistance(camera, camera.position.distanceTo(cameraTargetRef.current) - distanceStep)
   }
 
+  const setFocusedUniverseDistance = (camera: THREE.PerspectiveCamera, requestedDistance: number) => {
+    const target = cameraTargetRef.current
+    const currentDistance = camera.position.distanceTo(target)
+    if (currentDistance <= UNIVERSE_FOCUSED_MIN_DISTANCE + UNIVERSE_FOCUSED_DISTANCE_EPSILON) return false
+
+    const nextDistance = Math.max(UNIVERSE_FOCUSED_MIN_DISTANCE, requestedDistance)
+    if (nextDistance >= currentDistance) return false
+
+    const direction = camera.position.clone().sub(target)
+    if (direction.lengthSq() < 0.000001) direction.set(0, 0, 1)
+    direction.normalize()
+    camera.position.copy(target).addScaledVector(direction, nextDistance)
+    return true
+  }
+
+  const moveFocusedUniverseCloser = (camera: THREE.PerspectiveCamera, distanceStep: number) => {
+    if (distanceStep <= 0) return false
+    return setFocusedUniverseDistance(camera, camera.position.distanceTo(cameraTargetRef.current) - distanceStep)
+  }
+
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
@@ -1588,6 +1610,12 @@ export default function KnowledgeGraph3D({
               startSummonZoomOutTransition()
             } else if (activeGesture.activeGesture === 'zoomIn' && zoomStep > 0.08) {
               moveSelectedSummonFocusCloser(camera, zoomStep)
+            }
+          } else if (appModeRef.current === 'universe' && focusIdRef.current) {
+            if (activeGesture.activeGesture === 'zoomOut' && zoomStep < -0.08) {
+              startUniverseZoomOutTransition()
+            } else if (activeGesture.activeGesture === 'zoomIn' && zoomStep > 0.08) {
+              moveFocusedUniverseCloser(camera, zoomStep)
             }
           } else {
             camera.position.z = THREE.MathUtils.clamp(camera.position.z - zoomStep, 11, 70)
@@ -3297,6 +3325,26 @@ export default function KnowledgeGraph3D({
     }
   }
 
+  const startUniverseZoomOutTransition = () => {
+    const camera = cameraRef.current
+    const group = groupRef.current
+    const initialView = initialViewRef.current
+    if (!camera || !group || !initialView || focusTransitionRef.current || viewResetRef.current) return
+    const travelDistance = cameraTargetRef.current.distanceTo(initialView.target) + camera.position.distanceTo(initialView.position)
+    focusTransitionRef.current = {
+      startedAt: performance.now(),
+      duration: VIEW_RESET_DURATION_MS,
+      fromPosition: camera.position.clone(),
+      toPosition: initialView.position.clone(),
+      fromTarget: cameraTargetRef.current.clone(),
+      toTarget: initialView.target.clone(),
+      fromRotation: group.rotation.clone(),
+      resetRotation: false,
+      blurMax: THREE.MathUtils.clamp(1.8 + travelDistance * 0.12, 2.4, 4.8),
+      scaleMax: THREE.MathUtils.clamp(1.008 + travelDistance * 0.0005, 1.008, 1.026),
+    }
+  }
+
   const resetView = () => {
     if (imageViewerRef.current?.ready) {
       imageViewerRef.current.reset()
@@ -3755,6 +3803,11 @@ export default function KnowledgeGraph3D({
               } else if (appModeRef.current === 'summon' && selectedSummonStarIdRef.current && scale < 1) {
                 const startFocusDistance = touchRef.current.startCameraPosition.distanceTo(touchRef.current.startTarget)
                 setSelectedSummonFocusDistance(camera, startFocusDistance * scale)
+              } else if (appModeRef.current === 'universe' && focusIdRef.current && scale > 1.04) {
+                startUniverseZoomOutTransition()
+              } else if (appModeRef.current === 'universe' && focusIdRef.current && scale < 1) {
+                const startFocusDistance = touchRef.current.startCameraPosition.distanceTo(touchRef.current.startTarget)
+                setFocusedUniverseDistance(camera, startFocusDistance * scale)
               } else {
                 camera.position.z = Math.max(11, Math.min(70, touchRef.current.startZoom * scale))
               }
@@ -3802,6 +3855,10 @@ export default function KnowledgeGraph3D({
             startSummonZoomOutTransition()
           } else if (appModeRef.current === 'summon' && selectedSummonStarIdRef.current && event.deltaY < 0) {
             moveSelectedSummonFocusCloser(cameraRef.current, -event.deltaY * 0.025)
+          } else if (appModeRef.current === 'universe' && focusIdRef.current && event.deltaY > 0) {
+            startUniverseZoomOutTransition()
+          } else if (appModeRef.current === 'universe' && focusIdRef.current && event.deltaY < 0) {
+            moveFocusedUniverseCloser(cameraRef.current, -event.deltaY * 0.025)
           } else {
             cameraRef.current.position.z = Math.max(11, Math.min(70, cameraRef.current.position.z + event.deltaY * 0.025))
           }
