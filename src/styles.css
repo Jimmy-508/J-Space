@@ -2415,8 +2415,8 @@ textarea {
   }
 
   .summon-panel.summon-panel-setup {
-    width: min(calc(84dvw - 36.48px), calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-    max-width: min(calc(84dvw - 36.48px), calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    width: min(calc(84dvw - 30.4px), calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-width: min(calc(84dvw - 30.4px), calc(100dvw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   }
 
   .summon-setup-row {
