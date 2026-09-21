@@ -625,29 +625,6 @@ export default function App() {
     setViewerNodeId(undefined)
     setViewerLoadState('idle')
   }, [])
-  const restoreUniverseUiSnapshot = useCallback(() => {
-    const snapshot = universeUiSnapshotRef.current
-    if (!snapshot) {
-      setSelectedId(undefined)
-      setFocusId(undefined)
-      setHoveredId(undefined)
-      setViewerNodeId(undefined)
-      setViewerLoadState('idle')
-      setSelectionSource(undefined)
-      setNodeHudExpanded(false)
-      return
-    }
-    const selectedSnapshot = snapshot.selectedId === SUMMON_NODE_ID ? undefined : snapshot.selectedId
-    const focusSnapshot = snapshot.focusId === SUMMON_NODE_ID ? undefined : snapshot.focusId
-    const hoveredSnapshot = snapshot.hoveredId === SUMMON_NODE_ID ? undefined : snapshot.hoveredId
-    setSelectedId(selectedSnapshot)
-    setFocusId(focusSnapshot)
-    setHoveredId(hoveredSnapshot)
-    setViewerNodeId(snapshot.viewerNodeId)
-    setViewerLoadState('idle')
-    setSelectionSource(undefined)
-    setNodeHudExpanded(snapshot.nodeHudExpanded)
-  }, [])
   const selectNode = useCallback((node: KnowledgeNode, source: Exclude<SelectionSource, undefined>) => {
     if (isSystemNode(node)) {
       if (appMode !== 'universe' || pendingSummonTransition) {
@@ -787,7 +764,13 @@ export default function App() {
     }
     setPendingSummonTransition(false)
     setTransitionTitle('universe')
-    restoreUniverseUiSnapshot()
+    // Keep the return transition free of the pre-Summon node's focus effect.
+    setSelectedId(SUMMON_NODE_ID)
+    setFocusId(undefined)
+    setHoveredId(undefined)
+    setViewerNodeId(undefined)
+    setViewerLoadState('idle')
+    setSelectionSource(undefined)
     setAppMode('transition-to-universe')
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
@@ -804,8 +787,9 @@ export default function App() {
       setSummonResultTarget(undefined)
       setTransitionTitle(null)
       setPendingSummonTransition(false)
+      universeUiSnapshotRef.current = undefined
     }, 820)
-  }, [restoreUniverseUiSnapshot])
+  }, [])
 
   const selectSummonStar = useCallback((id: string) => {
     if (isTransitioning || summonStage !== 'drawing') return
