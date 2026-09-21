@@ -105,10 +105,16 @@ export const blackHoleEffectFlags: {
   enableBlackHoleFade: boolean
   enableBlackHoleCurve: boolean
   enableBlackHoleParticles: boolean
+  enableBlackHoleOrbit: boolean
+  enableBlackHoleSpiral: boolean
+  enableBlackHoleEventHorizon: boolean
 } = {
   enableBlackHoleFade: true,
   enableBlackHoleCurve: true,
   enableBlackHoleParticles: true,
+  enableBlackHoleOrbit: true,
+  enableBlackHoleSpiral: true,
+  enableBlackHoleEventHorizon: true,
 }
 
 const blackHoleEffectParams = {
@@ -119,6 +125,16 @@ const blackHoleEffectParams = {
   blackHoleParticleCount: 18,
   blackHoleParticleSpawnRadius: 4.7,
   blackHoleParticleSinkSpeed: 0.075,
+  blackHoleOrbitRadius: 5.4,
+  blackHoleOrbitStrength: 0.56,
+  blackHoleOrbitSpeed: 0.18,
+  blackHoleSpiralStartRadius: 3.25,
+  blackHoleSpiralStrength: 0.82,
+  blackHoleEventHorizonRadius: 1.15,
+  blackHoleEventHorizonMinScale: 0.6,
+  blackHoleEventHorizonMinOpacity: 0.24,
+  blackHoleStretchStrength: 0.32,
+  blackHoleReturnLerpSpeed: 5.2,
 }
 
 const isBlackHoleNode = (node: KnowledgeNode) => {
@@ -870,6 +886,11 @@ export default function KnowledgeGraph3D({
   const lastSummonResultTargetRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
   const blackHoleParticlesRef = useRef<THREE.Points | null>(null)
+  const blackHoleVisualRef = useRef<{ id?: string; center: THREE.Vector3; active: boolean }>({
+    center: new THREE.Vector3(),
+    active: false,
+  })
+  const blackHoleAffectedNodesRef = useRef<THREE.Mesh[]>([])
   const starfieldsRef = useRef<THREE.Points[]>([])
   const nebulaRef = useRef<THREE.Sprite[]>([])
   const atmosphereNebulaRef = useRef<THREE.Sprite[]>([])
@@ -1368,6 +1389,10 @@ export default function KnowledgeGraph3D({
     const labelCameraDirection = new THREE.Vector3()
     const labelParentInverseQuaternion = new THREE.Quaternion()
     const blackHoleParticleWorld = new THREE.Vector3()
+    const blackHoleVisualWorld = new THREE.Vector3()
+    const blackHoleRadial = new THREE.Vector3()
+    const blackHoleTangent = new THREE.Vector3()
+    const blackHoleTargetPosition = new THREE.Vector3()
     let frame = 0
     let lastFrameMs = performance.now()
     const animate = () => {
@@ -1986,6 +2011,77 @@ export default function KnowledgeGraph3D({
           positions.needsUpdate = true
         }
       }
+      const blackHoleVisual = blackHoleVisualRef.current
+      const blackHoleNodeMesh = blackHoleVisual.id ? nodeMeshesRef.current.get(blackHoleVisual.id) : undefined
+      let blackHoleInView = false
+      if (blackHoleVisual.active && blackHoleNodeMesh && appModeRef.current === 'universe' && !viewerActive) {
+        blackHoleNodeMesh.getWorldPosition(blackHoleVisualWorld).project(camera)
+        blackHoleInView = blackHoleVisualWorld.z > -1
+          && blackHoleVisualWorld.z < 1
+          && Math.abs(blackHoleVisualWorld.x) < 1.22
+          && Math.abs(blackHoleVisualWorld.y) < 1.22
+      }
+      blackHoleAffectedNodesRef.current.forEach((mesh) => {
+        const basePosition = mesh.userData.basePosition as THREE.Vector3
+        const visual = mesh.userData.blackHoleVisual as {
+          distance: number
+          phase: number
+          direction: number
+          speed: number
+          amplitude: number
+        } | undefined
+        const material = mesh.material as THREE.MeshStandardMaterial
+        const baseScale = mesh.userData.baseVisualScale ?? 1
+        const active = !!visual && blackHoleVisual.active && blackHoleInView
+        let eventHorizon = 0
+        blackHoleTargetPosition.copy(basePosition)
+        if (active && visual) {
+          blackHoleRadial.copy(basePosition).sub(blackHoleVisual.center)
+          const radialLength = Math.max(0.001, blackHoleRadial.length())
+          blackHoleRadial.multiplyScalar(1 / radialLength)
+          blackHoleTangent.set(-blackHoleRadial.y, blackHoleRadial.x, 0).normalize()
+          if (blackHoleEffectFlags.enableBlackHoleOrbit) {
+            const orbitPhase = time * visual.speed * visual.direction + visual.phase
+            blackHoleTargetPosition.addScaledVector(blackHoleTangent, Math.sin(orbitPhase) * visual.amplitude)
+            blackHoleTargetPosition.addScaledVector(blackHoleRadial, Math.cos(orbitPhase) * visual.amplitude * 0.22)
+          }
+          if (blackHoleEffectFlags.enableBlackHoleSpiral && visual.distance < blackHoleEffectParams.blackHoleSpiralStartRadius) {
+            const spiral = THREE.MathUtils.smoothstep(
+              blackHoleEffectParams.blackHoleSpiralStartRadius - visual.distance,
+              0,
+              blackHoleEffectParams.blackHoleSpiralStartRadius - blackHoleEffectParams.blackHoleEventHorizonRadius,
+            )
+            blackHoleTargetPosition.addScaledVector(blackHoleRadial, -blackHoleEffectParams.blackHoleSpiralStrength * spiral)
+          }
+          if (blackHoleEffectFlags.enableBlackHoleEventHorizon) {
+            eventHorizon = 1 - THREE.MathUtils.smoothstep(
+              visual.distance,
+              0,
+              blackHoleEffectParams.blackHoleEventHorizonRadius,
+            )
+          }
+        }
+        const lerp = 1 - Math.exp(-blackHoleEffectParams.blackHoleReturnLerpSpeed * Math.max(0.001, deltaTimeMs / 1000))
+        mesh.position.lerp(blackHoleTargetPosition, lerp)
+        const nextOpacity = THREE.MathUtils.lerp(1, blackHoleEffectParams.blackHoleEventHorizonMinOpacity, eventHorizon)
+        const nextTransparent = eventHorizon > 0.01
+        if (material.transparent !== nextTransparent) {
+          material.transparent = nextTransparent
+          material.needsUpdate = true
+        }
+        material.opacity = nextOpacity
+        material.depthWrite = !nextTransparent
+        const horizonScale = THREE.MathUtils.lerp(1, blackHoleEffectParams.blackHoleEventHorizonMinScale, eventHorizon)
+        const stretch = horizonScale * (1 + eventHorizon * blackHoleEffectParams.blackHoleStretchStrength)
+        const compression = horizonScale * (1 - eventHorizon * 0.08)
+        mesh.scale.set(baseScale * stretch, baseScale * horizonScale, baseScale * compression)
+        mesh.rotation.z = eventHorizon > 0.01 ? Math.atan2(blackHoleTangent.y, blackHoleTangent.x) : 0
+        const node = mesh.userData.node as KnowledgeNode
+        if (focusIdRef.current === node.id && !focusTransitionRef.current && !viewResetRef.current) {
+          mesh.getWorldPosition(blackHoleVisualWorld)
+          cameraTargetRef.current.lerp(blackHoleVisualWorld, lerp)
+        }
+      })
       const backgroundDim = viewerActive ? 0.32 : 1
       starfieldsRef.current.forEach((field) => {
         if (!resettingBackground) field.rotation.y += field.userData.drift * (viewerActive ? 0.18 : 1)
@@ -2093,6 +2189,9 @@ export default function KnowledgeGraph3D({
         }
       })
       selectedEffectsRef.current.forEach((object, index) => {
+        const nodeId = object.userData.nodeId as string | undefined
+        const nodeMesh = nodeId ? nodeMeshesRef.current.get(nodeId) : undefined
+        if (nodeMesh) object.position.copy(nodeMesh.position)
         const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial
         const baseScale = object.userData.baseScale ?? 1
         const pulse = Math.sin(time * (object.userData.speed ?? 1) + index * 1.4) * 0.5 + 0.5
@@ -2127,6 +2226,9 @@ export default function KnowledgeGraph3D({
         return true
       })
       coreEffectsRef.current.forEach((object, index) => {
+        const nodeId = object.userData.nodeId as string | undefined
+        const nodeMesh = nodeId ? nodeMeshesRef.current.get(nodeId) : undefined
+        if (nodeMesh) object.position.copy(nodeMesh.position)
         const distanceBoost = object.userData.distanceAware
           ? THREE.MathUtils.clamp((camera.position.distanceTo(object.position) - 24) / 46, 0, 0.18)
           : 0
@@ -2142,6 +2244,9 @@ export default function KnowledgeGraph3D({
         if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
       })
       contentMarkersRef.current.forEach((object, index) => {
+        const nodeId = object.userData.nodeId as string | undefined
+        const nodeMesh = nodeId ? nodeMeshesRef.current.get(nodeId) : undefined
+        if (nodeMesh) object.position.copy(nodeMesh.position)
         const material = (object as THREE.Mesh | THREE.Sprite).material as THREE.MeshBasicMaterial | THREE.SpriteMaterial
         const breath = Math.sin(time * 0.72 + index * 0.6) * 0.5 + 0.5
         object.scale.setScalar((object.userData.baseScale ?? 1) + breath * (object.userData.scaleRange ?? 0.05))
@@ -2149,13 +2254,15 @@ export default function KnowledgeGraph3D({
         if (object.userData.faceCamera) object.quaternion.copy(camera.quaternion)
       })
       relatedHalosRef.current.forEach((object, index) => {
+        const nodeId = object.userData.nodeId as string | undefined
+        const nodeMesh = nodeId ? nodeMeshesRef.current.get(nodeId) : undefined
+        if (nodeMesh) object.position.copy(nodeMesh.position)
         const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial
         material.opacity = 0.12 + Math.sin(time * 1.05 + index) * 0.04
       })
       group.getWorldQuaternion(labelParentInverseQuaternion).invert()
       labelSpritesRef.current.forEach((label) => {
         const nodeMesh = label.userData.nodeMesh as THREE.Mesh
-        const labelAnchor = label.userData.anchorPosition as THREE.Vector3
         nodeMesh.getWorldPosition(labelWorld)
         const distance = camera.position.distanceTo(labelWorld)
         const screenRadius = ((label.userData.nodeRadius ?? 0.36) / Math.max(1, distance)) * (renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5))))
@@ -2181,7 +2288,7 @@ export default function KnowledgeGraph3D({
           material.opacity = priority ? priorityOpacity : baseOpacity
           label.renderOrder = priority ? 23 : depthOrder
           labelCameraDirection.copy(camera.position).sub(labelWorld).normalize().applyQuaternion(labelParentInverseQuaternion)
-          label.position.copy(labelAnchor).addScaledVector(
+          label.position.copy(nodeMesh.position).addScaledVector(
             labelCameraDirection,
             (label.userData.nodeRadius ?? 0.36) * nodeMesh.scale.x + 0.035,
           )
@@ -2581,8 +2688,16 @@ export default function KnowledgeGraph3D({
     coreEffectsRef.current = []
     labelSpritesRef.current = []
     relatedHalosRef.current = []
+    blackHoleAffectedNodesRef.current = []
+    blackHoleVisualRef.current.active = false
+    blackHoleVisualRef.current.id = undefined
     const blackHoleNode = data.nodes.find(isBlackHoleNode)
     const blackHoleCenter = blackHoleNode ? layout.get(blackHoleNode.id) : undefined
+    if (blackHoleNode && blackHoleCenter) {
+      blackHoleVisualRef.current.id = blackHoleNode.id
+      blackHoleVisualRef.current.center.copy(blackHoleCenter)
+      blackHoleVisualRef.current.active = true
+    }
     if (blackHoleCenter && blackHoleEffectFlags.enableBlackHoleParticles) {
       const count = blackHoleEffectParams.blackHoleParticleCount
       const positions = new Float32Array(count * 3)
@@ -2720,7 +2835,30 @@ export default function KnowledgeGraph3D({
       })
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
-      mesh.userData.node = node
+      mesh.userData = {
+        node,
+        basePosition: mesh.position.clone(),
+        baseVisualScale: 1,
+      }
+      if (blackHoleCenter && node.id !== blackHoleNode?.id) {
+        const distance = mesh.position.distanceTo(blackHoleCenter)
+        if (distance <= blackHoleEffectParams.blackHoleOrbitRadius) {
+          let seed = 0
+          for (let index = 0; index < node.id.length; index += 1) seed = (seed * 31 + node.id.charCodeAt(index)) % 997
+          mesh.userData.blackHoleVisual = {
+            distance,
+            phase: (seed / 997) * Math.PI * 2,
+            direction: seed % 2 === 0 ? 1 : -1,
+            speed: blackHoleEffectParams.blackHoleOrbitSpeed * (0.74 + (seed % 7) * 0.07),
+            amplitude: blackHoleEffectParams.blackHoleOrbitStrength * THREE.MathUtils.smoothstep(
+              blackHoleEffectParams.blackHoleOrbitRadius - distance,
+              0,
+              blackHoleEffectParams.blackHoleOrbitRadius,
+            ),
+          }
+          blackHoleAffectedNodesRef.current.push(mesh)
+        }
+      }
       group.add(mesh)
       nodeMeshesRef.current.set(node.id, mesh)
       if (hasContent || isSummonNode) {
@@ -2751,7 +2889,7 @@ export default function KnowledgeGraph3D({
             makeHaloMaterial(summonNodeColors.midGlow, 0.12),
           )
           sealedGlow.position.copy(mesh.position)
-          sealedGlow.userData = { baseOpacity: 0.095, opacityRange: 0.045, speed: 0.38, distanceAware: true }
+          sealedGlow.userData = { nodeId: node.id, baseOpacity: 0.095, opacityRange: 0.045, speed: 0.38, distanceAware: true }
           coreEffectsRef.current.push(sealedGlow)
           group.add(sealedGlow)
           ;[
@@ -2764,14 +2902,14 @@ export default function KnowledgeGraph3D({
             )
             sealRing.position.copy(mesh.position)
             sealRing.rotation.set(ringConfig.rotation[0], ringConfig.rotation[1], ringConfig.rotation[2])
-            sealRing.userData = { baseOpacity: ringConfig.opacity * 0.5, opacityRange: ringConfig.opacity * 0.2, speed: 0.32, spin: ringConfig.speed }
+            sealRing.userData = { nodeId: node.id, baseOpacity: ringConfig.opacity * 0.5, opacityRange: ringConfig.opacity * 0.2, speed: 0.32, spin: ringConfig.speed }
             coreEffectsRef.current.push(sealRing)
             group.add(sealRing)
           })
           const sealOrbit = new THREE.Object3D()
           sealOrbit.position.copy(mesh.position)
           sealOrbit.rotation.set(0.82, -0.28, 0.2)
-          sealOrbit.userData = { orbit: true, speed: 0.0024, tiltDrift: 0.00012 }
+          sealOrbit.userData = { nodeId: node.id, orbit: true, speed: 0.0024, tiltDrift: 0.00012 }
           Array.from({ length: 5 }).forEach((_, dotIndex) => {
             const dot = new THREE.Mesh(
               new THREE.SphereGeometry(0.026 + (dotIndex % 2) * 0.008, 8, 6),
@@ -2798,12 +2936,12 @@ export default function KnowledgeGraph3D({
         group.add(clusterGlow)
         const innerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.16, 24, 14), makeHaloMaterial(typeColors[node.type], 0.1))
         innerGlow.position.copy(mesh.position)
-        innerGlow.userData = { baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42, distanceAware: true }
+        innerGlow.userData = { nodeId: node.id, baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42, distanceAware: true }
         coreEffectsRef.current.push(innerGlow)
         group.add(innerGlow)
         const outerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.72, 24, 14), makeHaloMaterial(typeColors[node.type], 0.045))
         outerGlow.position.copy(mesh.position)
-        outerGlow.userData = { baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28, distanceAware: true }
+        outerGlow.userData = { nodeId: node.id, baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28, distanceAware: true }
         coreEffectsRef.current.push(outerGlow)
         group.add(outerGlow)
         ;[
@@ -2816,14 +2954,14 @@ export default function KnowledgeGraph3D({
           )
           coreRing.position.copy(mesh.position)
           coreRing.rotation.set(ringConfig.rotation[0], ringConfig.rotation[1], ringConfig.rotation[2])
-          coreRing.userData = { baseOpacity: ringConfig.opacity * 0.48, opacityRange: ringConfig.opacity * 0.24, speed: 0.36, spin: ringConfig.speed }
+          coreRing.userData = { nodeId: node.id, baseOpacity: ringConfig.opacity * 0.48, opacityRange: ringConfig.opacity * 0.24, speed: 0.36, spin: ringConfig.speed }
           coreEffectsRef.current.push(coreRing)
           group.add(coreRing)
         })
         const orbit = new THREE.Object3D()
         orbit.position.copy(mesh.position)
         orbit.rotation.set(0.9, 0.18, 0.2)
-        orbit.userData = { orbit: true, speed: 0.0032, tiltDrift: 0.00015 }
+        orbit.userData = { nodeId: node.id, orbit: true, speed: 0.0032, tiltDrift: 0.00015 }
         Array.from({ length: 4 }).forEach((_, dotIndex) => {
           const dot = new THREE.Mesh(
             new THREE.SphereGeometry(0.035, 8, 6),
@@ -2851,7 +2989,7 @@ export default function KnowledgeGraph3D({
         }))
         coreFlare.position.copy(mesh.position)
         coreFlare.scale.setScalar(1.56)
-        coreFlare.userData = { baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true, distanceAware: true }
+        coreFlare.userData = { nodeId: node.id, baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true, distanceAware: true }
         coreEffectsRef.current.push(coreFlare)
         group.add(coreFlare)
       }
@@ -2859,7 +2997,7 @@ export default function KnowledgeGraph3D({
         const color = getNodeColor(node)
         const halo = new THREE.Mesh(new THREE.SphereGeometry(isCluster ? 1.42 : 1.02, 28, 18), makeHaloMaterial(color, 0.24))
         halo.position.copy(mesh.position)
-        halo.userData = { baseOpacity: 0.26, baseScale: 1, scaleRange: 0.2, speed: 0.75, fade: 0.25 }
+        halo.userData = { nodeId: node.id, baseOpacity: 0.26, baseScale: 1, scaleRange: 0.2, speed: 0.75, fade: 0.25 }
         selectedEffectsRef.current.push(halo)
         group.add(halo)
         const wakeFlare = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -2872,7 +3010,7 @@ export default function KnowledgeGraph3D({
         }))
         wakeFlare.position.copy(mesh.position)
         wakeFlare.scale.setScalar(isCluster ? 2.4 : 1.78)
-        wakeFlare.userData = { baseOpacity: 0.24, baseScale: isCluster ? 2.2 : 1.62, scaleRange: 0.32, speed: 0.62, fade: 0.42, faceCamera: true }
+        wakeFlare.userData = { nodeId: node.id, baseOpacity: 0.24, baseScale: isCluster ? 2.2 : 1.62, scaleRange: 0.32, speed: 0.62, fade: 0.42, faceCamera: true }
         selectedEffectsRef.current.push(wakeFlare)
         group.add(wakeFlare)
         ;[0, 1].forEach((ringIndex) => {
@@ -2882,6 +3020,7 @@ export default function KnowledgeGraph3D({
           )
           ring.position.copy(mesh.position)
           ring.userData = {
+            nodeId: node.id,
             baseOpacity: ringIndex === 0 ? 0.26 : 0.18,
             baseScale: 1.05 + ringIndex * 0.34,
             scaleRange: 0.72,
@@ -2895,6 +3034,7 @@ export default function KnowledgeGraph3D({
       } else if (selectedId && relatedIds.has(node.id)) {
         const relatedHalo = new THREE.Mesh(new THREE.SphereGeometry(isCluster ? 0.96 : hasContent ? 0.72 : 0.56, 18, 12), makeHaloMaterial(typeColors[node.type], 0.14))
         relatedHalo.position.copy(mesh.position)
+        relatedHalo.userData = { nodeId: node.id }
         relatedHalosRef.current.push(relatedHalo)
         group.add(relatedHalo)
       }
@@ -3425,7 +3565,9 @@ export default function KnowledgeGraph3D({
       mat.emissiveIntensity = isSummonNode
         ? active ? 1.9 : related.has(id) ? 1.1 : 0.92
         : active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isCluster ? 0.68 : 0.28)
-      mesh.scale.setScalar(active ? 1.62 : related.has(id) ? (hasContent ? 1.25 : 1.16) : 1)
+      const baseVisualScale = active ? 1.62 : related.has(id) ? (hasContent ? 1.25 : 1.16) : 1
+      mesh.userData.baseVisualScale = baseVisualScale
+      mesh.scale.setScalar(baseVisualScale)
     })
     contentMarkersRef.current.forEach((object) => {
       const nodeId = object.userData.nodeId as string | undefined
