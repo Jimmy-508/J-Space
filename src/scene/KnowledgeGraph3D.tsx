@@ -101,6 +101,77 @@ const isContentNode = (node: KnowledgeNode) => (
   !!node.url || (node.contentType === 'image' && !!node.imageUrl) || ['resource', 'website', 'project', 'file'].includes(node.type)
 ) && !isClusterNode(node)
 
+export const blackHoleEffectFlags: {
+  enableBlackHoleFade: boolean
+  enableBlackHoleCurve: boolean
+  enableBlackHoleParticles: boolean
+} = {
+  enableBlackHoleFade: true,
+  enableBlackHoleCurve: true,
+  enableBlackHoleParticles: true,
+}
+
+const blackHoleEffectParams = {
+  blackHoleInfluenceRadius: 5.4,
+  blackHoleFadeStartRadius: 4.6,
+  blackHoleFadeEndRadius: 1.1,
+  blackHoleCurveStrength: 0.72,
+  blackHoleParticleCount: 18,
+  blackHoleParticleSpawnRadius: 4.7,
+  blackHoleParticleSinkSpeed: 0.075,
+}
+
+const isBlackHoleNode = (node: KnowledgeNode) => {
+  if (node.id === SUMMON_NODE_ID) return false
+  const metadata = [node.title, node.category, ...(node.tags ?? [])]
+    .filter((value): value is string => !!value)
+    .map((value) => value.toLowerCase())
+  return metadata.some((value) => (
+    value.includes('黑洞')
+    || value.includes('black-hole')
+    || value.includes('blackhole')
+    || value.includes('singularity')
+  ))
+}
+
+const getBlackHoleFade = (position: THREE.Vector3, center: THREE.Vector3) => {
+  const distance = position.distanceTo(center)
+  if (distance >= blackHoleEffectParams.blackHoleFadeStartRadius) return 1
+  if (distance <= blackHoleEffectParams.blackHoleFadeEndRadius) return 0.06
+  return THREE.MathUtils.smoothstep(
+    distance,
+    blackHoleEffectParams.blackHoleFadeEndRadius,
+    blackHoleEffectParams.blackHoleFadeStartRadius,
+  ) * 0.94 + 0.06
+}
+
+const createBlackHoleLinkCurve = (start: THREE.Vector3, end: THREE.Vector3, center?: THREE.Vector3) => {
+  if (!center || !blackHoleEffectFlags.enableBlackHoleCurve) {
+    return new THREE.CatmullRomCurve3([start, end])
+  }
+  const segment = new THREE.Line3(start, end)
+  const closest = segment.closestPointToPoint(center, true, new THREE.Vector3())
+  const distance = closest.distanceTo(center)
+  const influence = THREE.MathUtils.clamp(
+    (blackHoleEffectParams.blackHoleInfluenceRadius - distance) / blackHoleEffectParams.blackHoleInfluenceRadius,
+    0,
+    1,
+  )
+  if (influence <= 0) return new THREE.CatmullRomCurve3([start, end])
+
+  const pull = center.clone().sub(closest)
+  if (pull.lengthSq() < 0.0001) {
+    pull.crossVectors(end.clone().sub(start), new THREE.Vector3(0, 1, 0))
+    if (pull.lengthSq() < 0.0001) pull.set(1, 0, 0)
+  }
+  pull.normalize().multiplyScalar(blackHoleEffectParams.blackHoleCurveStrength * influence)
+  return new THREE.QuadraticBezierCurve3(
+    start,
+    start.clone().lerp(end, 0.5).add(pull),
+    end,
+  )
+}
+
 const DWELL_SELECT_MS = 600
 const DWELL_DESELECT_MS = 780
 const DWELL_COOLDOWN_MS = 950
@@ -798,6 +869,7 @@ export default function KnowledgeGraph3D({
   const summonBlackHoleFrontAccretionRef = useRef<THREE.Group[]>([])
   const lastSummonResultTargetRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const linkObjectsRef = useRef<THREE.Object3D[]>([])
+  const blackHoleParticlesRef = useRef<THREE.Points | null>(null)
   const starfieldsRef = useRef<THREE.Points[]>([])
   const nebulaRef = useRef<THREE.Sprite[]>([])
   const atmosphereNebulaRef = useRef<THREE.Sprite[]>([])
@@ -1295,6 +1367,7 @@ export default function KnowledgeGraph3D({
     const labelWorld = new THREE.Vector3()
     const labelCameraDirection = new THREE.Vector3()
     const labelParentInverseQuaternion = new THREE.Quaternion()
+    const blackHoleParticleWorld = new THREE.Vector3()
     let frame = 0
     let lastFrameMs = performance.now()
     const animate = () => {
@@ -1884,6 +1957,35 @@ export default function KnowledgeGraph3D({
         }
       }
       camera.lookAt(cameraTargetRef.current)
+      const blackHoleParticles = blackHoleParticlesRef.current
+      if (blackHoleParticles) {
+        camera.updateMatrixWorld()
+        blackHoleParticles.getWorldPosition(blackHoleParticleWorld).project(camera)
+        const visible = appModeRef.current === 'universe'
+          && !viewerActive
+          && blackHoleParticleWorld.z > -1
+          && blackHoleParticleWorld.z < 1
+          && Math.abs(blackHoleParticleWorld.x) < 1.18
+          && Math.abs(blackHoleParticleWorld.y) < 1.18
+        blackHoleParticles.visible = visible
+        if (visible) {
+          const positions = blackHoleParticles.geometry.getAttribute('position') as THREE.BufferAttribute
+          const values = positions.array as Float32Array
+          const particleData = blackHoleParticles.userData.particleData as Float32Array
+          for (let index = 0; index < blackHoleEffectParams.blackHoleParticleCount; index += 1) {
+            const angle = particleData[index * 3]
+            const seed = particleData[index * 3 + 1]
+            const depth = particleData[index * 3 + 2]
+            const progress = (time * (blackHoleEffectParams.blackHoleParticleSinkSpeed + seed * 0.026) + seed) % 1
+            const radius = blackHoleEffectParams.blackHoleParticleSpawnRadius * (1 - progress * 0.9)
+            const drift = angle + time * (0.16 + seed * 0.11) * (1 - progress * 0.42)
+            values[index * 3] = Math.cos(drift) * radius
+            values[index * 3 + 1] = Math.sin(drift) * radius * (0.72 + seed * 0.1)
+            values[index * 3 + 2] = depth * (1 - progress * 0.78)
+          }
+          positions.needsUpdate = true
+        }
+      }
       const backgroundDim = viewerActive ? 0.32 : 1
       starfieldsRef.current.forEach((field) => {
         if (!resettingBackground) field.rotation.y += field.userData.drift * (viewerActive ? 0.18 : 1)
@@ -1977,7 +2079,10 @@ export default function KnowledgeGraph3D({
             const travel = Math.max(0, (age - 0.16) * (0.34 + dotIndex * 0.05) + offset + dotIndex * 0.38) % 1
             dot.position.copy((object.userData.curve as THREE.CatmullRomCurve3).getPointAt(travel))
             const dotMaterial = dot.material as THREE.MeshBasicMaterial
-            dotMaterial.opacity = (dotIndex === 0 ? 0.34 : 0.18) + Math.sin(time * 2.05 + index + dotIndex) * 0.06
+            const blackHoleFade = object.userData.blackHoleCenter && blackHoleEffectFlags.enableBlackHoleFade
+              ? getBlackHoleFade(dot.position, object.userData.blackHoleCenter as THREE.Vector3)
+              : 1
+            dotMaterial.opacity = ((dotIndex === 0 ? 0.34 : 0.18) + Math.sin(time * 2.05 + index + dotIndex) * 0.06) * blackHoleFade
             dot.visible = intro > 0.3
           })
         }
@@ -2404,6 +2509,11 @@ export default function KnowledgeGraph3D({
         })
       })
       summonBlackHoleFlowRef.current = []
+      if (blackHoleParticlesRef.current) {
+        blackHoleParticlesRef.current.geometry.dispose()
+        ;(blackHoleParticlesRef.current.material as THREE.Material).dispose()
+        blackHoleParticlesRef.current = null
+      }
       renderer.dispose()
       cometsRef.current.forEach(disposeComet)
       if (warpStreaksRef.current) {
@@ -2457,6 +2567,12 @@ export default function KnowledgeGraph3D({
   useEffect(() => {
     const group = groupRef.current
     if (!group) return
+    const previousBlackHoleParticles = blackHoleParticlesRef.current
+    if (previousBlackHoleParticles) {
+      previousBlackHoleParticles.geometry.dispose()
+      ;(previousBlackHoleParticles.material as THREE.Material).dispose()
+      blackHoleParticlesRef.current = null
+    }
     group.clear()
     nodeMeshesRef.current.clear()
     linkObjectsRef.current = []
@@ -2465,6 +2581,43 @@ export default function KnowledgeGraph3D({
     coreEffectsRef.current = []
     labelSpritesRef.current = []
     relatedHalosRef.current = []
+    const blackHoleNode = data.nodes.find(isBlackHoleNode)
+    const blackHoleCenter = blackHoleNode ? layout.get(blackHoleNode.id) : undefined
+    if (blackHoleCenter && blackHoleEffectFlags.enableBlackHoleParticles) {
+      const count = blackHoleEffectParams.blackHoleParticleCount
+      const positions = new Float32Array(count * 3)
+      const colors = new Float32Array(count * 3)
+      const particleData = new Float32Array(count * 3)
+      for (let index = 0; index < count; index += 1) {
+        const angle = Math.random() * Math.PI * 2
+        const seed = Math.random()
+        const depth = (Math.random() - 0.5) * 1.1
+        const radius = blackHoleEffectParams.blackHoleParticleSpawnRadius * (0.42 + seed * 0.58)
+        positions[index * 3] = Math.cos(angle) * radius
+        positions[index * 3 + 1] = Math.sin(angle) * radius * 0.76
+        positions[index * 3 + 2] = depth
+        colors.set(index % 3 === 0 ? [1, 0.83, 0.55] : [0.92, 0.78, 0.56], index * 3)
+        particleData.set([angle, seed, depth], index * 3)
+      }
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      const material = new THREE.PointsMaterial({
+        size: 0.09,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.62,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true,
+      })
+      const particles = new THREE.Points(geometry, material)
+      particles.position.copy(blackHoleCenter)
+      particles.renderOrder = 8
+      particles.userData = { particleData }
+      group.add(particles)
+      blackHoleParticlesRef.current = particles
+    }
     const relatedIds = getRelatedIds(data, selectedId)
     data.links.forEach((link) => {
       const source = layout.get(link.source)
@@ -2474,11 +2627,21 @@ export default function KnowledgeGraph3D({
       if (!related) return
       const start = link.source === selectedId ? source : target
       const end = link.source === selectedId ? target : source
-      const curve = new THREE.CatmullRomCurve3([start, end])
+      const curve = createBlackHoleLinkCurve(start, end, blackHoleCenter)
       const points = curve.getPoints(34)
       const geometry = new THREE.BufferGeometry().setFromPoints(points)
+      if (blackHoleCenter && blackHoleEffectFlags.enableBlackHoleFade) {
+        const colors = new Float32Array(points.length * 3)
+        const lineColor = new THREE.Color(0xaed2ff)
+        points.forEach((point, index) => {
+          const fade = getBlackHoleFade(point, blackHoleCenter)
+          colors.set([lineColor.r * fade, lineColor.g * fade, lineColor.b * fade], index * 3)
+        })
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      }
       const materialLine = new THREE.LineBasicMaterial({
         color: 0xaed2ff,
+        vertexColors: !!(blackHoleCenter && blackHoleEffectFlags.enableBlackHoleFade),
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
@@ -2491,6 +2654,7 @@ export default function KnowledgeGraph3D({
         createdAt: performance.now() * 0.001,
         drawRange: true,
         pointCount: points.length,
+        blackHoleCenter,
       }
       linkObjectsRef.current.push(line)
       group.add(line)
@@ -2530,6 +2694,7 @@ export default function KnowledgeGraph3D({
         baseOpacity: 0,
         createdAt: line.userData.createdAt,
         curve,
+        blackHoleCenter,
         energyDots: dots,
         energyOffset: Math.random() * 0.16,
       }
