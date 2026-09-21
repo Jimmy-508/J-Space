@@ -822,6 +822,18 @@ export default function App() {
     audioManagerRef.current?.playSelect()
   }, [isTransitioning, selectedSummonStarId, summonStage])
 
+  const clearSummonStarSelection = useCallback(() => {
+    if (appMode !== 'summon' || isTransitioning || summonStage !== 'drawing') return
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
+    summonChargeAudioRef.current = undefined
+    setSummonStars((current) => current.map((star) => {
+      if (star.status === 'resolved' || star.status === 'clearing') return star
+      return star.status === 'available' ? star : { ...star, status: 'available' }
+    }))
+  }, [appMode, isTransitioning, summonStage])
+
   const armSummonStar = useCallback((id: string) => {
     if (id !== selectedSummonStarId || armedSummonStarId === id) return
     setArmedSummonStarId(id)
@@ -1340,6 +1352,7 @@ export default function App() {
         summonedResult={summonResult}
         hands={hands}
         onSummonStarSelect={selectSummonStar}
+        onSummonStarClearSelection={clearSummonStarSelection}
         onSummonStarArm={armSummonStar}
         onSummonStarHoldChange={holdSummonStar}
         onSummonStarTrigger={triggerSummonStar}

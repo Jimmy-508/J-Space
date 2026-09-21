@@ -44,6 +44,7 @@ type Props = {
   summonedResult?: number
   hands?: TrackedHand[]
   onSummonStarSelect?: (id: string) => void
+  onSummonStarClearSelection?: () => void
   onSummonStarArm?: (id: string) => void
   onSummonStarHoldChange?: (id?: string) => void
   onSummonStarTrigger?: (id: string) => void
@@ -775,6 +776,7 @@ export default function KnowledgeGraph3D({
   summonedResult,
   hands = [],
   onSummonStarSelect,
+  onSummonStarClearSelection,
   onSummonStarArm,
   onSummonStarHoldChange,
   onSummonStarTrigger,
@@ -870,6 +872,12 @@ export default function KnowledgeGraph3D({
     cameraTarget: new THREE.Vector3(),
     groupRotation: new THREE.Euler(),
   })
+  const universeFocusMotionBlurRef = useRef({
+    current: 0,
+    initialized: false,
+    cameraPosition: new THREE.Vector3(),
+    cameraTarget: new THREE.Vector3(),
+  })
   const initialViewRef = useRef<InitialView | null>(null)
   const universeSnapshotRef = useRef<UniverseSnapshot | null>(null)
   const backgroundResetRef = useRef<BackgroundResetAnimation | null>(null)
@@ -891,7 +899,7 @@ export default function KnowledgeGraph3D({
   const summonBlackHoleOcclusionsRef = useRef(summonBlackHoleOcclusions)
   const resultReturnStarIdRef = useRef<string | undefined>(resultReturnStarId)
   const handsRef = useRef<TrackedHand[]>(hands)
-  const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange })
+  const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange })
   const summonArmLockRef = useRef({ armedAt: 0, triggeredAt: 0, holdStartedAt: 0, holdingId: undefined as string | undefined })
   const nebulaThemeRef = useRef(nebulaTheme)
   const cometsRef = useRef<THREE.Object3D[]>([])
@@ -1067,8 +1075,8 @@ export default function KnowledgeGraph3D({
     summonBlackHoleOcclusionsRef.current = summonBlackHoleOcclusions
     resultReturnStarIdRef.current = resultReturnStarId
     handsRef.current = hands
-    summonCallbacksRef.current = { onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange }
-  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, summonBlackHoleOcclusions, resultReturnStarId, hands, onSummonStarSelect, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
+    summonCallbacksRef.current = { onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange }
+  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, summonBlackHoleOcclusions, resultReturnStarId, hands, onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
 
   useEffect(() => {
     dragRef.current.active = false
@@ -1295,6 +1303,7 @@ export default function KnowledgeGraph3D({
       const deltaTimeMs = nowMs - lastFrameMs
       lastFrameMs = nowMs
       const time = nowMs * 0.001
+      let transitionOwnsBlur = false
       const backgroundTime = time - backgroundTimeOriginRef.current
       const activeGesture = gestureControlRef.current
       const viewer = imageViewerRef.current
@@ -1527,7 +1536,10 @@ export default function KnowledgeGraph3D({
         const eased = 1 - (1 - progress) ** 3
         camera.position.lerpVectors(viewReset.fromPosition, viewReset.toPosition, eased)
         cameraTargetRef.current.lerpVectors(viewReset.fromTarget, viewReset.toTarget, eased)
-        if (viewReset.blurMax) applyFocusMotionBlur(mount, progress, viewReset.blurMax, viewReset.scaleMax)
+        if (viewReset.blurMax) {
+          transitionOwnsBlur = true
+          applyFocusMotionBlur(mount, progress, viewReset.blurMax, viewReset.scaleMax)
+        }
         if (viewReset.resetRotation) {
           const resettingSummon = appModeRef.current === 'summon'
           const initialRotation = resettingSummon ? new THREE.Euler() : initialViewRef.current?.rotation ?? new THREE.Euler()
@@ -1592,7 +1604,10 @@ export default function KnowledgeGraph3D({
           : 1 - (-2 * progress + 2) ** 3 / 2
         camera.position.lerpVectors(transition.fromPosition, transition.toPosition, eased)
         cameraTargetRef.current.lerpVectors(transition.fromTarget, transition.toTarget, eased)
-        if (transition.blurMax) applyFocusMotionBlur(mount, progress, transition.blurMax, transition.scaleMax)
+        if (transition.blurMax) {
+          transitionOwnsBlur = true
+          applyFocusMotionBlur(mount, progress, transition.blurMax, transition.scaleMax)
+        }
         if (progress >= 1) {
           focusTransitionRef.current = null
           clearFocusMotionBlur(mount)
@@ -1671,6 +1686,33 @@ export default function KnowledgeGraph3D({
           summonMotionBlur.cameraTarget.copy(cameraTargetRef.current)
           if (activeControlGroup) summonMotionBlur.groupRotation.copy(activeControlGroup.rotation)
         }
+      }
+      const universeFocusMotionBlur = universeFocusMotionBlurRef.current
+      const focusedUniverseCameraMotion = appModeRef.current === 'universe' && !!focusIdRef.current && !viewerActive
+      if (!focusedUniverseCameraMotion) {
+        const ownedBlur = universeFocusMotionBlur.initialized || universeFocusMotionBlur.current > 0.01
+        universeFocusMotionBlur.current = 0
+        universeFocusMotionBlur.initialized = false
+        if (ownedBlur) clearFocusMotionBlur(mount)
+      } else if (!universeFocusMotionBlur.initialized) {
+        universeFocusMotionBlur.initialized = true
+        universeFocusMotionBlur.cameraPosition.copy(camera.position)
+        universeFocusMotionBlur.cameraTarget.copy(cameraTargetRef.current)
+      } else {
+        const cameraDistance = camera.position.distanceTo(universeFocusMotionBlur.cameraPosition)
+        const targetDistance = cameraTargetRef.current.distanceTo(universeFocusMotionBlur.cameraTarget)
+        if (transitionOwnsBlur) {
+          universeFocusMotionBlur.current = 0
+        } else {
+          const movementStrength = cameraDistance * 1.8 + targetDistance * 1.25
+          const targetBlur = THREE.MathUtils.clamp(movementStrength, 0, 4.8)
+          const smoothing = 1 - Math.exp(-(targetBlur > universeFocusMotionBlur.current ? 16 : 11) * Math.max(0.001, deltaTimeMs / 1000))
+          universeFocusMotionBlur.current += (targetBlur - universeFocusMotionBlur.current) * smoothing
+          if (universeFocusMotionBlur.current > 0.01) applyContinuousFocusMotionBlur(mount, universeFocusMotionBlur.current)
+          else clearFocusMotionBlur(mount)
+        }
+        universeFocusMotionBlur.cameraPosition.copy(camera.position)
+        universeFocusMotionBlur.cameraTarget.copy(cameraTargetRef.current)
       }
       const warp = warpTransitionRef.current
       const transitionDuration = appModeRef.current === 'transition-to-universe' ? 820 : 920
@@ -3648,6 +3690,9 @@ export default function KnowledgeGraph3D({
                 nodeId: hitResolvedSummon.object.userData.summonId as string | undefined,
               }
             } else {
+              if (selectedSummonStarIdRef.current) {
+                summonCallbacksRef.current.onSummonStarClearSelection?.()
+              }
               const previousTap = lastTapRef.current
               const doubleBlankTap = previousTap.blank &&
                 previousTap.pointerType === dragRef.current.pointerType &&
