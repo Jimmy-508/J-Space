@@ -23,7 +23,7 @@ import NodeHUD from './scene/NodeHUD'
 import type { KnowledgeData, KnowledgeLink, KnowledgeNode } from './types/knowledge'
 import { SUMMON_NODE, SUMMON_NODE_ID, isSystemNode } from './system/systemNodes'
 import { createSummonStars, type SummonStar } from './summon/summonUtils'
-import { openExternalLink } from './utils/navigation'
+import { getSafeExternalUrl, openExternalLink } from './utils/navigation'
 import type { GestureStatus, TrackedHand } from './gesture/gestureTypes'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { auth } from './firebase'
@@ -1106,6 +1106,12 @@ export default function App() {
           state.triggered = true
           state.cooldownUntil = now + GESTURE_UI_COOLDOWN_MS
           playGestureUiClick(target)
+          const gestureNavigate = target.dataset.gestureNavigate
+          if (gestureNavigate) {
+            const safeUrl = getSafeExternalUrl(gestureNavigate)
+            if (safeUrl) window.location.assign(safeUrl)
+            return
+          }
           const gestureHref = target.dataset.gestureHref
           if (gestureHref) {
             openExternalLink(gestureHref, setBlockedExternalUrl)
@@ -1649,6 +1655,7 @@ export default function App() {
           <button
             type="button"
             data-gesture-clickable="true"
+            data-gesture-navigate={blockedExternalUrl}
             onClick={() => {
               if (openExternalLink(blockedExternalUrl, setBlockedExternalUrl)) {
                 setBlockedExternalUrl(undefined)
