@@ -39,15 +39,15 @@ type Props = {
   selectedSummonStarId?: string
   armedSummonStarId?: string
   holdingSummonStarId?: string
-  summonBlackHoleWinner?: { id: string; lockedAt: number; absorptionComplete: boolean }
+  summonBlackHoleOcclusions?: Array<{ point: { x: number; y: number }; scale: number }>
   resultReturnStarId?: string
   summonedResult?: number
   hands?: TrackedHand[]
   onSummonStarSelect?: (id: string) => void
   onSummonStarClearSelection?: () => void
   onSummonStarArm?: (id: string) => void
-  onSummonStarHoldChange?: (id?: string, triggerHandId?: string) => void
-  onSummonStarTrigger?: (id: string, releasedHandId?: string) => void
+  onSummonStarHoldChange?: (id?: string) => void
+  onSummonStarTrigger?: (id: string) => void
   onSummonResultTargetChange?: (point?: { x: number; y: number }) => void
 }
 
@@ -105,16 +105,16 @@ export const blackHoleEffectFlags: {
   enableBlackHoleFade: boolean
   enableBlackHoleCurve: boolean
   enableBlackHoleParticles: boolean
-  enableBlackHoleOrbit: boolean
-  enableBlackHoleSpiral: boolean
-  enableBlackHoleEventHorizon: boolean
+  enableBlackHoleDistortion: boolean
+  enableBlackHoleLensing: boolean
+  enableBlackHoleShimmer: boolean
 } = {
   enableBlackHoleFade: true,
   enableBlackHoleCurve: true,
   enableBlackHoleParticles: true,
-  enableBlackHoleOrbit: true,
-  enableBlackHoleSpiral: true,
-  enableBlackHoleEventHorizon: true,
+  enableBlackHoleDistortion: true,
+  enableBlackHoleLensing: true,
+  enableBlackHoleShimmer: true,
 }
 
 const blackHoleEffectParams = {
@@ -128,16 +128,10 @@ const blackHoleEffectParams = {
   blackHoleParticleOrbitSpeed: 0.24,
   blackHoleParticleSize: 0.115,
   blackHoleParticleOpacity: 0.78,
-  blackHoleOrbitRadius: 7.8,
-  blackHoleOrbitStrength: 1.35,
-  blackHoleOrbitSpeed: 0.24,
-  blackHoleSpiralStartRadius: 4.65,
-  blackHoleSpiralStrength: 1.55,
-  blackHoleEventHorizonRadius: 1.75,
-  blackHoleEventHorizonMinScale: 0.4,
-  blackHoleEventHorizonMinOpacity: 0.1,
-  blackHoleStretchStrength: 0.5,
-  blackHoleReturnLerpSpeed: 5.2,
+  blackHoleDistortionRadius: 1.84,
+  blackHoleDistortionOpacity: 0.18,
+  blackHoleLensingOpacity: 0.16,
+  blackHoleShimmerStrength: 0.035,
 }
 
 const isBlackHoleNode = (node: KnowledgeNode) => {
@@ -202,14 +196,10 @@ const VIEW_RESET_DURATION_MS = 520
 const FOCUS_TRANSITION_DURATION_MS = 360
 const SUMMON_FOCUS_TRANSITION_DURATION_MS = 460
 const SUMMON_CHARGE_VISUAL_MS = 900
-const SUMMON_BLACK_HOLE_ABSORPTION_DURATION = 0.9
 const SUMMON_SELECTED_FOCUS_MIN_DISTANCE = 4.6
 const SUMMON_SELECTED_FOCUS_DISTANCE_EPSILON = 0.03
 const UNIVERSE_FOCUSED_MIN_DISTANCE = 5.4
 const UNIVERSE_FOCUSED_DISTANCE_EPSILON = 0.03
-
-const getSummonBlackHoleAbsorptionProgress = (time: number, lockedAt: number) =>
-  THREE.MathUtils.clamp((time - lockedAt / 1000) / SUMMON_BLACK_HOLE_ABSORPTION_DURATION, 0, 1)
 
 type CameraTransition = {
   startedAt: number
@@ -865,7 +855,7 @@ export default function KnowledgeGraph3D({
   selectedSummonStarId,
   armedSummonStarId,
   holdingSummonStarId,
-  summonBlackHoleWinner,
+  summonBlackHoleOcclusions = [],
   resultReturnStarId,
   summonedResult,
   hands = [],
@@ -887,6 +877,7 @@ export default function KnowledgeGraph3D({
   const summonEffectsRef = useRef<THREE.Object3D[]>([])
   const summonGroupRef = useRef<THREE.Group | null>(null)
   const summonBlackHoleCoreRef = useRef<THREE.Mesh[]>([])
+  const summonBlackHoleDistortionRef = useRef<THREE.Mesh[]>([])
   const summonBlackHoleFlowRef = useRef<THREE.Group[]>([])
   const summonBlackHoleBackAccretionRef = useRef<THREE.Group[]>([])
   const summonBlackHoleFrontAccretionRef = useRef<THREE.Group[]>([])
@@ -991,11 +982,11 @@ export default function KnowledgeGraph3D({
   const selectedSummonRippleIdRef = useRef<string | undefined>(undefined)
   const armedSummonStarIdRef = useRef<string | undefined>(armedSummonStarId)
   const holdingSummonStarIdRef = useRef<string | undefined>(holdingSummonStarId)
-  const summonBlackHoleWinnerRef = useRef(summonBlackHoleWinner)
+  const summonBlackHoleOcclusionsRef = useRef(summonBlackHoleOcclusions)
   const resultReturnStarIdRef = useRef<string | undefined>(resultReturnStarId)
   const handsRef = useRef<TrackedHand[]>(hands)
   const summonCallbacksRef = useRef({ onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange })
-  const summonArmLockRef = useRef({ armedAt: 0, triggeredAt: 0, holdStartedAt: 0, holdingId: undefined as string | undefined, triggerHandId: undefined as string | undefined })
+  const summonArmLockRef = useRef({ armedAt: 0, triggeredAt: 0, holdStartedAt: 0, holdingId: undefined as string | undefined })
   const nebulaThemeRef = useRef(nebulaTheme)
   const cometsRef = useRef<THREE.Object3D[]>([])
   const nextCometAtRef = useRef(0)
@@ -1167,11 +1158,11 @@ export default function KnowledgeGraph3D({
     selectedSummonStarIdRef.current = selectedSummonStarId
     armedSummonStarIdRef.current = armedSummonStarId
     holdingSummonStarIdRef.current = holdingSummonStarId
-    summonBlackHoleWinnerRef.current = summonBlackHoleWinner
+    summonBlackHoleOcclusionsRef.current = summonBlackHoleOcclusions
     resultReturnStarIdRef.current = resultReturnStarId
     handsRef.current = hands
     summonCallbacksRef.current = { onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange }
-  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, summonBlackHoleWinner, resultReturnStarId, hands, onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
+  }, [appMode, summonStage, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, summonBlackHoleOcclusions, resultReturnStarId, hands, onSummonStarSelect, onSummonStarClearSelection, onSummonStarArm, onSummonStarHoldChange, onSummonStarTrigger, onSummonResultTargetChange])
 
   useEffect(() => {
     dragRef.current.active = false
@@ -1355,6 +1346,9 @@ export default function KnowledgeGraph3D({
     const blackHoleBackScene = new THREE.Scene()
     const blackHoleScene = new THREE.Scene()
     const blackHoleForegroundScene = new THREE.Scene()
+    const summonBlackHoleDistortionGroup = new THREE.Group()
+    summonBlackHoleDistortionGroup.renderOrder = 8
+    blackHoleBackScene.add(summonBlackHoleDistortionGroup)
     const summonBlackHoleBackAccretionGroup = new THREE.Group()
     summonBlackHoleBackAccretionGroup.renderOrder = 9
     blackHoleBackScene.add(summonBlackHoleBackAccretionGroup)
@@ -1390,10 +1384,6 @@ export default function KnowledgeGraph3D({
     const labelWorld = new THREE.Vector3()
     const labelCameraDirection = new THREE.Vector3()
     const labelParentInverseQuaternion = new THREE.Quaternion()
-    const summonBlackHoleAnchorWorld = new THREE.Vector3()
-    const summonBlackHoleProjection = new THREE.Vector3()
-    const summonBlackHoleOcclusion = { point: { x: 0, y: 0 }, scale: 0.86 }
-    const summonBlackHoleOcclusions: Array<{ point: { x: number; y: number }; scale: number }> = []
     let frame = 0
     let lastFrameMs = performance.now()
     const animate = () => {
@@ -1407,23 +1397,61 @@ export default function KnowledgeGraph3D({
       const activeGesture = gestureControlRef.current
       const viewer = imageViewerRef.current
       const viewerActive = !!viewer?.ready
-      summonBlackHoleOcclusions.length = 0
-      const summonBlackHoleWinner = summonBlackHoleWinnerRef.current
-      if (summonBlackHoleWinner && appModeRef.current === 'summon' && summonStageRef.current === 'drawing') {
-        const winnerMesh = summonMeshesRef.current.get(summonBlackHoleWinner.id)
-          ?? resolvedSummonMeshesRef.current.get(summonBlackHoleWinner.id)
-        const winnerRoot = winnerMesh?.parent
-        const anchor = winnerRoot?.userData.targetPosition as THREE.Vector3 | undefined
-        const summonGroup = summonGroupRef.current
-        if (anchor && summonGroup) {
-          summonGroup.localToWorld(summonBlackHoleAnchorWorld.copy(anchor))
-          summonBlackHoleProjection.copy(summonBlackHoleAnchorWorld).project(camera)
-          summonBlackHoleOcclusion.point.x = (summonBlackHoleProjection.x * 0.5 + 0.5) * renderer.domElement.clientWidth
-          summonBlackHoleOcclusion.point.y = (-summonBlackHoleProjection.y * 0.5 + 0.5) * renderer.domElement.clientHeight
-          summonBlackHoleOcclusions.push(summonBlackHoleOcclusion)
-        }
+      const blackHoleOcclusions = summonBlackHoleOcclusionsRef.current
+      while (summonBlackHoleDistortionRef.current.length < blackHoleOcclusions.length) {
+        const distortionMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0 },
+            opacity: { value: blackHoleEffectParams.blackHoleDistortionOpacity },
+            lensingOpacity: { value: blackHoleEffectParams.blackHoleLensingOpacity },
+            distortionEnabled: { value: blackHoleEffectFlags.enableBlackHoleDistortion ? 1 : 0 },
+            lensingEnabled: { value: blackHoleEffectFlags.enableBlackHoleLensing ? 1 : 0 },
+            shimmerEnabled: { value: blackHoleEffectFlags.enableBlackHoleShimmer ? 1 : 0 },
+            shimmerStrength: { value: blackHoleEffectParams.blackHoleShimmerStrength },
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float time;
+            uniform float opacity;
+            uniform float lensingOpacity;
+            uniform float distortionEnabled;
+            uniform float lensingEnabled;
+            uniform float shimmerEnabled;
+            uniform float shimmerStrength;
+            varying vec2 vUv;
+            void main() {
+              vec2 p = vUv * 2.0 - 1.0;
+              float radius = length(p);
+              float angle = atan(p.y, p.x);
+              float inner = smoothstep(0.18, 0.42, radius);
+              float outer = 1.0 - smoothstep(0.72, 1.0, radius);
+              float field = inner * outer;
+              float ripple = 0.5 + 0.5 * sin(angle * 5.0 - radius * 15.0 + time * 0.72);
+              float caustic = exp(-pow((radius - 0.54) * 12.0, 2.0)) * (0.42 + ripple * 0.58);
+              float shimmer = sin(angle * 7.0 + radius * 11.0 - time * 1.1) * shimmerStrength * shimmerEnabled;
+              float alpha = distortionEnabled * field * (0.52 + ripple * 0.24 + shimmer) * opacity;
+              alpha += lensingEnabled * caustic * lensingOpacity;
+              vec3 distortionColor = mix(vec3(0.24, 0.39, 0.68), vec3(0.90, 0.70, 0.36), caustic);
+              gl_FragColor = vec4(distortionColor, clamp(alpha, 0.0, 0.34));
+            }
+          `,
+          transparent: true,
+          depthTest: false,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+        })
+        const distortion = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), distortionMaterial)
+        distortion.renderOrder = 8
+        distortion.userData = { role: 'summonBlackHoleDistortion' }
+        summonBlackHoleDistortionGroup.add(distortion)
+        summonBlackHoleDistortionRef.current.push(distortion)
       }
-      const blackHoleOcclusions = summonBlackHoleOcclusions
       while (summonBlackHoleCoreRef.current.length < blackHoleOcclusions.length) {
         const core = new THREE.Mesh(
           new THREE.CircleGeometry(1, 128),
@@ -1557,6 +1585,28 @@ export default function KnowledgeGraph3D({
         summonBlackHoleFlowRef.current.push(flow)
       }
       const blackHolePortraitScale = renderer.domElement.clientHeight > renderer.domElement.clientWidth ? 0.8 : 1
+      summonBlackHoleDistortionRef.current.forEach((distortion, index) => {
+        const occlusion = blackHoleOcclusions[index]
+        distortion.visible = !!occlusion
+        if (!occlusion) return
+        const distance = 24
+        const ndc = new THREE.Vector3(
+          (occlusion.point.x / Math.max(1, renderer.domElement.clientWidth)) * 2 - 1,
+          -(occlusion.point.y / Math.max(1, renderer.domElement.clientHeight)) * 2 + 1,
+          0.1,
+        )
+        ndc.unproject(camera)
+        const direction = ndc.sub(camera.position).normalize()
+        distortion.position.copy(camera.position).addScaledVector(direction, distance)
+        distortion.quaternion.copy(camera.quaternion)
+        const worldRadius = (82 * occlusion.scale / Math.max(1, renderer.domElement.clientHeight)) * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distance * blackHolePortraitScale
+        distortion.scale.setScalar(worldRadius * blackHoleEffectParams.blackHoleDistortionRadius)
+        const material = distortion.material as THREE.ShaderMaterial
+        material.uniforms.time.value = time
+        material.uniforms.distortionEnabled.value = blackHoleEffectFlags.enableBlackHoleDistortion ? 1 : 0
+        material.uniforms.lensingEnabled.value = blackHoleEffectFlags.enableBlackHoleLensing ? 1 : 0
+        material.uniforms.shimmerEnabled.value = blackHoleEffectFlags.enableBlackHoleShimmer ? 1 : 0
+      })
       summonBlackHoleCoreRef.current.forEach((core, index) => {
         const occlusion = blackHoleOcclusions[index]
         core.visible = !!occlusion
@@ -1619,16 +1669,13 @@ export default function KnowledgeGraph3D({
           if (thread instanceof THREE.Points && thread.userData.role === 'summonBlackHoleParticles') {
             const positions = thread.geometry.getAttribute('position') as THREE.BufferAttribute
             const particleData = thread.userData.particleData as Float32Array
-            const absorption = summonBlackHoleWinner
-              ? getSummonBlackHoleAbsorptionProgress(time, summonBlackHoleWinner.lockedAt)
-              : 0
             const spawnRadius = blackHoleEffectParams.blackHoleParticleSpawnRadius * 0.278
             for (let particleIndex = 0; particleIndex < positions.count; particleIndex += 1) {
               const phase = particleData[particleIndex * 3]
               const seed = particleData[particleIndex * 3 + 1]
               const depth = particleData[particleIndex * 3 + 2]
               const progress = (time * (blackHoleEffectParams.blackHoleParticleSinkSpeed + seed * 0.026) + seed) % 1
-              const radius = (spawnRadius - progress * (spawnRadius - 0.14)) * (1 - absorption * 0.24)
+              const radius = spawnRadius - progress * (spawnRadius - 0.14)
               const angle = phase + time * blackHoleEffectParams.blackHoleParticleOrbitSpeed * (0.8 + seed * 0.5)
               positions.setXYZ(
                 particleIndex,
@@ -2031,33 +2078,25 @@ export default function KnowledgeGraph3D({
           }
         }
         if (armedSummonId) {
-          const fistHand = handsRef.current.find((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex')
-          const triggerHandId = summonArmLockRef.current.triggerHandId
-          const triggerHandStillHeld = triggerHandId
-            ? handsRef.current.some((hand) => hand.id === triggerHandId && (hand.gesture === 'fist' || hand.gesture === 'fistWithIndex'))
-            : false
-          if (fistHand && !summonArmLockRef.current.holdingId) {
-            summonArmLockRef.current.holdingId = armedSummonId
-            summonArmLockRef.current.triggerHandId = fistHand.id
-            summonArmLockRef.current.holdStartedAt = time
-            summonCallbacksRef.current.onSummonStarHoldChange?.(armedSummonId, fistHand.id)
-          } else if (summonArmLockRef.current.holdingId && triggerHandStillHeld) {
-            // The hand that started the draw owns its release; a second fist must not delay it.
+          const fistActive = handsRef.current.some((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex')
+          if (fistActive) {
+            if (summonArmLockRef.current.holdingId !== armedSummonId) {
+              summonArmLockRef.current.holdingId = armedSummonId
+              summonArmLockRef.current.holdStartedAt = time
+              summonCallbacksRef.current.onSummonStarHoldChange?.(armedSummonId)
+            }
           } else if (summonArmLockRef.current.holdingId) {
             const releasedId = summonArmLockRef.current.holdingId
-            const releasedHandId = summonArmLockRef.current.triggerHandId
             if (time - summonArmLockRef.current.triggeredAt > 0.35) {
               summonArmLockRef.current.triggeredAt = time
-              summonCallbacksRef.current.onSummonStarTrigger?.(releasedId, releasedHandId)
+              summonCallbacksRef.current.onSummonStarTrigger?.(releasedId)
             }
             summonArmLockRef.current.holdingId = undefined
-            summonArmLockRef.current.triggerHandId = undefined
             summonArmLockRef.current.holdStartedAt = 0
             summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
           }
         } else if (summonArmLockRef.current.holdingId) {
           summonArmLockRef.current.holdingId = undefined
-          summonArmLockRef.current.triggerHandId = undefined
           summonArmLockRef.current.holdStartedAt = 0
           summonCallbacksRef.current.onSummonStarHoldChange?.(undefined)
         }
@@ -2298,10 +2337,6 @@ export default function KnowledgeGraph3D({
         const clearing = object.userData.clearing === true
         const clearingProgress = clearing ? THREE.MathUtils.clamp((time - (object.userData.clearingAt ?? time)) / 0.72, 0, 1) : 0
         const objectId = object.userData.id as string | undefined
-        const blackHoleWinner = object.userData.blackHoleWinner === true
-        const blackHoleProgress = blackHoleWinner && object.userData.blackHoleLockedAt
-          ? getSummonBlackHoleAbsorptionProgress(time, object.userData.blackHoleLockedAt)
-          : 0
         // A revealed star stays in the scene so the result numeral can return to the same physical object.
         object.visible = true
         const pointerHoldStartedAt = pointerSummonHoldRef.current.active && pointerSummonHoldRef.current.summonId === objectId
@@ -2323,32 +2358,6 @@ export default function KnowledgeGraph3D({
           object.scale.setScalar(0.94 + Math.sin(time * 0.9 + phase) * 0.012)
         } else if (clearing) {
           object.scale.setScalar(1 + Math.sin(clearingProgress * Math.PI) * 0.18 - clearingProgress * 0.62)
-        }
-        if (blackHoleWinner) {
-          const target = object.userData.targetPosition as THREE.Vector3
-          const orbitStrength = blackHoleEffectFlags.enableBlackHoleOrbit
-            ? blackHoleEffectParams.blackHoleOrbitStrength * (1 - blackHoleProgress * 0.42)
-            : 0
-          const spiralStrength = blackHoleEffectFlags.enableBlackHoleSpiral
-            ? blackHoleEffectParams.blackHoleSpiralStrength * blackHoleProgress
-            : 0
-          const orbitPhase = phase + time * blackHoleEffectParams.blackHoleOrbitSpeed * 3.2
-          const orbitRadius = (object.userData.size ?? 0.6) * orbitStrength * (0.58 + Math.sin(orbitPhase * 1.3) * 0.14)
-          object.position.set(
-            target.x + Math.cos(orbitPhase) * orbitRadius * (1 - blackHoleProgress * 0.62),
-            target.y + Math.sin(orbitPhase) * orbitRadius * 0.72 * (1 - blackHoleProgress * 0.62),
-            target.z + Math.sin(orbitPhase * 1.7) * orbitRadius * 0.18 - spiralStrength,
-          )
-          const horizonScale = blackHoleEffectFlags.enableBlackHoleEventHorizon
-            ? THREE.MathUtils.lerp(1, blackHoleEffectParams.blackHoleEventHorizonMinScale, blackHoleProgress)
-            : 1
-          const stretch = 1 + (blackHoleEffectFlags.enableBlackHoleEventHorizon ? blackHoleProgress * blackHoleEffectParams.blackHoleStretchStrength : 0)
-          const absorptionScale = 1 - blackHoleProgress * 0.86
-          object.scale.set(
-            horizonScale * stretch * absorptionScale,
-            horizonScale * absorptionScale,
-            horizonScale * (1 - blackHoleProgress * 0.12) * absorptionScale,
-          )
         }
         object.children.forEach((child) => {
           if (child instanceof THREE.Mesh) {
@@ -2519,16 +2528,6 @@ export default function KnowledgeGraph3D({
             const material = child.material as THREE.MeshStandardMaterial
             material.emissiveIntensity = (child.userData.baseEmissiveIntensity ?? 0.2) + Math.sin(time * 0.52 + phase) * 0.04
           }
-          if (blackHoleWinner && (child instanceof THREE.Mesh || child instanceof THREE.Sprite || child instanceof THREE.Line)) {
-            const material = child.material as THREE.Material & { opacity?: number; transparent?: boolean; depthWrite?: boolean }
-            if (typeof material.opacity === 'number') {
-              const baseOpacity = child.userData.blackHoleBaseOpacity ?? material.opacity
-              child.userData.blackHoleBaseOpacity = baseOpacity
-              material.opacity = baseOpacity * THREE.MathUtils.lerp(1, blackHoleEffectParams.blackHoleEventHorizonMinOpacity, blackHoleProgress)
-              material.transparent = true
-              material.depthWrite = false
-            }
-          }
         })
       })
       const returnStarId = resultReturnStarIdRef.current
@@ -2614,6 +2613,11 @@ export default function KnowledgeGraph3D({
         ;(core.material as THREE.Material).dispose()
       })
       summonBlackHoleCoreRef.current = []
+      summonBlackHoleDistortionRef.current.forEach((distortion) => {
+        distortion.geometry.dispose()
+        ;(distortion.material as THREE.Material).dispose()
+      })
+      summonBlackHoleDistortionRef.current = []
       ;[summonBlackHoleBackAccretionRef.current, summonBlackHoleFrontAccretionRef.current].forEach((layers) => {
         layers.forEach((layer) => {
           layer.traverse((object) => {
@@ -3044,7 +3048,6 @@ export default function KnowledgeGraph3D({
       const phase = visualSeed * Math.PI * 12.8
       const sizeTier = Math.floor(visualSeed * 17) % 3
       const size = [0.44, 0.62, 0.82][sizeTier] + (visualSeed - 0.5) * 0.05
-      const blackHoleWinner = summonBlackHoleWinner?.id === star.id
       const isSelected = star.id === selectedSummonStarId
       const armed = star.id === armedSummonStarId || star.status === 'armed'
       const holding = star.id === holdingSummonStarId
@@ -3053,25 +3056,7 @@ export default function KnowledgeGraph3D({
       const resolvedAge = star.resolvedAt ? Math.max(0, (performance.now() - star.resolvedAt) / 1000) : 99
       const clearingAge = star.clearingAt ? Math.max(0, (performance.now() - star.clearingAt) / 1000) : 0
       const inactive = resolved || clearing
-      root.userData = {
-        id: star.id,
-        number: star.number,
-        phase,
-        size,
-        startPosition,
-        targetPosition,
-        createdAt,
-        deploying,
-        holding,
-        resolved,
-        resolvedAge,
-        clearing,
-        clearingAt: star.clearingAt ? star.clearingAt / 1000 : undefined,
-        clearingAge,
-        blackHoleWinner,
-        blackHoleLockedAt: summonBlackHoleWinner?.lockedAt,
-        blackHoleAbsorptionComplete: summonBlackHoleWinner?.absorptionComplete === true,
-      }
+      root.userData = { id: star.id, number: star.number, phase, startPosition, targetPosition, createdAt, deploying, holding, resolved, resolvedAge, clearing, clearingAt: star.clearingAt ? star.clearingAt / 1000 : undefined, clearingAge }
       const coreColor = inactive ? 0x7f7f88 : holding ? 0xfff1bf : armed ? 0xffe0a3 : palette.core
       const glowColor = inactive ? 0xc0b59c : holding ? 0xffd48a : armed ? 0xffba5d : palette.glow
       const haloColor = inactive ? 0xd8ceb3 : holding ? 0xffe9bc : armed ? 0xffd48a : palette.halo
@@ -3491,7 +3476,7 @@ export default function KnowledgeGraph3D({
       if (inactive) resolvedSummonMeshesRef.current.set(star.id, core)
       else summonMeshesRef.current.set(star.id, core)
     })
-  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, summonBlackHoleWinner, softDiscTexture, selectedCoronaTexture, selectedStarburstTexture, starFlareTexture, summonCelestialTextures])
+  }, [appMode, summonStage, summonStars, selectedSummonStarId, armedSummonStarId, holdingSummonStarId, softDiscTexture, selectedCoronaTexture, selectedStarburstTexture, starFlareTexture, summonCelestialTextures])
 
   useEffect(() => {
     if (appMode !== 'summon' || summonStage !== 'drawing' || !selectedSummonStarId) return

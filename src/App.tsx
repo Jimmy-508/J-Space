@@ -64,13 +64,6 @@ type SelectionSource = 'touch' | 'mouse' | 'pointerGesture' | 'search' | 'relati
 type AppMode = 'universe' | 'transition-to-summon' | 'summon' | 'transition-to-universe'
 type TransitionTitle = 'summon' | 'universe' | null
 type SummonStage = 'setup' | 'deploying' | 'drawing'
-type LockedSummonWinner = {
-  star: SummonStar
-  triggerHandId?: string
-  lockedAt: number
-  absorptionComplete: boolean
-  releaseRequested: boolean
-}
 const SELECT_SOUND_URL = `${import.meta.env.BASE_URL}audio/03_select_confirm.wav`
 const SUMMON_CHARGE_SOUND_URL = `${import.meta.env.BASE_URL}audio/05_burst_charge.wav`
 const SUMMON_SHATTER_SOUND_URL = `${import.meta.env.BASE_URL}audio/04_compound_shatter.wav`
@@ -78,7 +71,6 @@ const SETTINGS_KEY = 'j-space-settings'
 const ADMIN_UID = 'x5fcAreao0OaxqWp56p1gAf17hf2'
 const GESTURE_UI_DWELL_MS = 720
 const GESTURE_UI_COOLDOWN_MS = 1000
-const SUMMON_BLACK_HOLE_ABSORPTION_MS = 900
 
 type AppSettings = {
   musicVolume: number
@@ -489,7 +481,6 @@ export default function App() {
   const [selectedSummonStarId, setSelectedSummonStarId] = useState<string>()
   const [armedSummonStarId, setArmedSummonStarId] = useState<string>()
   const [holdingSummonStarId, setHoldingSummonStarId] = useState<string>()
-  const [lockedSummonWinner, setLockedSummonWinner] = useState<LockedSummonWinner>()
   const [summonResult, setSummonResult] = useState<number>()
   const [summonResultOverlay, setSummonResultOverlay] = useState<{ value: number; starId: string; nonce: number }>()
   const [summonResultTarget, setSummonResultTarget] = useState<{ x: number; y: number }>()
@@ -517,7 +508,6 @@ export default function App() {
   const summonExitTimerRef = useRef<number | undefined>(undefined)
   const summonDeployTimerRef = useRef<number | undefined>(undefined)
   const summonChargeAudioRef = useRef<string | undefined>(undefined)
-  const lockedSummonWinnerRef = useRef<LockedSummonWinner | undefined>(undefined)
   const universeUiSnapshotRef = useRef<{
     selectedId?: string
     focusId?: string
@@ -566,11 +556,15 @@ export default function App() {
   const gesturePointerScreen = gestureStatus.activeGesture === 'pointer' && gestureStatus.pointerPoint
     ? normalizedToCoverViewport(gestureStatus.pointerPoint, videoSize, viewportSize, true)
     : undefined
+  const summonBlackHoleOcclusions = isSummonActive && !!holdingSummonStarId
+    ? hands.filter((hand) => hand.gesture === 'fist' || hand.gesture === 'fistWithIndex').map((hand) => {
+      const portraitBoost = viewportSize.height > viewportSize.width ? 2.7 : 1
+      const scale = Math.max(0.58, Math.min(1.9, Math.min((viewportSize.width * 0.85) / 568, (viewportSize.height * 0.72) / 242))) * portraitBoost * 1.3
+      const palm = hand.landmarks[9] ?? hand.landmarks[0]
+      return { point: normalizedToCoverViewport(palm, videoSize, viewportSize, true), scale }
+    })
+    : []
   const persist = (next: KnowledgeData) => setData(next)
-  const updateLockedSummonWinner = useCallback((next?: LockedSummonWinner) => {
-    lockedSummonWinnerRef.current = next
-    setLockedSummonWinner(next)
-  }, [])
   const cacheFallbackData = useCallback((next: KnowledgeData) => {
     try {
       knowledgeRepository.save(next)
@@ -704,7 +698,6 @@ export default function App() {
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
-    updateLockedSummonWinner(undefined)
     setSummonResult(undefined)
     setSummonResultOverlay(undefined)
     setSummonResultTarget(undefined)
@@ -717,7 +710,7 @@ export default function App() {
       summonDeployTimerRef.current = undefined
       setSummonStage('drawing')
     }, 1150)
-  }, [commitSummonMaxNumber, summonExcludedInput, updateLockedSummonWinner])
+  }, [commitSummonMaxNumber, summonExcludedInput])
 
   const resetSummon = useCallback(() => {
     if (summonDeployTimerRef.current !== undefined) {
@@ -728,7 +721,6 @@ export default function App() {
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
-    updateLockedSummonWinner(undefined)
     setSummonResult(undefined)
     setSummonResultOverlay(undefined)
     setSummonResultTarget(undefined)
@@ -736,7 +728,7 @@ export default function App() {
     summonChargeAudioRef.current = undefined
     audioManagerRef.current?.playSelect()
     setControlResetKey((value) => value + 1)
-  }, [summonExcludedInput, summonMaxNumber, updateLockedSummonWinner])
+  }, [summonExcludedInput, summonMaxNumber])
 
   const backToSummonMenu = useCallback(() => {
     if (summonDeployTimerRef.current !== undefined) {
@@ -749,14 +741,13 @@ export default function App() {
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
-    updateLockedSummonWinner(undefined)
     setSummonResult(undefined)
     setSummonResultOverlay(undefined)
     setSummonResultTarget(undefined)
     setClearingResolved(false)
     summonChargeAudioRef.current = undefined
     audioManagerRef.current?.playSelect()
-  }, [commitSummonMaxNumber, updateLockedSummonWinner])
+  }, [commitSummonMaxNumber])
 
   const exitSummon = useCallback(() => {
     if (summonTransitionTimerRef.current !== undefined) {
@@ -783,7 +774,6 @@ export default function App() {
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
-    updateLockedSummonWinner(undefined)
     setClearingResolved(false)
     summonChargeAudioRef.current = undefined
     summonExitTimerRef.current = window.setTimeout(() => {
@@ -798,10 +788,10 @@ export default function App() {
       setPendingSummonTransition(false)
       universeUiSnapshotRef.current = undefined
     }, 820)
-  }, [updateLockedSummonWinner])
+  }, [])
 
   const selectSummonStar = useCallback((id: string) => {
-    if (isTransitioning || summonStage !== 'drawing' || lockedSummonWinnerRef.current) return
+    if (isTransitioning || summonStage !== 'drawing') return
     const deselecting = selectedSummonStarId === id
     setSelectedSummonStarId(deselecting ? undefined : id)
     setArmedSummonStarId(undefined)
@@ -816,7 +806,7 @@ export default function App() {
   }, [isTransitioning, selectedSummonStarId, summonStage])
 
   const clearSummonStarSelection = useCallback(() => {
-    if (appMode !== 'summon' || isTransitioning || summonStage !== 'drawing' || lockedSummonWinnerRef.current) return
+    if (appMode !== 'summon' || isTransitioning || summonStage !== 'drawing') return
     setSelectedSummonStarId(undefined)
     setArmedSummonStarId(undefined)
     setHoldingSummonStarId(undefined)
@@ -828,7 +818,7 @@ export default function App() {
   }, [appMode, isTransitioning, summonStage])
 
   const armSummonStar = useCallback((id: string) => {
-    if (id !== selectedSummonStarId || armedSummonStarId === id || lockedSummonWinnerRef.current) return
+    if (id !== selectedSummonStarId || armedSummonStarId === id) return
     setArmedSummonStarId(id)
     setHoldingSummonStarId(undefined)
     setSummonStars((current) => current.map((star) => (
@@ -837,41 +827,15 @@ export default function App() {
     audioManagerRef.current?.playSelect()
   }, [armedSummonStarId, selectedSummonStarId])
 
-  const revealSummonWinner = useCallback((star: SummonStar) => {
-    summonChargeAudioRef.current = undefined
-    audioManagerRef.current?.playSummonShatter()
-    setSummonResult(star.number)
-    setSummonResultOverlay({ value: star.number, starId: star.id, nonce: performance.now() })
-    setSelectedSummonStarId(undefined)
-    setArmedSummonStarId(undefined)
-    setHoldingSummonStarId(undefined)
-    setSummonStars((current) => current.map((item) => (
-      item.id === star.id ? { ...item, status: 'resolved', resolvedAt: performance.now() } : item
-    )))
-    updateLockedSummonWinner(undefined)
-  }, [updateLockedSummonWinner])
-
-  const holdSummonStar = useCallback((id?: string, triggerHandId?: string) => {
+  const holdSummonStar = useCallback((id?: string) => {
     if (id && summonChargeAudioRef.current !== id) {
       summonChargeAudioRef.current = id
       audioManagerRef.current?.playSummonCharge()
     } else if (!id) {
       summonChargeAudioRef.current = undefined
     }
-    if (id && triggerHandId && !lockedSummonWinnerRef.current) {
-      const star = summonStars.find((item) => item.id === id && item.status !== 'resolved' && item.status !== 'clearing')
-      if (star) {
-        updateLockedSummonWinner({
-          star,
-          triggerHandId,
-          lockedAt: performance.now(),
-          absorptionComplete: false,
-          releaseRequested: false,
-        })
-      }
-    }
     setHoldingSummonStarId(id)
-  }, [summonStars, updateLockedSummonWinner])
+  }, [])
 
   const clearResolvedStars = useCallback(() => {
     if (clearingResolved) return
@@ -887,35 +851,21 @@ export default function App() {
     audioManagerRef.current?.playSelect()
   }, [clearingResolved])
 
-  const triggerSummonStar = useCallback((id: string, releasedHandId?: string) => {
-    const locked = lockedSummonWinnerRef.current
-    if (locked) {
-      if (locked.star.id !== id || locked.triggerHandId !== releasedHandId) return
-      setHoldingSummonStarId(undefined)
-      updateLockedSummonWinner({ ...locked, releaseRequested: true })
-      return
-    }
+  const triggerSummonStar = useCallback((id: string) => {
     if (id !== armedSummonStarId && id !== selectedSummonStarId) return
     const star = summonStars.find((item) => item.id === id && item.status !== 'resolved' && item.status !== 'clearing')
     if (!star) return
-    revealSummonWinner(star)
-  }, [armedSummonStarId, revealSummonWinner, selectedSummonStarId, summonStars, updateLockedSummonWinner])
-
-  useEffect(() => {
-    if (!lockedSummonWinner || lockedSummonWinner.absorptionComplete) return
-    const elapsed = performance.now() - lockedSummonWinner.lockedAt
-    const timer = window.setTimeout(() => {
-      const current = lockedSummonWinnerRef.current
-      if (!current || current.star.id !== lockedSummonWinner.star.id) return
-      updateLockedSummonWinner({ ...current, absorptionComplete: true })
-    }, Math.max(0, SUMMON_BLACK_HOLE_ABSORPTION_MS - elapsed))
-    return () => window.clearTimeout(timer)
-  }, [lockedSummonWinner, updateLockedSummonWinner])
-
-  useEffect(() => {
-    if (!lockedSummonWinner?.absorptionComplete || !lockedSummonWinner.releaseRequested) return
-    revealSummonWinner(lockedSummonWinner.star)
-  }, [lockedSummonWinner, revealSummonWinner])
+    summonChargeAudioRef.current = undefined
+    audioManagerRef.current?.playSummonShatter()
+    setSummonResult(star.number)
+    setSummonResultOverlay({ value: star.number, starId: id, nonce: performance.now() })
+    setSelectedSummonStarId(undefined)
+    setArmedSummonStarId(undefined)
+    setHoldingSummonStarId(undefined)
+    setSummonStars((current) => current.map((item) => (
+      item.id === id ? { ...item, status: 'resolved', resolvedAt: performance.now() } : item
+    )))
+  }, [armedSummonStarId, selectedSummonStarId, summonStars])
   const clearGestureUiDwell = useCallback(() => {
     gestureUiDwellRef.current.element?.classList.remove('gesture-dwell-hover')
     gestureUiDwellRef.current = { since: 0, triggered: false, cooldownUntil: 0 }
@@ -1342,7 +1292,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${holdingSummonStarId || lockedSummonWinner || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
+      className={`app-shell ${immersive ? 'immersive' : ''} ${viewerNode ? 'viewer-active' : ''} ${isSummonActive ? 'summon-active' : ''} ${isTransitioning ? 'summon-transitioning' : ''} ${holdingSummonStarId || summonResultOverlay ? 'summon-critical-ui-visible' : ''}`}
       onPointerMoveCapture={resetIdle}
       onPointerDownCapture={registerUserActivity}
       onClickCapture={registerUserActivity}
@@ -1380,12 +1330,8 @@ export default function App() {
         selectedSummonStarId={selectedSummonStarId}
         armedSummonStarId={armedSummonStarId}
         holdingSummonStarId={holdingSummonStarId}
-        summonBlackHoleWinner={lockedSummonWinner ? {
-          id: lockedSummonWinner.star.id,
-          lockedAt: lockedSummonWinner.lockedAt,
-          absorptionComplete: lockedSummonWinner.absorptionComplete,
-        } : undefined}
-        resultReturnStarId={summonResultOverlay?.starId ?? lockedSummonWinner?.star.id ?? holdingSummonStarId ?? armedSummonStarId ?? selectedSummonStarId}
+        summonBlackHoleOcclusions={summonBlackHoleOcclusions}
+        resultReturnStarId={summonResultOverlay?.starId ?? holdingSummonStarId ?? armedSummonStarId ?? selectedSummonStarId}
         summonedResult={summonResult}
         hands={hands}
         onSummonStarSelect={selectSummonStar}
