@@ -1066,9 +1066,19 @@ export default function KnowledgeGraph3D({
     scene.add(camera)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
     renderer.setClearColor(0x030713, 0)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
-    renderer.setSize(mount.clientWidth, mount.clientHeight)
+    const syncRendererSize = () => {
+      const width = mount.clientWidth
+      const height = mount.clientHeight
+      if (width <= 0 || height <= 0) return
+
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
+      renderer.setSize(width, height, false)
+      imageViewerRef.current?.resize()
+    }
     mount.appendChild(renderer.domElement)
+    syncRendererSize()
     scene.add(new THREE.AmbientLight(0x9fb8ff, 0.72))
     const light = new THREE.PointLight(0xcddcff, 1.7, 90)
     light.position.set(8, 10, 18)
@@ -2219,17 +2229,42 @@ export default function KnowledgeGraph3D({
     }
     animate()
 
-    const resize = () => {
-      camera.aspect = mount.clientWidth / mount.clientHeight
-      camera.updateProjectionMatrix()
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
-      renderer.setSize(mount.clientWidth, mount.clientHeight)
-      imageViewerRef.current?.resize()
+    let settleFrame: number | undefined
+    const settleTimeouts: number[] = []
+    const clearSizeSettle = () => {
+      if (settleFrame !== undefined) {
+        cancelAnimationFrame(settleFrame)
+        settleFrame = undefined
+      }
+      settleTimeouts.splice(0).forEach((timeout) => window.clearTimeout(timeout))
     }
-    window.addEventListener('resize', resize)
+    const scheduleRendererSizeSync = () => {
+      syncRendererSize()
+      clearSizeSettle()
+      settleFrame = requestAnimationFrame(() => {
+        settleFrame = undefined
+        syncRendererSize()
+      })
+      settleTimeouts.push(
+        window.setTimeout(syncRendererSize, 120),
+        window.setTimeout(syncRendererSize, 260),
+      )
+    }
+    const resizeObserver = new ResizeObserver(syncRendererSize)
+    const visualViewport = window.visualViewport
+    resizeObserver.observe(mount)
+    window.addEventListener('resize', scheduleRendererSizeSync)
+    window.addEventListener('orientationchange', scheduleRendererSizeSync)
+    visualViewport?.addEventListener('resize', scheduleRendererSizeSync)
+    visualViewport?.addEventListener('scroll', scheduleRendererSizeSync)
     return () => {
       cancelAnimationFrame(frame)
-      window.removeEventListener('resize', resize)
+      clearSizeSettle()
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', scheduleRendererSizeSync)
+      window.removeEventListener('orientationchange', scheduleRendererSizeSync)
+      visualViewport?.removeEventListener('resize', scheduleRendererSizeSync)
+      visualViewport?.removeEventListener('scroll', scheduleRendererSizeSync)
       clearFocusMotionBlur(mount)
       imageViewerRef.current?.dispose()
       imageViewerRef.current = null
