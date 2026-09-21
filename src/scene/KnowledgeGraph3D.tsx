@@ -3212,13 +3212,20 @@ export default function KnowledgeGraph3D({
     if (!mesh || !camera || !mount) return
     const world = new THREE.Vector3()
     mesh.getWorldPosition(world)
+    const node = mesh.userData.node as KnowledgeNode
+    const nodeRadius = node.id === SUMMON_NODE_ID ? 0.52 : isClusterNode(node) ? 0.68 : isContentNode(node) ? 0.4 : 0.34
+    const focusDistance = THREE.MathUtils.clamp(6.25 + (nodeRadius - 0.4) * 2.2, 6.1, 6.9)
+    const focusDirection = camera.position.clone().sub(world)
+    if (focusDirection.lengthSq() < 0.000001) focusDirection.set(0, 0.12, 1)
+    focusDirection.y += 0.12
+    focusDirection.normalize()
     const travelDistance = cameraTargetRef.current.distanceTo(world)
     viewResetRef.current = null
     focusTransitionRef.current = {
       startedAt: performance.now(),
       duration: FOCUS_TRANSITION_DURATION_MS,
       fromPosition: camera.position.clone(),
-      toPosition: new THREE.Vector3(world.x, world.y + 2, world.z + 18),
+      toPosition: world.clone().addScaledVector(focusDirection, focusDistance),
       fromTarget: cameraTargetRef.current.clone(),
       toTarget: world,
       fromRotation: groupRef.current?.rotation.clone() ?? new THREE.Euler(),
