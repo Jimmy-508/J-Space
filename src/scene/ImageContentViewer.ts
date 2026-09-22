@@ -87,6 +87,7 @@ export class ImageContentViewer3D {
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
+      fog: false,
     })
     const front = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frontMaterial)
     front.position.z = 0.025
@@ -102,6 +103,7 @@ export class ImageContentViewer3D {
         depthTest: false,
         depthWrite: false,
         toneMapped: false,
+        fog: false,
       }),
     )
     back.position.z = -0.025
@@ -117,6 +119,7 @@ export class ImageContentViewer3D {
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       toneMapped: false,
+      fog: false,
     })
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.glowMaterial)
     glow.position.z = -0.035
