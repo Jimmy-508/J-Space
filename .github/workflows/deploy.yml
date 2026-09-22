@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Historical commit SHA to build and deploy for regression testing
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
