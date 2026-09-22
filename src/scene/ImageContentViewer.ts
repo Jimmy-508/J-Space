@@ -80,7 +80,7 @@ export class ImageContentViewer3D {
 
     const frontMaterial = new THREE.MeshBasicMaterial({
       map: this.texture,
-      transparent: true,
+      transparent: false,
       opacity: 1,
       side: THREE.FrontSide,
       depthTest: false,
