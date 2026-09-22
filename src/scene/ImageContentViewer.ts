@@ -81,8 +81,8 @@ export class ImageContentViewer3D {
 
     const frontMaterial = new THREE.MeshBasicMaterial({
       map: this.texture,
-      transparent: true,
-      opacity: 0,
+      transparent: false,
+      opacity: 1,
       side: THREE.FrontSide,
       depthTest: false,
       depthWrite: false,
@@ -227,11 +227,6 @@ export class ImageContentViewer3D {
       if (progress >= 1) this.entranceComplete = true
     }
 
-    const front = this.panelObjects[2]
-    if (front instanceof THREE.Mesh) {
-      const material = front.material as THREE.MeshBasicMaterial
-      material.opacity = Math.min(1, Math.max(0, (nowMs - this.entranceStartedAt) / 260))
-    }
     if (this.glowMaterial) {
       this.glowMaterial.opacity = 0.16 + (Math.sin(nowMs * 0.0014) * 0.5 + 0.5) * 0.08
     }
