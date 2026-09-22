@@ -57,7 +57,7 @@ export class ImageContentViewer3D {
     this.image.draggable = false
     this.transform.append(this.image)
     this.layer.append(this.transform)
-    this.mount.append(this.layer)
+    document.body.append(this.layer)
     this.resize()
   }
 
@@ -211,6 +211,5 @@ export class ImageContentViewer3D {
     this.transform.style.width = `${width}px`
     this.transform.style.height = `${height}px`
     this.transform.style.transform = `perspective(${focalLength}px) translate3d(${translateX}px, ${translateY}px, 0) rotateX(${rotation.x}rad) rotateY(${rotation.y}rad) scale(${this.content.scale.x})`
-    this.layer.style.opacity = `${THREE.MathUtils.clamp((nowMs - this.entranceStartedAt) / 260, 0, 1)}`
   }
 }
