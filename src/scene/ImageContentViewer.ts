@@ -81,14 +81,26 @@ export class ImageContentViewer3D {
 
     const frontMaterial = new THREE.MeshBasicMaterial({
       map: this.texture,
-      transparent: false,
-      opacity: 1,
+      transparent: true,
+      opacity: 0,
       side: THREE.FrontSide,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
       fog: false,
     })
+    frontMaterial.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+          // Keep true transparent pixels open, while preventing photo content alpha
+          // from compositing its RGB with the deliberately dark viewer back plate.
+          float imageAlpha = diffuseColor.a / max( opacity, 0.0001 );
+          float normalizedImageAlpha = smoothstep( 0.025, 0.14, imageAlpha );
+          diffuseColor.a = normalizedImageAlpha * opacity;`,
+      )
+    }
+    frontMaterial.customProgramCacheKey = () => 'image-viewer-alpha-normalization-v1'
     const front = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frontMaterial)
     front.position.z = 0.025
     front.renderOrder = 102
@@ -227,6 +239,11 @@ export class ImageContentViewer3D {
       if (progress >= 1) this.entranceComplete = true
     }
 
+    const front = this.panelObjects[2]
+    if (front instanceof THREE.Mesh) {
+      const material = front.material as THREE.MeshBasicMaterial
+      material.opacity = Math.min(1, Math.max(0, (nowMs - this.entranceStartedAt) / 260))
+    }
     if (this.glowMaterial) {
       this.glowMaterial.opacity = 0.16 + (Math.sin(nowMs * 0.0014) * 0.5 + 0.5) * 0.08
     }
