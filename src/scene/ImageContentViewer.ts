@@ -20,6 +20,7 @@ export class ImageContentViewer3D {
   readonly content = new THREE.Group()
 
   private readonly camera: THREE.PerspectiveCamera
+  private readonly overlayScene: THREE.Scene
   private texture?: THREE.Texture
   private panelObjects: THREE.Object3D[] = []
   private resetTransition?: ResetTransition
@@ -36,15 +37,23 @@ export class ImageContentViewer3D {
     return this.content.scale.x
   }
 
-  constructor(camera: THREE.PerspectiveCamera) {
+  constructor(camera: THREE.PerspectiveCamera, overlayScene: THREE.Scene) {
     this.camera = camera
+    this.overlayScene = overlayScene
     this.root.renderOrder = 80
     this.content.position.set(0, 0, -VIEWER_DISTANCE)
     this.content.scale.setScalar(0.08)
     this.root.add(this.content)
 
-    this.camera.add(this.root)
+    this.overlayScene.add(this.root)
+    this.syncToCamera()
     this.resize()
+  }
+
+  private syncToCamera() {
+    this.camera.updateWorldMatrix(true, false)
+    this.root.position.setFromMatrixPosition(this.camera.matrixWorld)
+    this.root.quaternion.setFromRotationMatrix(this.camera.matrixWorld)
   }
 
   async load(imageUrl: string): Promise<void> {
@@ -180,6 +189,7 @@ export class ImageContentViewer3D {
   }
 
   update(nowMs: number) {
+    this.syncToCamera()
     if (this.resetTransition) {
       const progress = THREE.MathUtils.clamp((nowMs - this.resetTransition.startedAt) / this.resetTransition.duration, 0, 1)
       const eased = 1 - (1 - progress) ** 3
@@ -199,7 +209,7 @@ export class ImageContentViewer3D {
   dispose() {
     if (this.disposed) return
     this.disposed = true
-    this.camera.remove(this.root)
+    this.overlayScene.remove(this.root)
     this.disposePanel()
     this.texture?.dispose()
     this.texture = undefined

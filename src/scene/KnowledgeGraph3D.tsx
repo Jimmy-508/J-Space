@@ -872,6 +872,7 @@ export default function KnowledgeGraph3D({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const imageViewerRef = useRef<ImageContentViewer3D | null>(null)
+  const imageViewerSceneRef = useRef<THREE.Scene | null>(null)
   const nodeMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const summonMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const resolvedSummonMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
@@ -1344,6 +1345,7 @@ export default function KnowledgeGraph3D({
     summonLight.position.set(8, 10, 18)
     summonScene.add(summonLight)
     summonScene.add(summonGroup)
+    const imageViewerScene = new THREE.Scene()
     const blackHoleBackScene = new THREE.Scene()
     const blackHoleScene = new THREE.Scene()
     const blackHoleForegroundScene = new THREE.Scene()
@@ -1375,6 +1377,7 @@ export default function KnowledgeGraph3D({
     rendererRef.current = renderer
     groupRef.current = group
     summonGroupRef.current = summonGroup
+    imageViewerSceneRef.current = imageViewerScene
     initialViewRef.current = {
       position: camera.position.clone(),
       target: cameraTargetRef.current.clone(),
@@ -2571,6 +2574,12 @@ export default function KnowledgeGraph3D({
         renderer.render(summonScene, camera)
         renderer.autoClear = true
       }
+      if (viewerActive) {
+        renderer.autoClear = false
+        renderer.clearDepth()
+        renderer.render(imageViewerScene, camera)
+        renderer.autoClear = true
+      }
     }
     animate()
 
@@ -2613,6 +2622,7 @@ export default function KnowledgeGraph3D({
       clearFocusMotionBlur(mount)
       imageViewerRef.current?.dispose()
       imageViewerRef.current = null
+      imageViewerSceneRef.current = null
       summonBlackHoleCoreRef.current.forEach((core) => {
         core.geometry.dispose()
         ;(core.material as THREE.Material).dispose()
@@ -2666,12 +2676,13 @@ export default function KnowledgeGraph3D({
     const camera = cameraRef.current
     imageViewerRef.current?.dispose()
     imageViewerRef.current = null
-    if (!viewerNode || viewerNode.contentType !== 'image' || !viewerNode.imageUrl || !camera) {
+    const viewerScene = imageViewerSceneRef.current
+    if (!viewerNode || viewerNode.contentType !== 'image' || !viewerNode.imageUrl || !camera || !viewerScene) {
       onViewerLoadStateChangeRef.current?.('idle')
       return
     }
 
-    const viewer = new ImageContentViewer3D(camera)
+    const viewer = new ImageContentViewer3D(camera, viewerScene)
     imageViewerRef.current = viewer
     focusTransitionRef.current = null
     viewResetRef.current = null
