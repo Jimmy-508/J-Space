@@ -70,6 +70,7 @@ export class ImageContentViewer3D {
     const height = image.naturalHeight ?? image.height ?? 1
     this.imageAspect = Math.max(0.05, width / Math.max(1, height))
     texture.colorSpace = THREE.SRGBColorSpace
+    console.log('texture.colorSpace', texture.colorSpace)
     texture.anisotropy = 2
     const maxEdge = Math.max(width, height)
     texture.generateMipmaps = maxEdge <= 2560

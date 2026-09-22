@@ -1193,6 +1193,14 @@ export default function KnowledgeGraph3D({
     camera.position.copy(DEFAULT_CAMERA_POSITION)
     scene.add(camera)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
+    THREE.ColorManagement.enabled = true
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.toneMapping = THREE.NoToneMapping
+    renderer.toneMappingExposure = 1
+    console.log('renderer.outputColorSpace', renderer.outputColorSpace)
+    console.log('renderer.toneMapping', renderer.toneMapping)
+    console.log('renderer.toneMappingExposure', renderer.toneMappingExposure)
+    console.log('THREE.ColorManagement.enabled', THREE.ColorManagement.enabled)
     renderer.setClearColor(0x030713, 0)
     const syncRendererSize = () => {
       const width = mount.clientWidth
