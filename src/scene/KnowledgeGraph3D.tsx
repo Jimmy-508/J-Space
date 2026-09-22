@@ -872,7 +872,6 @@ export default function KnowledgeGraph3D({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const imageViewerRef = useRef<ImageContentViewer3D | null>(null)
-  const imageViewerSceneRef = useRef<THREE.Scene | null>(null)
   const nodeMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const summonMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const resolvedSummonMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map())
@@ -1193,14 +1192,6 @@ export default function KnowledgeGraph3D({
     camera.position.copy(DEFAULT_CAMERA_POSITION)
     scene.add(camera)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
-    THREE.ColorManagement.enabled = true
-    renderer.outputColorSpace = THREE.SRGBColorSpace
-    renderer.toneMapping = THREE.NoToneMapping
-    renderer.toneMappingExposure = 1
-    console.log('renderer.outputColorSpace', renderer.outputColorSpace)
-    console.log('renderer.toneMapping', renderer.toneMapping)
-    console.log('renderer.toneMappingExposure', renderer.toneMappingExposure)
-    console.log('THREE.ColorManagement.enabled', THREE.ColorManagement.enabled)
     renderer.setClearColor(0x030713, 0)
     const syncRendererSize = () => {
       const width = mount.clientWidth
@@ -1353,7 +1344,6 @@ export default function KnowledgeGraph3D({
     summonLight.position.set(8, 10, 18)
     summonScene.add(summonLight)
     summonScene.add(summonGroup)
-    const imageViewerScene = new THREE.Scene()
     const blackHoleBackScene = new THREE.Scene()
     const blackHoleScene = new THREE.Scene()
     const blackHoleForegroundScene = new THREE.Scene()
@@ -1385,7 +1375,6 @@ export default function KnowledgeGraph3D({
     rendererRef.current = renderer
     groupRef.current = group
     summonGroupRef.current = summonGroup
-    imageViewerSceneRef.current = imageViewerScene
     initialViewRef.current = {
       position: camera.position.clone(),
       target: cameraTargetRef.current.clone(),
@@ -2582,12 +2571,6 @@ export default function KnowledgeGraph3D({
         renderer.render(summonScene, camera)
         renderer.autoClear = true
       }
-      if (viewerActive) {
-        renderer.autoClear = false
-        renderer.clearDepth()
-        renderer.render(imageViewerScene, camera)
-        renderer.autoClear = true
-      }
     }
     animate()
 
@@ -2630,7 +2613,6 @@ export default function KnowledgeGraph3D({
       clearFocusMotionBlur(mount)
       imageViewerRef.current?.dispose()
       imageViewerRef.current = null
-      imageViewerSceneRef.current = null
       summonBlackHoleCoreRef.current.forEach((core) => {
         core.geometry.dispose()
         ;(core.material as THREE.Material).dispose()
@@ -2684,13 +2666,13 @@ export default function KnowledgeGraph3D({
     const camera = cameraRef.current
     imageViewerRef.current?.dispose()
     imageViewerRef.current = null
-    const viewerScene = imageViewerSceneRef.current
-    if (!viewerNode || viewerNode.contentType !== 'image' || !viewerNode.imageUrl || !camera || !viewerScene) {
+    const mount = mountRef.current
+    if (!viewerNode || viewerNode.contentType !== 'image' || !viewerNode.imageUrl || !camera || !mount) {
       onViewerLoadStateChangeRef.current?.('idle')
       return
     }
 
-    const viewer = new ImageContentViewer3D(camera, viewerScene)
+    const viewer = new ImageContentViewer3D(camera, mount)
     imageViewerRef.current = viewer
     focusTransitionRef.current = null
     viewResetRef.current = null

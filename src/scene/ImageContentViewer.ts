@@ -16,94 +16,82 @@ const GESTURE_ZOOM_MAX_CAMERA_STEP = 0.65
 const GESTURE_ZOOM_SCALE_STEP = 0.0075
 
 export class ImageContentViewer3D {
-  readonly root = new THREE.Group()
   readonly content = new THREE.Group()
 
   private readonly camera: THREE.PerspectiveCamera
-  private readonly overlayScene: THREE.Scene
-  private texture?: THREE.Texture
-  private panelObjects: THREE.Object3D[] = []
+  private readonly mount: HTMLElement
+  private readonly layer: HTMLDivElement
+  private readonly transform: HTMLDivElement
+  private readonly image: HTMLImageElement
   private resetTransition?: ResetTransition
   private entranceStartedAt = performance.now()
   private disposed = false
   private imageAspect = 1
   private entranceComplete = false
+  private loaded = false
+  private panelWidth = 1
+  private panelHeight = 1
 
   get ready() {
-    return this.panelObjects.length > 0
+    return this.loaded
   }
 
   get scale() {
     return this.content.scale.x
   }
 
-  constructor(camera: THREE.PerspectiveCamera, overlayScene: THREE.Scene) {
+  constructor(camera: THREE.PerspectiveCamera, mount: HTMLElement) {
     this.camera = camera
-    this.overlayScene = overlayScene
-    this.root.renderOrder = 80
+    this.mount = mount
     this.content.position.set(0, 0, -VIEWER_DISTANCE)
     this.content.scale.setScalar(0.08)
-    this.root.add(this.content)
 
-    this.overlayScene.add(this.root)
-    this.syncToCamera()
+    this.layer = document.createElement('div')
+    this.layer.className = 'image-viewer-dom-layer'
+    this.layer.hidden = true
+    this.transform = document.createElement('div')
+    this.transform.className = 'image-viewer-transform'
+    this.image = document.createElement('img')
+    this.image.className = 'image-viewer-image'
+    this.image.alt = ''
+    this.image.draggable = false
+    this.transform.append(this.image)
+    this.layer.append(this.transform)
+    this.mount.append(this.layer)
     this.resize()
-  }
-
-  private syncToCamera() {
-    this.camera.updateWorldMatrix(true, false)
-    this.root.position.setFromMatrixPosition(this.camera.matrixWorld)
-    this.root.quaternion.setFromRotationMatrix(this.camera.matrixWorld)
   }
 
   async load(imageUrl: string): Promise<void> {
-    const loader = new THREE.TextureLoader()
-    loader.setCrossOrigin('anonymous')
-    const texture = await loader.loadAsync(imageUrl)
-    if (this.disposed) {
-      texture.dispose()
-      return
-    }
+    this.loaded = false
+    this.layer.hidden = true
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        this.image.onload = null
+        this.image.onerror = null
+      }
+      this.image.onload = () => {
+        cleanup()
+        resolve()
+      }
+      this.image.onerror = () => {
+        cleanup()
+        reject(new Error('Image viewer source failed to load'))
+      }
+      this.image.src = imageUrl
+      if (this.image.complete && this.image.naturalWidth > 0) {
+        cleanup()
+        resolve()
+      }
+    })
+    if (this.disposed) return
 
-    const image = texture.image as { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number }
-    const width = image.naturalWidth ?? image.width ?? 1
-    const height = image.naturalHeight ?? image.height ?? 1
-    this.imageAspect = Math.max(0.05, width / Math.max(1, height))
-    texture.colorSpace = THREE.SRGBColorSpace
-    console.log('texture.colorSpace', texture.colorSpace)
-    texture.anisotropy = 2
-    const maxEdge = Math.max(width, height)
-    texture.generateMipmaps = maxEdge <= 2560
-    texture.minFilter = texture.generateMipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter
-    texture.magFilter = THREE.LinearFilter
-    texture.needsUpdate = true
-    this.texture = texture
-    this.buildPanel()
+    this.imageAspect = Math.max(0.05, this.image.naturalWidth / Math.max(1, this.image.naturalHeight))
+    this.loaded = true
+    this.layer.hidden = false
     this.resize()
     this.entranceStartedAt = performance.now()
     this.entranceComplete = false
-  }
-
-  private buildPanel() {
-    if (!this.texture) return
-    this.disposePanel()
-
-    const frontMaterial = new THREE.MeshBasicMaterial({
-      map: this.texture,
-      transparent: false,
-      opacity: 1,
-      side: THREE.FrontSide,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-      fog: false,
-    })
-    const front = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frontMaterial)
-    front.position.z = 0.025
-    front.renderOrder = 102
-
-    this.panelObjects = [front]
-    this.panelObjects.forEach((object) => this.content.add(object))
+    this.syncDom(this.entranceStartedAt)
   }
 
   resize() {
@@ -111,17 +99,9 @@ export class ImageContentViewer3D {
     const visibleWidth = visibleHeight * this.camera.aspect
     const maxWidth = visibleWidth * (this.camera.aspect < 0.8 ? 0.86 : 0.74)
     const maxHeight = visibleHeight * (this.camera.aspect < 0.8 ? 0.6 : 0.72)
-    const panelWidth = Math.min(maxWidth, maxHeight * this.imageAspect)
-    const panelHeight = panelWidth / this.imageAspect
-
-    this.panelObjects.forEach((object) => {
-      if (!(object instanceof THREE.Mesh)) return
-      object.scale.set(
-        panelWidth,
-        panelHeight,
-        1,
-      )
-    })
+    this.panelWidth = Math.min(maxWidth, maxHeight * this.imageAspect)
+    this.panelHeight = this.panelWidth / this.imageAspect
+    this.syncDom(performance.now())
   }
 
   rotateBy(dx: number, dy: number) {
@@ -190,7 +170,6 @@ export class ImageContentViewer3D {
   }
 
   update(nowMs: number) {
-    this.syncToCamera()
     if (this.resetTransition) {
       const progress = THREE.MathUtils.clamp((nowMs - this.resetTransition.startedAt) / this.resetTransition.duration, 0, 1)
       const eased = 1 - (1 - progress) ** 3
@@ -198,34 +177,40 @@ export class ImageContentViewer3D {
       this.content.quaternion.slerpQuaternions(this.resetTransition.fromQuaternion, new THREE.Quaternion(), eased)
       this.content.scale.lerpVectors(this.resetTransition.fromScale, new THREE.Vector3(1, 1, 1), eased)
       if (progress >= 1) this.resetTransition = undefined
-    } else if (!this.entranceComplete && this.panelObjects.length && this.content.scale.x < 0.999) {
+    } else if (!this.entranceComplete && this.loaded && this.content.scale.x < 0.999) {
       const progress = THREE.MathUtils.clamp((nowMs - this.entranceStartedAt) / 420, 0, 1)
       const eased = 1 - (1 - progress) ** 3
       this.content.scale.setScalar(Math.max(this.content.scale.x, 0.08 + eased * 0.92))
       if (progress >= 1) this.entranceComplete = true
     }
-
+    this.syncDom(nowMs)
   }
 
   dispose() {
     if (this.disposed) return
     this.disposed = true
-    this.overlayScene.remove(this.root)
-    this.disposePanel()
-    this.texture?.dispose()
-    this.texture = undefined
-    this.root.clear()
+    this.image.onload = null
+    this.image.onerror = null
+    this.layer.remove()
+    this.image.removeAttribute('src')
   }
 
-  private disposePanel() {
-    this.panelObjects.forEach((object) => {
-      this.content.remove(object)
-      if (object instanceof THREE.Mesh) {
-        object.geometry.dispose()
-        const materials = Array.isArray(object.material) ? object.material : [object.material]
-        materials.forEach((material) => material.dispose())
-      }
-    })
-    this.panelObjects = []
+  private syncDom(nowMs: number) {
+    if (!this.loaded || this.disposed) return
+    const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * VIEWER_DISTANCE
+    const visibleWidth = visibleHeight * this.camera.aspect
+    const viewportWidth = Math.max(1, this.mount.clientWidth)
+    const viewportHeight = Math.max(1, this.mount.clientHeight)
+    const width = (this.panelWidth / visibleWidth) * viewportWidth
+    const height = (this.panelHeight / visibleHeight) * viewportHeight
+    const translateX = (this.content.position.x / visibleWidth) * viewportWidth
+    const translateY = (-this.content.position.y / visibleHeight) * viewportHeight
+    const focalLength = viewportHeight / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)))
+    const rotation = this.content.rotation
+
+    this.transform.style.width = `${width}px`
+    this.transform.style.height = `${height}px`
+    this.transform.style.transform = `perspective(${focalLength}px) translate3d(${translateX}px, ${translateY}px, 0) rotateX(${rotation.x}rad) rotateY(${rotation.y}rad) scale(${this.content.scale.x})`
+    this.layer.style.opacity = `${THREE.MathUtils.clamp((nowMs - this.entranceStartedAt) / 260, 0, 1)}`
   }
 }
