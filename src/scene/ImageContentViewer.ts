@@ -26,7 +26,6 @@ export class ImageContentViewer3D {
   private entranceStartedAt = performance.now()
   private disposed = false
   private imageAspect = 1
-  private glowMaterial?: THREE.MeshBasicMaterial
   private entranceComplete = false
 
   get ready() {
@@ -82,62 +81,18 @@ export class ImageContentViewer3D {
     const frontMaterial = new THREE.MeshBasicMaterial({
       map: this.texture,
       transparent: true,
-      opacity: 0,
+      opacity: 1,
       side: THREE.FrontSide,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
       fog: false,
     })
-    frontMaterial.onBeforeCompile = (shader) => {
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
-          // Keep true transparent pixels open, while preventing photo content alpha
-          // from compositing its RGB with the deliberately dark viewer back plate.
-          float imageAlpha = diffuseColor.a / max( opacity, 0.0001 );
-          float normalizedImageAlpha = smoothstep( 0.025, 0.14, imageAlpha );
-          diffuseColor.a = normalizedImageAlpha * opacity;`,
-      )
-    }
-    frontMaterial.customProgramCacheKey = () => 'image-viewer-alpha-normalization-v1'
     const front = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frontMaterial)
     front.position.z = 0.025
     front.renderOrder = 102
 
-    const back = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        color: 0x071426,
-        transparent: true,
-        opacity: 0.94,
-        side: THREE.FrontSide,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false,
-        fog: false,
-      }),
-    )
-    back.position.z = -0.025
-    back.rotation.y = Math.PI
-    back.renderOrder = 101
-
-    this.glowMaterial = new THREE.MeshBasicMaterial({
-      color: 0x9fcfff,
-      transparent: true,
-      opacity: 0.2,
-      side: THREE.DoubleSide,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-      fog: false,
-    })
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.glowMaterial)
-    glow.position.z = -0.035
-    glow.renderOrder = 100
-
-    this.panelObjects = [glow, back, front]
+    this.panelObjects = [front]
     this.panelObjects.forEach((object) => this.content.add(object))
   }
 
@@ -149,11 +104,11 @@ export class ImageContentViewer3D {
     const panelWidth = Math.min(maxWidth, maxHeight * this.imageAspect)
     const panelHeight = panelWidth / this.imageAspect
 
-    this.panelObjects.forEach((object, index) => {
+    this.panelObjects.forEach((object) => {
       if (!(object instanceof THREE.Mesh)) return
       object.scale.set(
-        panelWidth + (index === 0 ? 0.14 : 0),
-        panelHeight + (index === 0 ? 0.14 : 0),
+        panelWidth,
+        panelHeight,
         1,
       )
     })
@@ -239,14 +194,6 @@ export class ImageContentViewer3D {
       if (progress >= 1) this.entranceComplete = true
     }
 
-    const front = this.panelObjects[2]
-    if (front instanceof THREE.Mesh) {
-      const material = front.material as THREE.MeshBasicMaterial
-      material.opacity = Math.min(1, Math.max(0, (nowMs - this.entranceStartedAt) / 260))
-    }
-    if (this.glowMaterial) {
-      this.glowMaterial.opacity = 0.16 + (Math.sin(nowMs * 0.0014) * 0.5 + 0.5) * 0.08
-    }
   }
 
   dispose() {
@@ -269,6 +216,5 @@ export class ImageContentViewer3D {
       }
     })
     this.panelObjects = []
-    this.glowMaterial = undefined
   }
 }
