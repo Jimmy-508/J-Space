@@ -113,7 +113,20 @@ button:disabled {
   will-change: transform;
 }
 
+.image-viewer-transform::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: #071426;
+  transform: rotateY(180deg);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  pointer-events: none;
+}
+
 .image-viewer-image {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
@@ -122,6 +135,8 @@ button:disabled {
   filter: none;
   -webkit-filter: none;
   mix-blend-mode: normal;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   user-select: none;
   -webkit-user-drag: none;
 }
