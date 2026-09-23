@@ -65,9 +65,6 @@ const summonNodeColors = {
   outerGlow: 0x8a6728,
 }
 
-const nodeGlassOpacity = 0.38
-const nodeGlassEmissiveScale = 0.6
-
 const summonStarPalettes = [
   { core: 0x4f648f, glow: 0x9eb9e8, halo: 0xd5e7ff, particle: 0xf4fbff },
   { core: 0x3e817d, glow: 0x8fd2ca, halo: 0xc8efe9, particle: 0xe9fffb },
@@ -2338,7 +2335,7 @@ export default function KnowledgeGraph3D({
         const selected = selectedIdRef.current === node.id
         material.emissiveIntensity = Math.max(
           material.emissiveIntensity,
-          ((selected ? 1.75 : 0.86) + farBoost + Math.sin(time * 0.55) * 0.06) * nodeGlassEmissiveScale,
+          (selected ? 1.75 : 0.86) + farBoost + Math.sin(time * 0.55) * 0.06,
         )
       })
       summonEffectsRef.current.forEach((object) => {
@@ -2811,33 +2808,38 @@ export default function KnowledgeGraph3D({
       const nodeRadius = isSummonNode ? 0.52 : isCluster ? 0.68 : hasContent ? 0.4 : 0.34
       const nodeColor = isSummonNode ? summonNodeColors.core : typeColors[node.type]
       const geometry = new THREE.SphereGeometry(nodeRadius, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24)
-      const material = isSummonNode
-        ? new THREE.MeshStandardMaterial({
-          color: nodeColor,
-          emissive: summonNodeColors.midGlow,
-          emissiveIntensity: 0.92,
-          roughness: 0.5,
-          transparent: false,
-          opacity: 1,
-          depthTest: true,
-          depthWrite: true,
-        })
-        : new THREE.MeshPhysicalMaterial({
-          color: nodeColor,
-          emissive: nodeColor,
-          emissiveIntensity: (isCluster ? 0.68 : hasContent ? 0.42 : 0.26) * nodeGlassEmissiveScale,
-          roughness: hasContent ? 0.22 : 0.26,
-          metalness: 0,
-          transmission: 0.45,
-          thickness: 0.55,
-          ior: 1.36,
-          clearcoat: 0.52,
-          clearcoatRoughness: 0.16,
-          transparent: true,
-          opacity: nodeGlassOpacity,
-          depthTest: true,
-          depthWrite: true,
-        })
+      const material = new THREE.MeshStandardMaterial({
+        color: nodeColor,
+        emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
+        emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
+        roughness: hasContent ? 0.38 : 0.5,
+        transparent: false,
+        opacity: 1,
+        depthTest: true,
+        depthWrite: true,
+      })
+      if (!isSummonNode) {
+        material.onBeforeCompile = (shader) => {
+          const outgoingLight = 'vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;'
+          shader.fragmentShader = shader.fragmentShader.replace(
+            outgoingLight,
+            `${outgoingLight}
+              vec3 nodeSurfaceNormal = normalize( geometryNormal );
+              vec3 nodeHighlightDirection = normalize( vec3( -0.38, 0.58, 0.72 ) );
+              vec3 nodeHighlightHalfway = normalize( nodeHighlightDirection + geometryViewDir );
+              float nodeSurfaceHighlight = pow( max( dot( nodeSurfaceNormal, nodeHighlightHalfway ), 0.0 ), 12.0 );
+              nodeSurfaceHighlight = smoothstep( 0.07, 0.58, nodeSurfaceHighlight );
+              float nodeLightLuminance = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );
+              float nodeBaseLuminance = dot( diffuseColor.rgb + totalEmissiveRadiance, vec3( 0.2126, 0.7152, 0.0722 ) );
+              float nodeSolidHighlight = smoothstep( 0.04, 0.30, nodeLightLuminance - nodeBaseLuminance );
+              float nodeGlassHighlight = max( nodeSurfaceHighlight, nodeSolidHighlight * 0.42 );
+              vec3 nodeBodyTone = diffuseColor.rgb + totalEmissiveRadiance;
+              outgoingLight = mix( outgoingLight, nodeBodyTone, nodeGlassHighlight * 0.48 );
+              outgoingLight = mix( outgoingLight, vec3( 0.86, 0.94, 1.0 ), nodeSurfaceHighlight * 0.10 );`,
+          )
+        }
+        material.customProgramCacheKey = () => 'node-body-soft-glass-highlight-v1'
+      }
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
@@ -3546,10 +3548,10 @@ export default function KnowledgeGraph3D({
       const isSummonNode = node.id === SUMMON_NODE_ID
       const hasContent = isContentNode(node)
       const active = id === selectedId || id === hoveredId || id === focusId
-      mat.opacity = isSummonNode ? 1 : nodeGlassOpacity
+      mat.opacity = 1
       mat.emissiveIntensity = isSummonNode
         ? active ? 1.9 : related.has(id) ? 1.1 : 0.92
-        : (active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isClusterNode(node) ? 0.68 : 0.28)) * nodeGlassEmissiveScale
+        : active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isClusterNode(node) ? 0.68 : 0.28)
       const baseVisualScale = active ? 1.62 : related.has(id) ? (hasContent ? 1.25 : 1.16) : 1
       mesh.userData.baseVisualScale = baseVisualScale
       mesh.scale.setScalar(baseVisualScale)
