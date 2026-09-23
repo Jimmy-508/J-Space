@@ -2944,15 +2944,17 @@ export default function KnowledgeGraph3D({
         group.add(orbit)
         const coreFlare = new THREE.Sprite(new THREE.SpriteMaterial({
           map: starFlareTexture,
-          color: typeColors[node.type],
+          color: 0xdcefff,
           opacity: 0.1,
           transparent: true,
-          blending: THREE.AdditiveBlending,
+          blending: THREE.NormalBlending,
+          depthTest: true,
           depthWrite: false,
         }))
         coreFlare.position.copy(mesh.position)
         coreFlare.scale.setScalar(1.56)
-        coreFlare.userData = { nodeId: node.id, baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true, distanceAware: true }
+        coreFlare.renderOrder = 13
+        coreFlare.userData = { nodeId: node.id, baseOpacity: 0.09, opacityRange: 0.02, speed: 0.33, faceCamera: true }
         coreEffectsRef.current.push(coreFlare)
         group.add(coreFlare)
       }
