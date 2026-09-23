@@ -2817,7 +2817,7 @@ export default function KnowledgeGraph3D({
         opacity: 1,
         blending: THREE.NormalBlending,
         depthTest: true,
-        depthWrite: true,
+        depthWrite: isSummonNode,
       })
       if (!isSummonNode) {
         material.onBeforeCompile = (shader) => {
