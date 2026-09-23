@@ -2045,8 +2045,8 @@ export default function KnowledgeGraph3D({
             dwellRef.current.triggeredAt = nowMs
             dwellRef.current.armed = false
             const burst = isSelected
-              ? createDeselectBurst(hit.world, nodeColor, starFlareTexture)
-              : createSelectBurst(hit.world, nodeColor, starFlareTexture)
+              ? createDeselectBurst(hit.world, nodeColor, softDiscTexture)
+              : createSelectBurst(hit.world, nodeColor, softDiscTexture)
             scene.add(burst)
             selectBurstRef.current.push(burst)
             if (isSelected) {
@@ -2848,7 +2848,7 @@ export default function KnowledgeGraph3D({
         contentMarkersRef.current.push(ring)
         group.add(ring)
         const flare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: selectedId === node.id ? softDiscTexture : starFlareTexture,
           color: typeColors[node.type],
           opacity: selectedId ? 0.12 : 0.16,
           transparent: true,
@@ -2912,7 +2912,7 @@ export default function KnowledgeGraph3D({
         coreEffectsRef.current.push(orbit)
         group.add(orbit)
         const coreFlare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: selectedId === node.id ? softDiscTexture : starFlareTexture,
           color: typeColors[node.type],
           opacity: 0.1,
           transparent: true,
