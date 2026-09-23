@@ -530,6 +530,26 @@ const createStarFlareTexture = () => {
   return new THREE.CanvasTexture(canvas)
 }
 
+const createNodeSurfaceReflectionTexture = () => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 192
+  canvas.height = 192
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  const gradient = ctx.createRadialGradient(96, 96, 0, 96, 96, 88)
+  gradient.addColorStop(0, 'rgba(255,255,255,0.62)')
+  gradient.addColorStop(0.24, 'rgba(225,240,255,0.34)')
+  gradient.addColorStop(0.56, 'rgba(190,220,255,0.12)')
+  gradient.addColorStop(0.8, 'rgba(175,210,255,0.035)')
+  gradient.addColorStop(1, 'rgba(175,210,255,0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  return texture
+}
+
 const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[number], seed: number) => {
   const canvas = document.createElement('canvas')
   canvas.width = 512
@@ -996,6 +1016,7 @@ export default function KnowledgeGraph3D({
   const selectedCoronaTexture = useMemo(() => createSelectedCoronaTexture(), [])
   const selectedStarburstTexture = useMemo(() => createSelectedStarburstTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
+  const nodeSurfaceReflectionTexture = useMemo(() => createNodeSurfaceReflectionTexture(), [])
   const summonCelestialTextures = useMemo(
     () => summonStarPalettes.map((palette, index) => createSummonCelestialTexture(palette, 0.137 + index * 0.149)),
     [],
@@ -2262,6 +2283,9 @@ export default function KnowledgeGraph3D({
           object.rotation.x += (object.userData.tiltDrift ?? 0.0006)
           return
         }
+        if (object.userData.surfaceReflection && nodeMesh) {
+          object.scale.setScalar((object.userData.baseScale ?? 1) * nodeMesh.scale.x)
+        }
         const material = (object as THREE.Mesh | THREE.Sprite).material as THREE.MeshBasicMaterial | THREE.SpriteMaterial
         const breath = Math.sin(time * (object.userData.speed ?? 0.48) + index * 0.8) * 0.5 + 0.5
         material.opacity = (object.userData.baseOpacity ?? 0.1) + distanceBoost + breath * (object.userData.opacityRange ?? 0.04)
@@ -2805,20 +2829,24 @@ export default function KnowledgeGraph3D({
       const nodeRadius = isSummonNode ? 0.52 : isCluster ? 0.68 : hasContent ? 0.4 : 0.34
       const nodeColor = isSummonNode ? summonNodeColors.core : typeColors[node.type]
       const geometry = new THREE.SphereGeometry(nodeRadius, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24)
-      const material = new THREE.MeshPhysicalMaterial({
+      const material = new THREE.MeshStandardMaterial({
         color: nodeColor,
         emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
         emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
-        roughness: hasContent ? 0.32 : isCluster ? 0.38 : 0.44,
-        metalness: 0,
-        clearcoat: 0.58,
-        clearcoatRoughness: 0.18,
-        ior: 1.38,
+        roughness: hasContent ? 0.38 : 0.5,
         transparent: false,
         opacity: 1,
         depthTest: true,
         depthWrite: true,
       })
+      material.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <lights_fragment_end>',
+          `#include <lights_fragment_end>
+          reflectedLight.directSpecular *= 0.42;`,
+        )
+      }
+      material.customProgramCacheKey = () => 'node-surface-specular-0.42'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
@@ -2828,6 +2856,31 @@ export default function KnowledgeGraph3D({
       }
       group.add(mesh)
       nodeMeshesRef.current.set(node.id, mesh)
+      const surfaceReflection = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: nodeSurfaceReflectionTexture,
+        color: 0xdcefff,
+        opacity: isCluster ? 0.19 : hasContent ? 0.17 : 0.15,
+        transparent: true,
+        blending: THREE.NormalBlending,
+        depthTest: false,
+        depthWrite: false,
+        fog: false,
+      }))
+      surfaceReflection.center.set(0.36, 0.68)
+      surfaceReflection.position.copy(mesh.position)
+      surfaceReflection.scale.setScalar(nodeRadius * 0.8)
+      surfaceReflection.renderOrder = 12
+      surfaceReflection.userData = {
+        nodeId: node.id,
+        surfaceReflection: true,
+        baseScale: nodeRadius * 0.8,
+        baseOpacity: isCluster ? 0.19 : hasContent ? 0.17 : 0.15,
+        opacityRange: 0.014,
+        speed: 0.28,
+        faceCamera: true,
+      }
+      coreEffectsRef.current.push(surfaceReflection)
+      group.add(surfaceReflection)
       if (hasContent || isSummonNode) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(nodeRadius + 0.12, nodeRadius + 0.17, 48),
@@ -3030,7 +3083,7 @@ export default function KnowledgeGraph3D({
       labelSpritesRef.current.push(label)
       group.add(label)
     })
-  }, [data, layout, selectedId])
+  }, [data, layout, selectedId, nodeSurfaceReflectionTexture])
 
   useEffect(() => {
     const group = summonGroupRef.current
