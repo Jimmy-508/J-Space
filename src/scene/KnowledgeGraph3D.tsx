@@ -2963,6 +2963,7 @@ export default function KnowledgeGraph3D({
           depthWrite: false,
         }))
         coreFlare.position.copy(mesh.position)
+        coreFlare.visible = false
         coreFlare.scale.setScalar(1.56)
         coreFlare.userData = { nodeId: node.id, baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true, distanceAware: true }
         coreEffectsRef.current.push(coreFlare)
