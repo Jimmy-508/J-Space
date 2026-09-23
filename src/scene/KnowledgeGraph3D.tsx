@@ -2805,11 +2805,15 @@ export default function KnowledgeGraph3D({
       const nodeRadius = isSummonNode ? 0.52 : isCluster ? 0.68 : hasContent ? 0.4 : 0.34
       const nodeColor = isSummonNode ? summonNodeColors.core : typeColors[node.type]
       const geometry = new THREE.SphereGeometry(nodeRadius, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24)
-      const material = new THREE.MeshStandardMaterial({
+      const material = new THREE.MeshPhysicalMaterial({
         color: nodeColor,
         emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
         emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
-        roughness: hasContent ? 0.38 : 0.5,
+        roughness: hasContent ? 0.32 : isCluster ? 0.38 : 0.44,
+        metalness: 0,
+        clearcoat: 0.58,
+        clearcoatRoughness: 0.18,
+        ior: 1.38,
         transparent: false,
         opacity: 1,
         depthTest: true,
