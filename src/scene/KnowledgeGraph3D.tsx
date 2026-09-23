@@ -2326,8 +2326,11 @@ export default function KnowledgeGraph3D({
       })
       nodeMeshesRef.current.forEach((mesh) => {
         const node = mesh.userData.node as KnowledgeNode
-        if (!isClusterNode(node)) return
         const material = mesh.material as THREE.MeshStandardMaterial
+        const nodeReflectionTime = material.userData.nodeReflectionTime as { value: number } | undefined
+        if (nodeReflectionTime) nodeReflectionTime.value = time
+
+        if (!isClusterNode(node)) return
         const world = new THREE.Vector3()
         mesh.getWorldPosition(world)
         const distance = camera.position.distanceTo(world)
@@ -2819,16 +2822,39 @@ export default function KnowledgeGraph3D({
         depthTest: true,
         depthWrite: false,
       })
+      const nodeReflectionTime = { value: 0 }
+      material.userData.nodeReflectionTime = nodeReflectionTime
       material.onBeforeCompile = (shader) => {
+        shader.uniforms.uNodeReflectionTime = nodeReflectionTime
+        shader.fragmentShader = shader.fragmentShader.replace(
+          'void main() {',
+          'uniform float uNodeReflectionTime;\n\nvoid main() {',
+        )
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <opaque_fragment>',
-          `float nodeFrontFacing = max( dot( normalize( geometryNormal ), normalize( geometryViewDir ) ), 0.0 );
+          `vec3 nodeSurfaceNormal = normalize( geometryNormal );
+            vec3 nodeViewDirection = normalize( geometryViewDir );
+            float nodeReflectionTimeValue = uNodeReflectionTime * 0.18;
+            vec3 nodeReflectionDirection = normalize( vec3(
+              -0.42 + sin( nodeReflectionTimeValue ) * 0.16,
+               0.52 + cos( nodeReflectionTimeValue * 0.83 ) * 0.12,
+               1.0
+            ) );
+            float nodeReflectionDot = max( dot( nodeSurfaceNormal, nodeReflectionDirection ), 0.0 );
+            float nodeReflectionMask = smoothstep( 0.68, 0.90, nodeReflectionDot );
+            nodeReflectionMask = pow( nodeReflectionMask, 1.15 );
+            float nodeViewResponse = 0.75 + pow( 1.0 - max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 ), 1.6 ) * 0.25;
+            float nodeGlassReflection = nodeReflectionMask * nodeViewResponse;
+            vec3 nodeReflectionTint = vec3( 0.82, 0.91, 1.0 );
+            outgoingLight += nodeReflectionTint * nodeGlassReflection * 0.22;
+
+            float nodeFrontFacing = max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 );
             float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
             diffuseColor.a = mix( 0.90, 0.24, nodeCenterMask );
             #include <opaque_fragment>`,
         )
       }
-      material.customProgramCacheKey = () => 'node-body-front-alpha-v1'
+      material.customProgramCacheKey = () => 'node-body-front-alpha-dynamic-reflection-v1'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
