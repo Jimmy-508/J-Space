@@ -2925,6 +2925,35 @@ export default function KnowledgeGraph3D({
         coreEffectsRef.current.push(coreFlare)
         group.add(coreFlare)
       }
+      if (isSummonNode) {
+        const summonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softDiscTexture,
+          color: summonNodeColors.outerGlow,
+          opacity: 0.18,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }))
+        summonHalo.position.copy(mesh.position)
+        summonHalo.scale.setScalar(1.72)
+        summonHalo.userData = { nodeId: node.id, baseOpacity: 0.15, opacityRange: 0.045, speed: 0.34, faceCamera: true, distanceAware: true }
+        coreEffectsRef.current.push(summonHalo)
+        group.add(summonHalo)
+        ;[
+          { radius: 0.74, width: 0.022, rotation: [0.92, 0.24, 0.18], speed: 0.0012, opacity: 0.2 },
+          { radius: 0.88, width: 0.014, rotation: [1.18, -0.42, 0.62], speed: -0.0008, opacity: 0.13 },
+        ].forEach((ringConfig) => {
+          const summonRing = new THREE.Mesh(
+            new THREE.RingGeometry(ringConfig.radius, ringConfig.radius + ringConfig.width, 80),
+            makeHaloMaterial(summonNodeColors.core, ringConfig.opacity),
+          )
+          summonRing.position.copy(mesh.position)
+          summonRing.rotation.set(ringConfig.rotation[0], ringConfig.rotation[1], ringConfig.rotation[2])
+          summonRing.userData = { nodeId: node.id, baseOpacity: ringConfig.opacity * 0.62, opacityRange: ringConfig.opacity * 0.16, speed: 0.34, spin: ringConfig.speed }
+          coreEffectsRef.current.push(summonRing)
+          group.add(summonRing)
+        })
+      }
       if (selectedId && node.id === selectedId) {
         const color = getNodeColor(node)
         const halo = new THREE.Mesh(new THREE.SphereGeometry(isCluster ? 1.42 : 1.02, 28, 18), makeHaloMaterial(color, 0.24))
@@ -2933,7 +2962,7 @@ export default function KnowledgeGraph3D({
         selectedEffectsRef.current.push(halo)
         group.add(halo)
         const wakeFlare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: softDiscTexture,
           color,
           opacity: 0.28,
           transparent: true,
@@ -2995,7 +3024,7 @@ export default function KnowledgeGraph3D({
       labelSpritesRef.current.push(label)
       group.add(label)
     })
-  }, [data, layout, selectedId])
+  }, [data, layout, selectedId, softDiscTexture])
 
   useEffect(() => {
     const group = summonGroupRef.current
