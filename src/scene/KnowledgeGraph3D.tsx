@@ -2841,12 +2841,12 @@ export default function KnowledgeGraph3D({
                1.0
             ) );
             float nodeReflectionDot = max( dot( nodeSurfaceNormal, nodeReflectionDirection ), 0.0 );
-            float nodeReflectionMask = smoothstep( 0.62, 0.88, nodeReflectionDot );
+            float nodeReflectionMask = smoothstep( 0.58, 0.86, nodeReflectionDot );
             nodeReflectionMask = pow( nodeReflectionMask, 1.15 );
             float nodeViewResponse = 0.75 + pow( 1.0 - max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 ), 1.6 ) * 0.25;
             float nodeGlassReflection = nodeReflectionMask * nodeViewResponse;
-            vec3 nodeReflectionTint = vec3( 0.84, 0.93, 1.0 );
-            outgoingLight += nodeReflectionTint * nodeGlassReflection * 0.32;
+            vec3 nodeReflectionTint = vec3( 0.86, 0.94, 1.0 );
+            outgoingLight += nodeReflectionTint * nodeGlassReflection * 0.36;
 
             float nodeFrontFacing = max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 );
             float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
