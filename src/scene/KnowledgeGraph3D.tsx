@@ -2810,37 +2810,25 @@ export default function KnowledgeGraph3D({
       const geometry = new THREE.SphereGeometry(nodeRadius, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24)
       const material = new THREE.MeshStandardMaterial({
         color: nodeColor,
-        emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
-        emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
+        emissive: nodeColor,
+        emissiveIntensity: isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
         roughness: hasContent ? 0.38 : 0.5,
-        transparent: !isSummonNode,
+        transparent: true,
         opacity: 1,
         blending: THREE.NormalBlending,
         depthTest: true,
-        depthWrite: isSummonNode,
+        depthWrite: false,
       })
-      if (!isSummonNode) {
-        material.onBeforeCompile = (shader) => {
-          shader.fragmentShader = shader.fragmentShader.replace(
-            '#include <opaque_fragment>',
-            `vec3 nodeSurfaceNormal = normalize( geometryNormal );
-              vec3 nodeViewDirection = normalize( geometryViewDir );
-              vec3 nodeHighlightDirection = normalize( vec3( -0.45, 0.55, 1.0 ) );
-              float nodeRawHighlight = max( dot( nodeSurfaceNormal, nodeHighlightDirection ), 0.0 );
-              float nodeHighlightMask = smoothstep( 0.55, 0.92, nodeRawHighlight );
-              nodeHighlightMask = pow( nodeHighlightMask, 1.4 );
-              float nodeFresnel = pow( 1.0 - max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 ), 1.5 );
-              float nodeGlassHighlight = nodeHighlightMask * ( 0.75 + nodeFresnel * 0.25 );
-              vec3 nodeReflectionTint = vec3( 0.84, 0.92, 1.0 );
-              outgoingLight = mix( outgoingLight, mix( outgoingLight, nodeReflectionTint, 0.55 ), nodeGlassHighlight * 0.18 );
-              float nodeFrontFacing = max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 );
-              float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
-              diffuseColor.a = mix( 0.90, 0.24, nodeCenterMask );
-              #include <opaque_fragment>`,
-          )
-        }
-        material.customProgramCacheKey = () => 'node-body-front-alpha-soft-highlight-v1'
+      material.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <opaque_fragment>',
+          `float nodeFrontFacing = max( dot( normalize( geometryNormal ), normalize( geometryViewDir ) ), 0.0 );
+            float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
+            diffuseColor.a = mix( 0.90, 0.24, nodeCenterMask );
+            #include <opaque_fragment>`,
+        )
       }
+      material.customProgramCacheKey = () => 'node-body-front-alpha-v1'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
@@ -2850,10 +2838,10 @@ export default function KnowledgeGraph3D({
       }
       group.add(mesh)
       nodeMeshesRef.current.set(node.id, mesh)
-      if (hasContent || isSummonNode) {
+      if (hasContent) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(nodeRadius + 0.12, nodeRadius + 0.17, 48),
-          makeHaloMaterial(isSummonNode ? summonNodeColors.outerGlow : typeColors[node.type], isSummonNode ? 0.38 : selectedId ? 0.16 : 0.2),
+          makeHaloMaterial(typeColors[node.type], selectedId ? 0.16 : 0.2),
         )
         ring.position.copy(mesh.position)
         ring.userData = { nodeId: node.id, markerKind: 'content-ring', baseOpacity: selectedId ? 0.09 : 0.14, opacityRange: 0.055, baseScale: 1, scaleRange: 0.035, faceCamera: true }
@@ -2861,8 +2849,8 @@ export default function KnowledgeGraph3D({
         group.add(ring)
         const flare = new THREE.Sprite(new THREE.SpriteMaterial({
           map: starFlareTexture,
-          color: isSummonNode ? summonNodeColors.midGlow : typeColors[node.type],
-          opacity: isSummonNode ? selectedId ? 0.16 : 0.22 : selectedId ? 0.12 : 0.16,
+          color: typeColors[node.type],
+          opacity: selectedId ? 0.12 : 0.16,
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
@@ -2872,51 +2860,6 @@ export default function KnowledgeGraph3D({
         flare.userData = { nodeId: node.id, markerKind: 'content-flare', baseOpacity: selectedId ? 0.07 : 0.09, opacityRange: 0.04, baseScale: 0.96, scaleRange: 0.08, faceCamera: true }
         contentMarkersRef.current.push(flare)
         group.add(flare)
-        if (isSummonNode) {
-          const sealedGlow = new THREE.Mesh(
-            new THREE.SphereGeometry(1.22, 26, 16),
-            makeHaloMaterial(summonNodeColors.midGlow, 0.12),
-          )
-          sealedGlow.position.copy(mesh.position)
-          sealedGlow.userData = { nodeId: node.id, baseOpacity: 0.095, opacityRange: 0.045, speed: 0.38, distanceAware: true }
-          coreEffectsRef.current.push(sealedGlow)
-          group.add(sealedGlow)
-          ;[
-            { radius: 0.84, width: 0.024, rotation: [0.95, 0.26, 0.32], speed: 0.0014, opacity: 0.28 },
-            { radius: 1.03, width: 0.018, rotation: [1.2, -0.42, 0.78], speed: -0.001, opacity: 0.17 },
-          ].forEach((ringConfig) => {
-            const sealRing = new THREE.Mesh(
-              new THREE.RingGeometry(ringConfig.radius, ringConfig.radius + ringConfig.width, 88),
-              makeHaloMaterial(summonNodeColors.core, ringConfig.opacity),
-            )
-            sealRing.position.copy(mesh.position)
-            sealRing.rotation.set(ringConfig.rotation[0], ringConfig.rotation[1], ringConfig.rotation[2])
-            sealRing.userData = { nodeId: node.id, baseOpacity: ringConfig.opacity * 0.5, opacityRange: ringConfig.opacity * 0.2, speed: 0.32, spin: ringConfig.speed }
-            coreEffectsRef.current.push(sealRing)
-            group.add(sealRing)
-          })
-          const sealOrbit = new THREE.Object3D()
-          sealOrbit.position.copy(mesh.position)
-          sealOrbit.rotation.set(0.82, -0.28, 0.2)
-          sealOrbit.userData = { nodeId: node.id, orbit: true, speed: 0.0024, tiltDrift: 0.00012 }
-          Array.from({ length: 5 }).forEach((_, dotIndex) => {
-            const dot = new THREE.Mesh(
-              new THREE.SphereGeometry(0.026 + (dotIndex % 2) * 0.008, 8, 6),
-              new THREE.MeshBasicMaterial({
-                color: dotIndex % 2 === 0 ? summonNodeColors.core : summonNodeColors.midGlow,
-                transparent: true,
-                opacity: 0.48,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-              }),
-            )
-            const angle = (dotIndex / 5) * Math.PI * 2
-            dot.position.set(Math.cos(angle) * 1.12, Math.sin(angle) * 1.12, 0)
-            sealOrbit.add(dot)
-          })
-          coreEffectsRef.current.push(sealOrbit)
-          group.add(sealOrbit)
-        }
       } else if (isCluster) {
         const clusterGlow = new THREE.Mesh(new THREE.SphereGeometry(1.04, 22, 14), makeHaloMaterial(typeColors[node.type], 0.08))
         clusterGlow.position.copy(mesh.position)
@@ -3546,13 +3489,10 @@ export default function KnowledgeGraph3D({
     nodeMeshesRef.current.forEach((mesh, id) => {
       const mat = mesh.material as THREE.MeshStandardMaterial
       const node = mesh.userData.node as KnowledgeNode
-      const isSummonNode = node.id === SUMMON_NODE_ID
       const hasContent = isContentNode(node)
       const active = id === selectedId || id === hoveredId || id === focusId
       mat.opacity = 1
-      mat.emissiveIntensity = isSummonNode
-        ? active ? 1.9 : related.has(id) ? 1.1 : 0.92
-        : active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isClusterNode(node) ? 0.68 : 0.28)
+      mat.emissiveIntensity = active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isClusterNode(node) ? 0.68 : 0.28)
       const baseVisualScale = active ? 1.62 : related.has(id) ? (hasContent ? 1.25 : 1.16) : 1
       mesh.userData.baseVisualScale = baseVisualScale
       mesh.scale.setScalar(baseVisualScale)
