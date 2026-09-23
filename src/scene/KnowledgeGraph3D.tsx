@@ -2823,13 +2823,23 @@ export default function KnowledgeGraph3D({
         material.onBeforeCompile = (shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <opaque_fragment>',
-            `float nodeFrontFacing = max( dot( normalize( geometryNormal ), normalize( geometryViewDir ) ), 0.0 );
+            `vec3 nodeSurfaceNormal = normalize( geometryNormal );
+              vec3 nodeViewDirection = normalize( geometryViewDir );
+              vec3 nodeHighlightDirection = normalize( vec3( -0.45, 0.55, 1.0 ) );
+              float nodeRawHighlight = max( dot( nodeSurfaceNormal, nodeHighlightDirection ), 0.0 );
+              float nodeHighlightMask = smoothstep( 0.55, 0.92, nodeRawHighlight );
+              nodeHighlightMask = pow( nodeHighlightMask, 1.4 );
+              float nodeFresnel = pow( 1.0 - max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 ), 1.5 );
+              float nodeGlassHighlight = nodeHighlightMask * ( 0.75 + nodeFresnel * 0.25 );
+              vec3 nodeReflectionTint = vec3( 0.84, 0.92, 1.0 );
+              outgoingLight = mix( outgoingLight, mix( outgoingLight, nodeReflectionTint, 0.55 ), nodeGlassHighlight * 0.18 );
+              float nodeFrontFacing = max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 );
               float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
               diffuseColor.a = mix( 0.90, 0.24, nodeCenterMask );
               #include <opaque_fragment>`,
           )
         }
-        material.customProgramCacheKey = () => 'node-body-front-alpha-v1'
+        material.customProgramCacheKey = () => 'node-body-front-alpha-soft-highlight-v1'
       }
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
