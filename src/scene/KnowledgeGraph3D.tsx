@@ -2903,16 +2903,19 @@ export default function KnowledgeGraph3D({
       } else if (isCluster) {
         const clusterGlow = new THREE.Mesh(new THREE.SphereGeometry(1.04, 22, 14), makeHaloMaterial(typeColors[node.type], 0.08))
         clusterGlow.position.copy(mesh.position)
+        clusterGlow.visible = false
         clusterGlow.userData = { nodeId: node.id, markerKind: 'cluster-glow', baseOpacity: 0.045, opacityRange: 0.025, baseScale: 1, scaleRange: 0.04 }
         contentMarkersRef.current.push(clusterGlow)
         group.add(clusterGlow)
         const innerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.16, 24, 14), makeHaloMaterial(typeColors[node.type], 0.1))
         innerGlow.position.copy(mesh.position)
+        innerGlow.visible = false
         innerGlow.userData = { nodeId: node.id, baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42, distanceAware: true }
         coreEffectsRef.current.push(innerGlow)
         group.add(innerGlow)
         const outerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.72, 24, 14), makeHaloMaterial(typeColors[node.type], 0.045))
         outerGlow.position.copy(mesh.position)
+        outerGlow.visible = false
         outerGlow.userData = { nodeId: node.id, baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28, distanceAware: true }
         coreEffectsRef.current.push(outerGlow)
         group.add(outerGlow)
