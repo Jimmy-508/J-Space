@@ -530,6 +530,26 @@ const createStarFlareTexture = () => {
   return new THREE.CanvasTexture(canvas)
 }
 
+const createNodeReflectionTexture = () => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 192
+  canvas.height = 192
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  const gradient = ctx.createRadialGradient(96, 96, 0, 96, 96, 92)
+  gradient.addColorStop(0, 'rgba(255,255,255,0.92)')
+  gradient.addColorStop(0.16, 'rgba(225,240,255,0.48)')
+  gradient.addColorStop(0.44, 'rgba(180,220,255,0.16)')
+  gradient.addColorStop(0.72, 'rgba(160,200,255,0.045)')
+  gradient.addColorStop(1, 'rgba(160,200,255,0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  return texture
+}
+
 const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[number], seed: number) => {
   const canvas = document.createElement('canvas')
   canvas.width = 512
@@ -996,6 +1016,7 @@ export default function KnowledgeGraph3D({
   const selectedCoronaTexture = useMemo(() => createSelectedCoronaTexture(), [])
   const selectedStarburstTexture = useMemo(() => createSelectedStarburstTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
+  const nodeReflectionTexture = useMemo(() => createNodeReflectionTexture(), [])
   const summonCelestialTextures = useMemo(
     () => summonStarPalettes.map((palette, index) => createSummonCelestialTexture(palette, 0.137 + index * 0.149)),
     [],
@@ -2834,7 +2855,7 @@ export default function KnowledgeGraph3D({
         contentMarkersRef.current.push(ring)
         group.add(ring)
         const flare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: nodeReflectionTexture,
           color: isSummonNode ? summonNodeColors.midGlow : typeColors[node.type],
           opacity: isSummonNode ? selectedId ? 0.16 : 0.22 : selectedId ? 0.12 : 0.16,
           transparent: true,
@@ -2943,7 +2964,7 @@ export default function KnowledgeGraph3D({
         coreEffectsRef.current.push(orbit)
         group.add(orbit)
         const coreFlare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: nodeReflectionTexture,
           color: typeColors[node.type],
           opacity: 0.1,
           transparent: true,
@@ -3026,7 +3047,7 @@ export default function KnowledgeGraph3D({
       labelSpritesRef.current.push(label)
       group.add(label)
     })
-  }, [data, layout, selectedId])
+  }, [data, layout, selectedId, nodeReflectionTexture])
 
   useEffect(() => {
     const group = summonGroupRef.current
