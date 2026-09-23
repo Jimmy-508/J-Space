@@ -2822,6 +2822,11 @@ export default function KnowledgeGraph3D({
       if (!isSummonNode) {
         material.onBeforeCompile = (shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <lights_fragment_end>',
+            `#include <lights_fragment_end>
+              reflectedLight.indirectDiffuse *= 0.0;`,
+          )
+          shader.fragmentShader = shader.fragmentShader.replace(
             '#include <opaque_fragment>',
             `float nodeFrontFacing = max( dot( normalize( geometryNormal ), normalize( geometryViewDir ) ), 0.0 );
               float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
@@ -2829,7 +2834,7 @@ export default function KnowledgeGraph3D({
               #include <opaque_fragment>`,
           )
         }
-        material.customProgramCacheKey = () => 'node-body-front-alpha-v1'
+        material.customProgramCacheKey = () => 'node-body-front-alpha-indirect-diffuse-off-v1'
       }
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
