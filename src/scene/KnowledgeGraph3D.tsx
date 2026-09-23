@@ -530,26 +530,6 @@ const createStarFlareTexture = () => {
   return new THREE.CanvasTexture(canvas)
 }
 
-const createNodeSurfaceReflectionTexture = () => {
-  const canvas = document.createElement('canvas')
-  canvas.width = 192
-  canvas.height = 192
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return new THREE.CanvasTexture(canvas)
-  const gradient = ctx.createRadialGradient(96, 96, 0, 96, 96, 88)
-  gradient.addColorStop(0, 'rgba(255,255,255,0.62)')
-  gradient.addColorStop(0.24, 'rgba(225,240,255,0.34)')
-  gradient.addColorStop(0.56, 'rgba(190,220,255,0.12)')
-  gradient.addColorStop(0.8, 'rgba(175,210,255,0.035)')
-  gradient.addColorStop(1, 'rgba(175,210,255,0)')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.minFilter = THREE.LinearFilter
-  texture.magFilter = THREE.LinearFilter
-  return texture
-}
-
 const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[number], seed: number) => {
   const canvas = document.createElement('canvas')
   canvas.width = 512
@@ -1016,7 +996,6 @@ export default function KnowledgeGraph3D({
   const selectedCoronaTexture = useMemo(() => createSelectedCoronaTexture(), [])
   const selectedStarburstTexture = useMemo(() => createSelectedStarburstTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
-  const nodeSurfaceReflectionTexture = useMemo(() => createNodeSurfaceReflectionTexture(), [])
   const summonCelestialTextures = useMemo(
     () => summonStarPalettes.map((palette, index) => createSummonCelestialTexture(palette, 0.137 + index * 0.149)),
     [],
@@ -2283,9 +2262,6 @@ export default function KnowledgeGraph3D({
           object.rotation.x += (object.userData.tiltDrift ?? 0.0006)
           return
         }
-        if (object.userData.surfaceReflection && nodeMesh) {
-          object.scale.setScalar((object.userData.baseScale ?? 1) * nodeMesh.scale.x)
-        }
         const material = (object as THREE.Mesh | THREE.Sprite).material as THREE.MeshBasicMaterial | THREE.SpriteMaterial
         const breath = Math.sin(time * (object.userData.speed ?? 0.48) + index * 0.8) * 0.5 + 0.5
         material.opacity = (object.userData.baseOpacity ?? 0.1) + distanceBoost + breath * (object.userData.opacityRange ?? 0.04)
@@ -2737,6 +2713,45 @@ export default function KnowledgeGraph3D({
     coreEffectsRef.current = []
     labelSpritesRef.current = []
     relatedHalosRef.current = []
+    const nodeSurfaceReflectionMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        reflectionColor: { value: new THREE.Color(0xdcefff) },
+      },
+      vertexShader: `
+        varying vec3 vViewNormal;
+        varying vec3 vViewPosition;
+
+        void main() {
+          vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+          vViewNormal = normalize(normalMatrix * normal);
+          vViewPosition = -viewPosition.xyz;
+          gl_Position = projectionMatrix * viewPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 reflectionColor;
+        varying vec3 vViewNormal;
+        varying vec3 vViewPosition;
+
+        void main() {
+          vec3 normal = normalize(vViewNormal);
+          vec3 viewDirection = normalize(vViewPosition);
+          vec3 highlightDirection = normalize(vec3(-0.34, 0.56, 0.76));
+          vec3 halfwayDirection = normalize(highlightDirection + viewDirection);
+          float highlight = pow(max(dot(normal, halfwayDirection), 0.0), 10.0);
+          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.6);
+          float alpha = min(0.18, highlight * (0.14 + fresnel * 0.08));
+          gl_FragColor = vec4(reflectionColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      side: THREE.FrontSide,
+      fog: false,
+      toneMapped: false,
+    })
     const blackHoleNode = data.nodes.find(isBlackHoleNode)
     const blackHoleCenter = blackHoleNode ? layout.get(blackHoleNode.id) : undefined
     const relatedIds = getRelatedIds(data, selectedId)
@@ -2856,31 +2871,13 @@ export default function KnowledgeGraph3D({
       }
       group.add(mesh)
       nodeMeshesRef.current.set(node.id, mesh)
-      const surfaceReflection = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: nodeSurfaceReflectionTexture,
-        color: 0xdcefff,
-        opacity: isCluster ? 0.19 : hasContent ? 0.17 : 0.15,
-        transparent: true,
-        blending: THREE.NormalBlending,
-        depthTest: false,
-        depthWrite: false,
-        fog: false,
-      }))
-      surfaceReflection.center.set(0.36, 0.68)
-      surfaceReflection.position.copy(mesh.position)
-      surfaceReflection.scale.setScalar(nodeRadius * 0.8)
-      surfaceReflection.renderOrder = 12
-      surfaceReflection.userData = {
-        nodeId: node.id,
-        surfaceReflection: true,
-        baseScale: nodeRadius * 0.8,
-        baseOpacity: isCluster ? 0.19 : hasContent ? 0.17 : 0.15,
-        opacityRange: 0.014,
-        speed: 0.28,
-        faceCamera: true,
-      }
-      coreEffectsRef.current.push(surfaceReflection)
-      group.add(surfaceReflection)
+      const reflectionShell = new THREE.Mesh(
+        new THREE.SphereGeometry(nodeRadius * 1.008, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24),
+        nodeSurfaceReflectionMaterial,
+      )
+      reflectionShell.renderOrder = 12
+      reflectionShell.userData.role = 'nodeSurfaceReflection'
+      mesh.add(reflectionShell)
       if (hasContent || isSummonNode) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(nodeRadius + 0.12, nodeRadius + 0.17, 48),
@@ -3083,7 +3080,7 @@ export default function KnowledgeGraph3D({
       labelSpritesRef.current.push(label)
       group.add(label)
     })
-  }, [data, layout, selectedId, nodeSurfaceReflectionTexture])
+  }, [data, layout, selectedId])
 
   useEffect(() => {
     const group = summonGroupRef.current
