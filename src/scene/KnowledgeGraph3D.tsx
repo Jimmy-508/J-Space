@@ -2821,6 +2821,7 @@ export default function KnowledgeGraph3D({
       material.customProgramCacheKey = () => 'node-surface-direct-light-0.0'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
+      mesh.visible = isSummonNode
       mesh.userData = {
         node,
         basePosition: mesh.position.clone(),
