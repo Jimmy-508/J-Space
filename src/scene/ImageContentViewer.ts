@@ -115,7 +115,7 @@ export class ImageContentViewer3D {
   }
 
   rotateBy(dx: number, dy: number) {
-    this.rotateByRadians(dx * 0.006, dy * 0.004)
+    this.rotateByRadians(dx * 0.006, dy * -0.004)
   }
 
   rotateByRadians(yaw: number, pitch: number) {
