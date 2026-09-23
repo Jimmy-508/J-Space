@@ -31,6 +31,7 @@ export class ImageContentViewer3D {
   private loaded = false
   private panelWidth = 1
   private panelHeight = 1
+  private revealFrame?: number
 
   get ready() {
     return this.loaded
@@ -49,6 +50,7 @@ export class ImageContentViewer3D {
     this.layer = document.createElement('div')
     this.layer.className = 'image-viewer-dom-layer'
     this.layer.hidden = true
+    this.layer.style.visibility = 'hidden'
     this.transform = document.createElement('div')
     this.transform.className = 'image-viewer-transform'
     this.image = document.createElement('img')
@@ -62,8 +64,10 @@ export class ImageContentViewer3D {
   }
 
   async load(imageUrl: string): Promise<void> {
+    this.cancelReveal()
     this.loaded = false
     this.layer.hidden = true
+    this.layer.style.visibility = 'hidden'
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {
         this.image.onload = null
@@ -87,11 +91,17 @@ export class ImageContentViewer3D {
 
     this.imageAspect = Math.max(0.05, this.image.naturalWidth / Math.max(1, this.image.naturalHeight))
     this.loaded = true
-    this.layer.hidden = false
-    this.resize()
     this.entranceStartedAt = performance.now()
     this.entranceComplete = false
+    this.layer.hidden = false
+    this.resize()
     this.syncDom(this.entranceStartedAt)
+    this.revealFrame = requestAnimationFrame(() => {
+      this.revealFrame = requestAnimationFrame(() => {
+        this.revealFrame = undefined
+        if (!this.disposed && this.loaded) this.layer.style.visibility = 'visible'
+      })
+    })
   }
 
   resize() {
@@ -189,10 +199,17 @@ export class ImageContentViewer3D {
   dispose() {
     if (this.disposed) return
     this.disposed = true
+    this.cancelReveal()
     this.image.onload = null
     this.image.onerror = null
     this.layer.remove()
     this.image.removeAttribute('src')
+  }
+
+  private cancelReveal() {
+    if (this.revealFrame === undefined) return
+    cancelAnimationFrame(this.revealFrame)
+    this.revealFrame = undefined
   }
 
   private syncDom(nowMs: number) {

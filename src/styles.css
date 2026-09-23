@@ -104,6 +104,7 @@ button:disabled {
   -webkit-filter: none;
   mix-blend-mode: normal;
   isolation: isolate;
+  visibility: hidden;
 }
 
 .image-viewer-transform {
