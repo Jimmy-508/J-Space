@@ -2813,32 +2813,23 @@ export default function KnowledgeGraph3D({
         emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
         emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
         roughness: hasContent ? 0.38 : 0.5,
-        transparent: false,
+        transparent: !isSummonNode,
         opacity: 1,
+        blending: THREE.NormalBlending,
         depthTest: true,
         depthWrite: true,
       })
       if (!isSummonNode) {
         material.onBeforeCompile = (shader) => {
-          const outgoingLight = 'vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;'
           shader.fragmentShader = shader.fragmentShader.replace(
-            outgoingLight,
-            `${outgoingLight}
-              vec3 nodeSurfaceNormal = normalize( geometryNormal );
-              vec3 nodeHighlightDirection = normalize( vec3( -0.38, 0.58, 0.72 ) );
-              vec3 nodeHighlightHalfway = normalize( nodeHighlightDirection + geometryViewDir );
-              float nodeSurfaceHighlight = pow( max( dot( nodeSurfaceNormal, nodeHighlightHalfway ), 0.0 ), 12.0 );
-              nodeSurfaceHighlight = smoothstep( 0.07, 0.58, nodeSurfaceHighlight );
-              float nodeLightLuminance = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );
-              float nodeBaseLuminance = dot( diffuseColor.rgb + totalEmissiveRadiance, vec3( 0.2126, 0.7152, 0.0722 ) );
-              float nodeSolidHighlight = smoothstep( 0.04, 0.30, nodeLightLuminance - nodeBaseLuminance );
-              float nodeGlassHighlight = max( nodeSurfaceHighlight, nodeSolidHighlight * 0.42 );
-              vec3 nodeBodyTone = diffuseColor.rgb + totalEmissiveRadiance;
-              outgoingLight = mix( outgoingLight, nodeBodyTone, nodeGlassHighlight * 0.48 );
-              outgoingLight = mix( outgoingLight, vec3( 0.86, 0.94, 1.0 ), nodeSurfaceHighlight * 0.10 );`,
+            '#include <opaque_fragment>',
+            `float nodeFrontFacing = max( dot( normalize( geometryNormal ), normalize( geometryViewDir ) ), 0.0 );
+              float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
+              diffuseColor.a = mix( 0.90, 0.24, nodeCenterMask );
+              #include <opaque_fragment>`,
           )
         }
-        material.customProgramCacheKey = () => 'node-body-soft-glass-highlight-v1'
+        material.customProgramCacheKey = () => 'node-body-front-alpha-v1'
       }
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
