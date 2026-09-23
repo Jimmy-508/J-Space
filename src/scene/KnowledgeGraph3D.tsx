@@ -65,6 +65,9 @@ const summonNodeColors = {
   outerGlow: 0x8a6728,
 }
 
+const nodeGlassOpacity = 0.38
+const nodeGlassEmissiveScale = 0.6
+
 const summonStarPalettes = [
   { core: 0x4f648f, glow: 0x9eb9e8, halo: 0xd5e7ff, particle: 0xf4fbff },
   { core: 0x3e817d, glow: 0x8fd2ca, halo: 0xc8efe9, particle: 0xe9fffb },
@@ -2328,7 +2331,15 @@ export default function KnowledgeGraph3D({
         const node = mesh.userData.node as KnowledgeNode
         if (!isClusterNode(node)) return
         const material = mesh.material as THREE.MeshStandardMaterial
-        material.emissiveIntensity = 0
+        const world = new THREE.Vector3()
+        mesh.getWorldPosition(world)
+        const distance = camera.position.distanceTo(world)
+        const farBoost = THREE.MathUtils.clamp((distance - 22) / 48, 0, 0.62)
+        const selected = selectedIdRef.current === node.id
+        material.emissiveIntensity = Math.max(
+          material.emissiveIntensity,
+          ((selected ? 1.75 : 0.86) + farBoost + Math.sin(time * 0.55) * 0.06) * nodeGlassEmissiveScale,
+        )
       })
       summonEffectsRef.current.forEach((object) => {
         const phase = object.userData.phase ?? 0
@@ -2800,28 +2811,35 @@ export default function KnowledgeGraph3D({
       const nodeRadius = isSummonNode ? 0.52 : isCluster ? 0.68 : hasContent ? 0.4 : 0.34
       const nodeColor = isSummonNode ? summonNodeColors.core : typeColors[node.type]
       const geometry = new THREE.SphereGeometry(nodeRadius, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24)
-      const material = new THREE.MeshStandardMaterial({
-        color: nodeColor,
-        emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
-        emissiveIntensity: isSummonNode ? 0.92 : 0,
-        roughness: hasContent ? 0.38 : 0.5,
-        transparent: false,
-        opacity: 1,
-        depthTest: true,
-        depthWrite: true,
-      })
-      material.onBeforeCompile = (shader) => {
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <lights_fragment_end>',
-          `#include <lights_fragment_end>
-          reflectedLight.directSpecular *= 0.0;
-          reflectedLight.directDiffuse *= 0.0;`,
-        )
-      }
-      material.customProgramCacheKey = () => 'node-surface-direct-light-0.0'
+      const material = isSummonNode
+        ? new THREE.MeshStandardMaterial({
+          color: nodeColor,
+          emissive: summonNodeColors.midGlow,
+          emissiveIntensity: 0.92,
+          roughness: 0.5,
+          transparent: false,
+          opacity: 1,
+          depthTest: true,
+          depthWrite: true,
+        })
+        : new THREE.MeshPhysicalMaterial({
+          color: nodeColor,
+          emissive: nodeColor,
+          emissiveIntensity: (isCluster ? 0.68 : hasContent ? 0.42 : 0.26) * nodeGlassEmissiveScale,
+          roughness: hasContent ? 0.22 : 0.26,
+          metalness: 0,
+          transmission: 0.45,
+          thickness: 0.55,
+          ior: 1.36,
+          clearcoat: 0.52,
+          clearcoatRoughness: 0.16,
+          transparent: true,
+          opacity: nodeGlassOpacity,
+          depthTest: true,
+          depthWrite: true,
+        })
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
-      mesh.visible = isSummonNode
       mesh.userData = {
         node,
         basePosition: mesh.position.clone(),
@@ -2899,19 +2917,16 @@ export default function KnowledgeGraph3D({
       } else if (isCluster) {
         const clusterGlow = new THREE.Mesh(new THREE.SphereGeometry(1.04, 22, 14), makeHaloMaterial(typeColors[node.type], 0.08))
         clusterGlow.position.copy(mesh.position)
-        clusterGlow.visible = false
         clusterGlow.userData = { nodeId: node.id, markerKind: 'cluster-glow', baseOpacity: 0.045, opacityRange: 0.025, baseScale: 1, scaleRange: 0.04 }
         contentMarkersRef.current.push(clusterGlow)
         group.add(clusterGlow)
         const innerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.16, 24, 14), makeHaloMaterial(typeColors[node.type], 0.1))
         innerGlow.position.copy(mesh.position)
-        innerGlow.visible = false
         innerGlow.userData = { nodeId: node.id, baseOpacity: 0.08, opacityRange: 0.045, speed: 0.42, distanceAware: true }
         coreEffectsRef.current.push(innerGlow)
         group.add(innerGlow)
         const outerGlow = new THREE.Mesh(new THREE.SphereGeometry(1.72, 24, 14), makeHaloMaterial(typeColors[node.type], 0.045))
         outerGlow.position.copy(mesh.position)
-        outerGlow.visible = false
         outerGlow.userData = { nodeId: node.id, baseOpacity: 0.035, opacityRange: 0.025, speed: 0.28, distanceAware: true }
         coreEffectsRef.current.push(outerGlow)
         group.add(outerGlow)
@@ -2959,7 +2974,6 @@ export default function KnowledgeGraph3D({
           depthWrite: false,
         }))
         coreFlare.position.copy(mesh.position)
-        coreFlare.visible = false
         coreFlare.scale.setScalar(1.56)
         coreFlare.userData = { nodeId: node.id, baseOpacity: 0.075, opacityRange: 0.03, speed: 0.33, faceCamera: true, distanceAware: true }
         coreEffectsRef.current.push(coreFlare)
@@ -3532,10 +3546,10 @@ export default function KnowledgeGraph3D({
       const isSummonNode = node.id === SUMMON_NODE_ID
       const hasContent = isContentNode(node)
       const active = id === selectedId || id === hoveredId || id === focusId
-      mat.opacity = 1
+      mat.opacity = isSummonNode ? 1 : nodeGlassOpacity
       mat.emissiveIntensity = isSummonNode
         ? active ? 1.9 : related.has(id) ? 1.1 : 0.92
-        : 0
+        : (active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isClusterNode(node) ? 0.68 : 0.28)) * nodeGlassEmissiveScale
       const baseVisualScale = active ? 1.62 : related.has(id) ? (hasContent ? 1.25 : 1.16) : 1
       mesh.userData.baseVisualScale = baseVisualScale
       mesh.scale.setScalar(baseVisualScale)
