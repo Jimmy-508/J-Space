@@ -2328,12 +2328,7 @@ export default function KnowledgeGraph3D({
         const node = mesh.userData.node as KnowledgeNode
         if (!isClusterNode(node)) return
         const material = mesh.material as THREE.MeshStandardMaterial
-        const world = new THREE.Vector3()
-        mesh.getWorldPosition(world)
-        const distance = camera.position.distanceTo(world)
-        const farBoost = THREE.MathUtils.clamp((distance - 22) / 48, 0, 0.62)
-        const selected = selectedIdRef.current === node.id
-        material.emissiveIntensity = Math.max(material.emissiveIntensity, (selected ? 1.75 : 0.86) + farBoost + Math.sin(time * 0.55) * 0.06)
+        material.emissiveIntensity = 0
       })
       summonEffectsRef.current.forEach((object) => {
         const phase = object.userData.phase ?? 0
@@ -2808,7 +2803,7 @@ export default function KnowledgeGraph3D({
       const material = new THREE.MeshStandardMaterial({
         color: nodeColor,
         emissive: isSummonNode ? summonNodeColors.midGlow : nodeColor,
-        emissiveIntensity: isSummonNode ? 0.92 : isCluster ? 0.68 : hasContent ? 0.42 : 0.26,
+        emissiveIntensity: isSummonNode ? 0.92 : 0,
         roughness: hasContent ? 0.38 : 0.5,
         transparent: false,
         opacity: 1,
@@ -3535,12 +3530,11 @@ export default function KnowledgeGraph3D({
       const node = mesh.userData.node as KnowledgeNode
       const isSummonNode = node.id === SUMMON_NODE_ID
       const hasContent = isContentNode(node)
-      const isCluster = isClusterNode(node)
       const active = id === selectedId || id === hoveredId || id === focusId
       mat.opacity = 1
       mat.emissiveIntensity = isSummonNode
         ? active ? 1.9 : related.has(id) ? 1.1 : 0.92
-        : active ? 1.55 : related.has(id) ? (hasContent ? 0.72 : 0.56) : selectedId ? 0.05 : (hasContent ? 0.5 : isCluster ? 0.68 : 0.28)
+        : 0
       const baseVisualScale = active ? 1.62 : related.has(id) ? (hasContent ? 1.25 : 1.16) : 1
       mesh.userData.baseVisualScale = baseVisualScale
       mesh.scale.setScalar(baseVisualScale)
