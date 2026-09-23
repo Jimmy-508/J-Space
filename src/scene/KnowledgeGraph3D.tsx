@@ -2841,12 +2841,12 @@ export default function KnowledgeGraph3D({
                1.0
             ) );
             float nodeReflectionDot = max( dot( nodeSurfaceNormal, nodeReflectionDirection ), 0.0 );
-            float nodeReflectionMask = smoothstep( 0.68, 0.90, nodeReflectionDot );
+            float nodeReflectionMask = smoothstep( 0.62, 0.88, nodeReflectionDot );
             nodeReflectionMask = pow( nodeReflectionMask, 1.15 );
             float nodeViewResponse = 0.75 + pow( 1.0 - max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 ), 1.6 ) * 0.25;
             float nodeGlassReflection = nodeReflectionMask * nodeViewResponse;
-            vec3 nodeReflectionTint = vec3( 0.82, 0.91, 1.0 );
-            outgoingLight += nodeReflectionTint * nodeGlassReflection * 0.22;
+            vec3 nodeReflectionTint = vec3( 0.84, 0.93, 1.0 );
+            outgoingLight += nodeReflectionTint * nodeGlassReflection * 0.32;
 
             float nodeFrontFacing = max( dot( nodeSurfaceNormal, nodeViewDirection ), 0.0 );
             float nodeCenterMask = smoothstep( 0.45, 0.90, nodeFrontFacing );
@@ -2854,7 +2854,7 @@ export default function KnowledgeGraph3D({
             #include <opaque_fragment>`,
         )
       }
-      material.customProgramCacheKey = () => 'node-body-front-alpha-dynamic-reflection-v1'
+      material.customProgramCacheKey = () => 'node-body-front-alpha-dynamic-reflection-v2'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
