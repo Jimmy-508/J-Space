@@ -530,6 +530,26 @@ const createStarFlareTexture = () => {
   return new THREE.CanvasTexture(canvas)
 }
 
+const createNodeReflectionTexture = () => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 192
+  canvas.height = 192
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  const gradient = ctx.createRadialGradient(96, 96, 8, 96, 96, 92)
+  gradient.addColorStop(0, 'rgba(255,255,255,0.48)')
+  gradient.addColorStop(0.18, 'rgba(225,241,255,0.26)')
+  gradient.addColorStop(0.5, 'rgba(190,222,255,0.09)')
+  gradient.addColorStop(0.76, 'rgba(180,220,255,0.025)')
+  gradient.addColorStop(1, 'rgba(180,220,255,0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  return texture
+}
+
 const createSummonCelestialTexture = (palette: (typeof summonStarPalettes)[number], seed: number) => {
   const canvas = document.createElement('canvas')
   canvas.width = 512
@@ -996,6 +1016,7 @@ export default function KnowledgeGraph3D({
   const selectedCoronaTexture = useMemo(() => createSelectedCoronaTexture(), [])
   const selectedStarburstTexture = useMemo(() => createSelectedStarburstTexture(), [])
   const starFlareTexture = useMemo(() => createStarFlareTexture(), [])
+  const nodeReflectionTexture = useMemo(() => createNodeReflectionTexture(), [])
   const summonCelestialTextures = useMemo(
     () => summonStarPalettes.map((palette, index) => createSummonCelestialTexture(palette, 0.137 + index * 0.149)),
     [],
@@ -2305,13 +2326,12 @@ export default function KnowledgeGraph3D({
             ? THREE.MathUtils.lerp(0.78, 0.52, depth)
             : THREE.MathUtils.lerp(0.76, 0.42, depth)
           const depthScale = THREE.MathUtils.lerp(1.04, 0.88, depth)
-          const depthOrder = Math.round(THREE.MathUtils.lerp(20, 14, depth))
           const priorityOpacity = selected ? 0.94 : hovered ? 0.92 : 0.9
           const priorityBoost = selected ? 1.2 : hovered || focused ? 1.14 : 1
           const clusterBoost = priority ? 1 : label.userData.isCluster ? 1.08 : 1
 
           material.opacity = priority ? priorityOpacity : baseOpacity
-          label.renderOrder = priority ? 23 : depthOrder
+          label.renderOrder = 26
           labelCameraDirection.copy(camera.position).sub(labelWorld).normalize().applyQuaternion(labelParentInverseQuaternion)
           label.position.copy(nodeMesh.position).addScaledVector(
             labelCameraDirection,
@@ -2834,7 +2854,7 @@ export default function KnowledgeGraph3D({
         contentMarkersRef.current.push(ring)
         group.add(ring)
         const flare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: nodeReflectionTexture,
           color: isSummonNode ? summonNodeColors.midGlow : typeColors[node.type],
           opacity: isSummonNode ? selectedId ? 0.16 : 0.22 : selectedId ? 0.12 : 0.16,
           transparent: true,
@@ -2943,7 +2963,7 @@ export default function KnowledgeGraph3D({
         coreEffectsRef.current.push(orbit)
         group.add(orbit)
         const coreFlare = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: starFlareTexture,
+          map: nodeReflectionTexture,
           color: typeColors[node.type],
           opacity: 0.1,
           transparent: true,
@@ -3005,11 +3025,11 @@ export default function KnowledgeGraph3D({
         map: createNodeLabelTexture(node.title),
         transparent: true,
         opacity: 0,
-        depthTest: true,
+        depthTest: false,
         depthWrite: false,
       }))
       label.position.copy(mesh.position)
-      label.renderOrder = 20
+      label.renderOrder = 26
       const labelWidth = nodeRadius * (isCluster ? 2.55 : 2.22)
       const labelHeight = nodeRadius * (isCluster ? 1.26 : 1.08)
       label.scale.set(labelWidth, labelHeight, 1)
@@ -3026,7 +3046,7 @@ export default function KnowledgeGraph3D({
       labelSpritesRef.current.push(label)
       group.add(label)
     })
-  }, [data, layout, selectedId])
+  }, [data, layout, selectedId, nodeReflectionTexture])
 
   useEffect(() => {
     const group = summonGroupRef.current
