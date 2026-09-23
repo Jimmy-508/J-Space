@@ -4107,13 +4107,21 @@ export default function KnowledgeGraph3D({
       }}
       onTouchMove={(event) => {
         if (appModeRef.current === 'transition-to-summon' || appModeRef.current === 'transition-to-universe' || summonStageRef.current === 'deploying') return
-        if (event.touches.length === 1 && touchRef.current.mode === 'rotate' && appModeRef.current === 'summon' && summonGroupRef.current) {
-          event.preventDefault()
+        if (event.touches.length === 1 && touchRef.current.mode === 'rotate') {
           const touch = event.touches[0]
           const dx = touch.clientX - touchRef.current.lastMidpoint.x
           const dy = touch.clientY - touchRef.current.lastMidpoint.y
-          summonGroupRef.current.rotation.y += dx * 0.006
-          summonGroupRef.current.rotation.x += dy * 0.004
+          const viewer = imageViewerRef.current
+          if (viewer?.ready) {
+            event.preventDefault()
+            viewer.rotateBy(dx, dy)
+          } else if (appModeRef.current === 'summon' && summonGroupRef.current) {
+            event.preventDefault()
+            summonGroupRef.current.rotation.y += dx * 0.006
+            summonGroupRef.current.rotation.x += dy * 0.004
+          } else {
+            return
+          }
           touchRef.current.lastMidpoint.set(touch.clientX, touch.clientY)
           return
         }
