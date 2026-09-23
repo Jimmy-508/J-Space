@@ -2713,45 +2713,6 @@ export default function KnowledgeGraph3D({
     coreEffectsRef.current = []
     labelSpritesRef.current = []
     relatedHalosRef.current = []
-    const nodeSurfaceReflectionMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        reflectionColor: { value: new THREE.Color(0xdcefff) },
-      },
-      vertexShader: `
-        varying vec3 vViewNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-          vViewNormal = normalize(normalMatrix * normal);
-          vViewPosition = -viewPosition.xyz;
-          gl_Position = projectionMatrix * viewPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 reflectionColor;
-        varying vec3 vViewNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vec3 normal = normalize(vViewNormal);
-          vec3 viewDirection = normalize(vViewPosition);
-          vec3 highlightDirection = normalize(vec3(-0.34, 0.56, 0.76));
-          vec3 halfwayDirection = normalize(highlightDirection + viewDirection);
-          float highlight = pow(max(dot(normal, halfwayDirection), 0.0), 10.0);
-          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.6);
-          float alpha = min(0.18, highlight * (0.14 + fresnel * 0.08));
-          gl_FragColor = vec4(reflectionColor, alpha);
-        }
-      `,
-      transparent: true,
-      depthTest: true,
-      depthWrite: false,
-      blending: THREE.NormalBlending,
-      side: THREE.FrontSide,
-      fog: false,
-      toneMapped: false,
-    })
     const blackHoleNode = data.nodes.find(isBlackHoleNode)
     const blackHoleCenter = blackHoleNode ? layout.get(blackHoleNode.id) : undefined
     const relatedIds = getRelatedIds(data, selectedId)
@@ -2858,10 +2819,10 @@ export default function KnowledgeGraph3D({
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <lights_fragment_end>',
           `#include <lights_fragment_end>
-          reflectedLight.directSpecular *= 0.42;`,
+          reflectedLight.directSpecular *= 0.0;`,
         )
       }
-      material.customProgramCacheKey = () => 'node-surface-specular-0.42'
+      material.customProgramCacheKey = () => 'node-surface-specular-0.0'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
@@ -2871,13 +2832,6 @@ export default function KnowledgeGraph3D({
       }
       group.add(mesh)
       nodeMeshesRef.current.set(node.id, mesh)
-      const reflectionShell = new THREE.Mesh(
-        new THREE.SphereGeometry(nodeRadius * 1.008, isCluster || hasContent ? 48 : 36, isCluster || hasContent ? 32 : 24),
-        nodeSurfaceReflectionMaterial,
-      )
-      reflectionShell.renderOrder = 12
-      reflectionShell.userData.role = 'nodeSurfaceReflection'
-      mesh.add(reflectionShell)
       if (hasContent || isSummonNode) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(nodeRadius + 0.12, nodeRadius + 0.17, 48),
