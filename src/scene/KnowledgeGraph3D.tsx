@@ -2819,10 +2819,11 @@ export default function KnowledgeGraph3D({
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <lights_fragment_end>',
           `#include <lights_fragment_end>
-          reflectedLight.directSpecular *= 0.0;`,
+          reflectedLight.directSpecular *= 0.0;
+          reflectedLight.directDiffuse *= 0.0;`,
         )
       }
-      material.customProgramCacheKey = () => 'node-surface-specular-0.0'
+      material.customProgramCacheKey = () => 'node-surface-direct-light-0.0'
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(layout.get(node.id) ?? new THREE.Vector3())
       mesh.userData = {
