@@ -141,7 +141,7 @@ export class ImageContentViewer3D {
   zoomBy(factor: number) {
     this.cancelReset()
     this.entranceComplete = true
-    const next = THREE.MathUtils.clamp(this.content.scale.x * factor, 0.38, 4.2)
+    const next = THREE.MathUtils.clamp(this.content.scale.x * factor, 0.38, 6.0)
     this.content.scale.setScalar(next)
   }
 
@@ -153,7 +153,7 @@ export class ImageContentViewer3D {
     const next = THREE.MathUtils.clamp(
       this.content.scale.x + normalizedStep * GESTURE_ZOOM_SCALE_STEP * frameScale,
       0.38,
-      4.2,
+      6.0,
     )
     this.content.scale.setScalar(next)
   }
@@ -161,7 +161,7 @@ export class ImageContentViewer3D {
   setScale(scale: number) {
     this.cancelReset()
     this.entranceComplete = true
-    this.content.scale.setScalar(THREE.MathUtils.clamp(scale, 0.38, 4.2))
+    this.content.scale.setScalar(THREE.MathUtils.clamp(scale, 0.38, 6.0))
   }
 
   reset() {

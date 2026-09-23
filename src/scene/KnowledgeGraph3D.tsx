@@ -1741,7 +1741,7 @@ export default function KnowledgeGraph3D({
         if (activeGesture?.activeGesture === 'rotate') {
           viewer.rotateByRadians(
             THREE.MathUtils.clamp(activeGesture.rotateDelta.x * -4.2, -0.045, 0.045),
-            THREE.MathUtils.clamp(activeGesture.rotateDelta.y * 3.2, -0.035, 0.035),
+            THREE.MathUtils.clamp(activeGesture.rotateDelta.y * -3.2, -0.035, 0.035),
           )
         } else if (activeGesture && (activeGesture.activeGesture === 'zoomIn' || activeGesture.activeGesture === 'zoomOut')) {
           const zoomStep = THREE.MathUtils.clamp(activeGesture.zoomDelta * 34, -0.65, 0.65)

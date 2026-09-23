@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { AudioManager } from './audio/AudioManager'
 import { clearBackgroundMusic, loadBackgroundMusic, saveBackgroundMusic } from './audio/audioStorage'
 import NodeForm from './components/NodeForm'
@@ -289,8 +290,7 @@ function HandEnergyOverlay({
   const hiddenHandIds = new Set([...summonEnergyHands.map((hand) => hand.id), ...collapseHands.map((hand) => hand.id)])
   if (!handsReady) return null
 
-  return (
-    <>
+  return createPortal(
       <svg
         className="hand-energy-layer"
         viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
@@ -435,8 +435,8 @@ function HandEnergyOverlay({
           <circle className="star-cursor-sparkle sparkle-c" cx={cursor.point.x + 6} cy={cursor.point.y + 18} r="1.35" />
         </g>
       ))}
-      </svg>
-    </>
+      </svg>,
+    document.body,
   )
 }
 
